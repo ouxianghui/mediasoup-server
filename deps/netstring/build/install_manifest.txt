@@ -1,0 +1,2 @@
+/Users/jackie.ou/Desktop/Research/mediasoup-server/release/lib/libnetstring.a
+/Users/jackie.ou/Desktop/Research/mediasoup-server/release/include/netstring.h

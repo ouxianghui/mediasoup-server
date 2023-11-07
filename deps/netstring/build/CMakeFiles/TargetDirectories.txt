@@ -1,0 +1,7 @@
+/Users/jackie.ou/Desktop/Research/mediasoup-server/deps/netstring/build/CMakeFiles/netstring.dir
+/Users/jackie.ou/Desktop/Research/mediasoup-server/deps/netstring/build/CMakeFiles/edit_cache.dir
+/Users/jackie.ou/Desktop/Research/mediasoup-server/deps/netstring/build/CMakeFiles/rebuild_cache.dir
+/Users/jackie.ou/Desktop/Research/mediasoup-server/deps/netstring/build/CMakeFiles/list_install_components.dir
+/Users/jackie.ou/Desktop/Research/mediasoup-server/deps/netstring/build/CMakeFiles/install.dir
+/Users/jackie.ou/Desktop/Research/mediasoup-server/deps/netstring/build/CMakeFiles/install/local.dir
+/Users/jackie.ou/Desktop/Research/mediasoup-server/deps/netstring/build/CMakeFiles/install/strip.dir

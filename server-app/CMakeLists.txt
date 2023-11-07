@@ -1,0 +1,169 @@
+cmake_minimum_required(VERSION 3.5)
+
+set(PROJECT_NAME "server-app")
+
+project(${PROJECT_NAME})
+message("\n=========== ${PROJECT_NAME} Build Configuration ===========\n")
+message(STATUS "PROJECT_INCLUDE_DIR : " ${PROJECT_INCLUDE_DIR})
+message(STATUS "PROJECT_LIB_DIR : " ${PROJECT_LIB_DIR})
+
+# C++ standard requirements.
+set(CMAKE_CXX_STANDAR 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if (NOT WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+ENDif ()
+
+IF (WIN32)
+
+ELSEIF (APPLE)
+
+ELSEIF (UNIX)
+  message(STATUS "This is BINARY dir " ${PROJECT_BINARY_DIR})
+  message(STATUS "This is SOURCE dir " ${PROJECT_SOURCE_DIR})
+  message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+  message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+ENDIF ()
+
+include_directories(src)
+
+set(sources
+    src/App.cpp
+    src/AppComponent.hpp
+    src/controller/RoomsController.hpp
+    src/controller/StatisticsController.hpp
+    src/rooms/Peer.cpp
+    src/rooms/Peer.hpp
+    src/rooms/Room.cpp
+    src/rooms/Room.hpp
+    src/rooms/Lobby.cpp
+    src/rooms/Lobby.hpp
+    src/utils/Statistics.cpp
+    src/utils/Statistics.hpp
+    src/utils/Message.cpp
+    src/utils/Message.hpp
+    src/dto/DTOs.hpp
+    src/dto/Config.hpp
+)
+
+add_executable(${PROJECT_NAME} ${sources} )
+
+if (IS_BIG_ENDIAN)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE "MS_BIG_ENDIAN")
+else()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE "MS_LITTLE_ENDIAN")
+endif ()
+
+
+if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    target_compile_definitions(${PROJECT_NAME} 
+        PRIVATE 
+        _POSIX_C_SOURCE=200112
+        _GNU_SOURCE
+    )
+ELSEif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+    set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--export-dynamic")
+ELSEif (CMAKE_SYSTEM_NAME MATCHES "Windows")
+    target_include_directories(${PROJECT_NAME}
+    PRIVATE
+    ../deps/getopt/src
+)
+ENDif (CMAKE_SYSTEM_NAME MATCHES "Linux")
+
+if (UNIX)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC")
+ENDif ()
+message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})
+
+if (APPLE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+    set_property(TARGET ${PROJECT_NAME}
+        PROPERTY XCODE_ATTRIBUTE_WARNING_CFLAGS
+        -std=c++14
+        PROPERTY XCODE_ATTRIBUTE_OTHER_CPLUSPLUSFLAGS
+    )
+ENDif ()
+
+# Public (interface) headers from dependencies.
+target_include_directories(${PROJECT_NAME} PUBLIC
+  ${PROJECT_INCLUDE_DIR}
+  ${WORKER_INCLUDE_DIR}
+  ${SERVER_INCLUDE_DIR}
+  ${LIB_WEBRTC_INCLUDE_DIR}
+  ${SERVER_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/json/single_include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libwebrtc/deps/abseil-cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libsdptransform
+  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
+)
+LINK_DIRECTORIES(
+	${PROJECT_LIB_DIR}
+)
+
+IF (WIN32)
+  target_link_libraries(${PROJECT_NAME}
+      worker
+      server
+      libwebrtc
+      ${PROJECT_LIB_DIR}/oatpp-websocket.lib
+      ${PROJECT_LIB_DIR}/oatpp.lib
+      ${PROJECT_LIB_DIR}/oatpp-openssl.lib
+      ${PROJECT_LIB_DIR}/netstring.lib
+      ${PROJECT_LIB_DIR}/uv_a.lib
+      ${PROJECT_LIB_DIR}/libssl.lib
+      ${PROJECT_LIB_DIR}/libcrypto.lib
+      ${PROJECT_LIB_DIR}/srtp2.lib
+      ${PROJECT_LIB_DIR}/usrsctp.lib
+      ${PROJECT_LIB_DIR}/absl_internal_throw_delegate.lib
+      ${PROJECT_LIB_DIR}/absl_strings.lib
+      ${PROJECT_LIB_DIR}/absl_optional.lib
+      ${PROJECT_LIB_DIR}/absl_base.lib
+      ${PROJECT_LIB_DIR}/absl_bad_optional_access.lib
+      ${PROJECT_LIB_DIR}/absl_bad_variant_access.lib
+      ${PROJECT_LIB_DIR}/absl_internal_bad_any_cast_impl.lib
+      ${PROJECT_LIB_DIR}/sdptransform.lib
+      ${PROJECT_LIB_DIR}/getopt.lib
+      ws2_32
+      userenv
+  )
+  
+ELSE ()
+
+target_link_libraries(${PROJECT_NAME}
+    worker
+    server
+    libwebrtc
+    ${PROJECT_LIB_DIR}/liboatpp-websocket.a
+    ${PROJECT_LIB_DIR}/liboatpp.a
+    ${PROJECT_LIB_DIR}/liboatpp-openssl.a
+    ${PROJECT_LIB_DIR}/libnetstring.a
+    ${PROJECT_LIB_DIR}/libuv_a.a
+    ${PROJECT_LIB_DIR}/libssl.a
+    ${PROJECT_LIB_DIR}/libcrypto.a
+    ${PROJECT_LIB_DIR}/libsrtp2.a
+    ${PROJECT_LIB_DIR}/libusrsctp.a
+    ${PROJECT_LIB_DIR}/libabsl_internal_throw_delegate.a
+    ${PROJECT_LIB_DIR}/libabsl_strings.a
+    ${PROJECT_LIB_DIR}/libabsl_optional.a
+    ${PROJECT_LIB_DIR}/libabsl_bad_optional_access.a
+    ${PROJECT_LIB_DIR}/libabsl_bad_variant_access.a
+    ${PROJECT_LIB_DIR}/libabsl_internal_bad_any_cast_impl.a
+    ${PROJECT_LIB_DIR}/libabsl_hashtablez_sampler.a
+    ${PROJECT_LIB_DIR}/libabsl_raw_hash_set.a
+    ${PROJECT_LIB_DIR}/libabsl_hash.a
+    ${PROJECT_LIB_DIR}/libabsl_city.a
+    ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
+    ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
+    ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
+
+    dl
+    ${PROJECT_LIB_DIR}/libsdptransform.a
+    ${PROJECT_LIB_DIR}/libuv_a.a
+    
+)
+ENDif ()
+install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+

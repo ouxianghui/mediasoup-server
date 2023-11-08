@@ -1,11 +1,11 @@
 {
-	"domain": "124.221.73.157",
+	"domain": "localhost",
 	"https": {
 		"listenIp": "124.221.73.157",
 		"listenPort": 8443,
 		"tls": {
-			"cert": "",
-			"key": ""
+			"cert": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt",
+			"key": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem"
 		}
 	},
 	"mediasoup": {

@@ -28,25 +28,20 @@
 #define AppComponent_hpp
 
 #include "rooms/Lobby.hpp"
+#include <cstdlib>
+#include <string>
 #include "dto/Config.hpp"
 #include "utils/Statistics.hpp"
-
 #include "oatpp-openssl/server/ConnectionProvider.hpp"
-
 #include "oatpp/web/server/interceptor/RequestInterceptor.hpp"
 #include "oatpp/web/server/AsyncHttpConnectionHandler.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
-
 #include "oatpp/network/tcp/server/ConnectionProvider.hpp"
-
 #include "oatpp/parser/json/mapping/ObjectMapper.hpp"
-
 #include "oatpp/core/macro/component.hpp"
 #include "oatpp/core/base/CommandLineArguments.hpp"
-
 #include "oatpp/core/utils/ConversionUtils.hpp"
-
-#include <cstdlib>
+#include "config.h"
 
 /**
  *  Class which creates and holds Application components and registers components in oatpp::base::Environment
@@ -81,32 +76,35 @@ public:
     : _cmdArgs(cmdArgs) {}
     
 public:
-    // TODO:
-    const std::string CERT_PEM_PATH = "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem";
-    const std::string CERT_CRT_PATH = "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt";
-    
     /**
      * Create config component
      */
     OATPP_CREATE_COMPONENT(oatpp::Object<ConfigDto>, appConfig)([this] {
+        auto params = MSConfig->params();
+        assert(params);
+        const std::string host = params->domain.empty() ? params->https.listenIp : params->domain;
+        const std::string port = std::to_string(params->https.listenPort);
+        const std::string CERT_PEM_PATH = params->https.tls.key;
+        const std::string CERT_CRT_PATH = params->https.tls.cert;
+        
         auto config = ConfigDto::createShared();
 
         config->host = std::getenv("EXTERNAL_ADDRESS");
         if (!config->host) {
-            config->host = _cmdArgs.getNamedArgumentValue("--host", "124.221.73.157");
+            config->host = _cmdArgs.getNamedArgumentValue("--host", host.c_str());
         }
 
         const char* portText = std::getenv("EXTERNAL_PORT");
         if (!portText) {
-            portText = _cmdArgs.getNamedArgumentValue("--port", "4443");
+            portText = _cmdArgs.getNamedArgumentValue("--port", port.c_str());
         }
 
         bool success;
-        auto port = oatpp::utils::conversion::strToUInt32(portText, success);
-        if (!success || port > 65535) {
+        auto _port = oatpp::utils::conversion::strToUInt32(portText, success);
+        if (!success || _port > 65535) {
             throw std::runtime_error("Invalid port!");
         }
-        config->port = (v_uint16) port;
+        config->port = (v_uint16)_port;
 
         config->tlsPrivateKeyPath = std::getenv("TLS_FILE_PRIVATE_KEY");
         if (!config->tlsPrivateKeyPath) {
@@ -142,7 +140,7 @@ public:
         std::shared_ptr<oatpp::network::ServerConnectionProvider> result;
 
         // TODO: use valid cert
-        if (1){//}!appConfig->useTLS) {
+        if (appConfig->useTLS) {
             OATPP_LOGD("oatpp::openssl::Config", "key_path='%s'", appConfig->tlsPrivateKeyPath->c_str());
             OATPP_LOGD("oatpp::openssl::Config", "chn_path='%s'", appConfig->tlsCertificateChainPath->c_str());
 

@@ -137,6 +137,9 @@ target_link_libraries(${PROJECT_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/liblibwebrtc.a
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libserver.a
+    #liblibwebrtc.a
+    #libworker.a
+    #libserver.a
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a

@@ -96,6 +96,7 @@ void run(const oatpp::base::CommandLineArguments& cmdArgs)
 int main(int argc, const char * argv[])
 {
     MSEngine->init("/home/ubuntu/dev/mediasoup-server/server/config.json");
+    //MSEngine->init("/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/server/config.json");
     
     oatpp::base::Environment::init();
 

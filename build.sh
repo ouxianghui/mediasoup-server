@@ -19,6 +19,6 @@ fi
 
 mkdir build
 cd build
-cmake -DCMAKE_INSTALL_PREFIX=${cur_dir}/release ..
-make
+cmake -DCMAKE_INSTALL_PREFIX=${cur_dir}/release -DCMAKE_BUILD_TYPE=RELEASE ..
+make  -j4
 make install

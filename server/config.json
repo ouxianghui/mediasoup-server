@@ -1,8 +1,8 @@
 {
-	"domain": "localhost",
+	"domain": "124.221.73.157",
 	"https": {
-		"listenIp": "0.0.0.0'",
-		"listenPort": 4443,
+		"listenIp": "124.221.73.157",
+		"listenPort": 8443,
 		"tls": {
 			"cert": "",
 			"key": ""
@@ -11,8 +11,8 @@
 	"mediasoup": {
 		"numWorkers": 4,
 		"workerSettings": {
-			"dtlsCertificateFile": "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_cert.crt",
-			"dtlsPrivateKeyFile": "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_key.pem",
+			"dtlsCertificateFile": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt",
+			"dtlsPrivateKeyFile":  "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem",
 			"logLevel": "warn",
 			"logTags": [
 				"info",
@@ -83,13 +83,13 @@
 			"listenInfos": [{
 					"protocol": "udp",
 					"ip": "0.0.0.0",
-					"announcedIp": "10.32.60.11",
+					"announcedIp": "124.221.73.157",
 					"port": 44444
 				},
 				{
 					"protocol": "tcp",
 					"ip": "0.0.0.0",
-					"announcedIp": "10.32.60.11",
+					"announcedIp": "124.221.73.157",
 					"port": 44444
 				}
 			]
@@ -97,7 +97,7 @@
 		"webRtcTransportOptions": {
 			"listenIps": [{
 				"ip": "0.0.0.0",
-				"announcedIp": "10.32.60.11"
+				"announcedIp": "124.221.73.157"
 			}],
 			"initialAvailableOutgoingBitrate": 1000000,
 			"minimumAvailableOutgoingBitrate": 600000,
@@ -107,7 +107,7 @@
 		"plainTransportOptions": {
 			"listenIp": {
 				"ip": "0.0.0.0",
-				"announcedIp": "10.32.60.11"
+				"announcedIp": "124.221.73.157"
 			},
 			"maxSctpMessageSize": 262144
 		}

@@ -4,7 +4,7 @@ set(PROJECT_NAME "server")
 project(${PROJECT_NAME})
 
 # C++ standard requirements.
-set(CMAKE_CXX_STANDAR 20)
+set(CMAKE_CXX_STANDAR 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 IF(UNIX)
@@ -116,5 +116,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_include_directories(${PROJECT_NAME}
           INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+  #target_link_libraries(${PROJECT_NAME}
+  #    worker
+  #    libwebrtc)  
 
 install(TARGETS ${PROJECT_NAME} DESTINATION lib)

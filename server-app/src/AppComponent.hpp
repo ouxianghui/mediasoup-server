@@ -54,14 +54,36 @@
  */
 class AppComponent
 {
+private:
+    class RedirectInterceptor : public oatpp::web::server::interceptor::RequestInterceptor
+    {
+    private:
+        OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
+        
+    public:
+        std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
+            auto host = request->getHeader(oatpp::web::protocol::http::Header::HOST);
+            auto siteHost = appConfig->getHostString();
+            if (!host || host != siteHost) {
+                auto response = OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_301, nullptr);
+                response->putHeader("Location", appConfig->getCanonicalBaseUrl() + request->getStartingLine().path.toString());
+                return response;
+            }
+            return nullptr;
+        }
+    };
+
+private:
+    oatpp::base::CommandLineArguments _cmdArgs;
+
 public:
-    AppComponent(int argc, const char * argv[])
-    : _cmdArgs(argc, argv) {}
+    AppComponent(const oatpp::base::CommandLineArguments& cmdArgs)
+    : _cmdArgs(cmdArgs) {}
     
 public:
     // TODO:
-    const std::string CERT_PEM_PATH = "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_key.pem";
-    const std::string CERT_CRT_PATH = "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_cert.crt";
+    const std::string CERT_PEM_PATH = "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem";
+    const std::string CERT_CRT_PATH = "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt";
     
     /**
      * Create config component
@@ -71,12 +93,12 @@ public:
 
         config->host = std::getenv("EXTERNAL_ADDRESS");
         if (!config->host) {
-            config->host = _cmdArgs.getNamedArgumentValue("--host", "localhost");
+            config->host = _cmdArgs.getNamedArgumentValue("--host", "124.221.73.157");
         }
 
         const char* portText = std::getenv("EXTERNAL_PORT");
         if (!portText) {
-            portText = _cmdArgs.getNamedArgumentValue("--port", "8443");
+            portText = _cmdArgs.getNamedArgumentValue("--port", "4443");
         }
 
         bool success;
@@ -120,7 +142,7 @@ public:
         std::shared_ptr<oatpp::network::ServerConnectionProvider> result;
 
         // TODO: use valid cert
-        if (0){//}!appConfig->useTLS) {
+        if (1){//}!appConfig->useTLS) {
             OATPP_LOGD("oatpp::openssl::Config", "key_path='%s'", appConfig->tlsPrivateKeyPath->c_str());
             OATPP_LOGD("oatpp::openssl::Config", "chn_path='%s'", appConfig->tlsCertificateChainPath->c_str());
 
@@ -185,28 +207,6 @@ public:
         connectionHandler->setSocketInstanceListener(lobby);
         return connectionHandler;
     }());
-
-private:
-    class RedirectInterceptor : public oatpp::web::server::interceptor::RequestInterceptor
-    {
-    private:
-        OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
-        
-    public:
-        std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
-            auto host = request->getHeader(oatpp::web::protocol::http::Header::HOST);
-            auto siteHost = appConfig->getHostString();
-            if (!host || host != siteHost) {
-                auto response = OutgoingResponse::createShared(oatpp::web::protocol::http::Status::CODE_301, nullptr);
-                response->putHeader("Location", appConfig->getCanonicalBaseUrl() + request->getStartingLine().path.toString());
-                return response;
-            }
-            return nullptr;
-        }
-    };
-
-private:
-    oatpp::base::CommandLineArguments _cmdArgs;
 };
 
 #endif /* AppComponent_hpp */

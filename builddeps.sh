@@ -9,14 +9,13 @@ cd script
 # ./buildoatppopenssl.sh
 # ./builduv.sh
 # ./buildjson.sh
-# ./buildnetstring.sh
 # ./buildcatch.sh
-# ./buildsrtp.sh
+ ./buildsrtp.sh
 # ./buildusrsctp.sh
 # ./buildabsl.sh
 # ./buildsdp.sh
-./buildconcurrentqueue.sh
+# ./buildconcurrentqueue.sh
 
-# ./buildwebrtc.sh
+ #./buildwebrtc.sh
 
 

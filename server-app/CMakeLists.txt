@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(PROJECT_NAME "server-app")
+set(PROJECT_NAME "server_app")
 
 project(${PROJECT_NAME})
 message("\n=========== ${PROJECT_NAME} Build Configuration ===========\n")
@@ -8,7 +8,7 @@ message(STATUS "PROJECT_INCLUDE_DIR : " ${PROJECT_INCLUDE_DIR})
 message(STATUS "PROJECT_LIB_DIR : " ${PROJECT_LIB_DIR})
 
 # C++ standard requirements.
-set(CMAKE_CXX_STANDAR 20)
+set(CMAKE_CXX_STANDAR 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (NOT WIN32)
@@ -99,9 +99,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libsdptransform
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
 )
-LINK_DIRECTORIES(
-	${PROJECT_LIB_DIR}
-)
+
+#LINK_DIRECTORIES(i
+#  ${PROJECT_LIB_DIR}
+#)
 
 IF (WIN32)
   target_link_libraries(${PROJECT_NAME}
@@ -111,7 +112,6 @@ IF (WIN32)
       ${PROJECT_LIB_DIR}/oatpp-websocket.lib
       ${PROJECT_LIB_DIR}/oatpp.lib
       ${PROJECT_LIB_DIR}/oatpp-openssl.lib
-      ${PROJECT_LIB_DIR}/netstring.lib
       ${PROJECT_LIB_DIR}/uv_a.lib
       ${PROJECT_LIB_DIR}/libssl.lib
       ${PROJECT_LIB_DIR}/libcrypto.lib
@@ -133,24 +133,24 @@ IF (WIN32)
 ELSE ()
 
 target_link_libraries(${PROJECT_NAME}
-    worker
-    server
-    libwebrtc
+    -Wl,--start-group
+    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/liblibwebrtc.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libserver.a
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a
-    ${PROJECT_LIB_DIR}/libnetstring.a
     ${PROJECT_LIB_DIR}/libuv_a.a
     ${PROJECT_LIB_DIR}/libssl.a
     ${PROJECT_LIB_DIR}/libcrypto.a
     ${PROJECT_LIB_DIR}/libsrtp2.a
     ${PROJECT_LIB_DIR}/libusrsctp.a
-    ${PROJECT_LIB_DIR}/libabsl_internal_throw_delegate.a
+    #${PROJECT_LIB_DIR}/libabsl_internal_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings.a
-    ${PROJECT_LIB_DIR}/libabsl_optional.a
+    #${PROJECT_LIB_DIR}/libabsl_optional.a
     ${PROJECT_LIB_DIR}/libabsl_bad_optional_access.a
     ${PROJECT_LIB_DIR}/libabsl_bad_variant_access.a
-    ${PROJECT_LIB_DIR}/libabsl_internal_bad_any_cast_impl.a
+    #${PROJECT_LIB_DIR}/libabsl_internal_bad_any_cast_impl.a
     ${PROJECT_LIB_DIR}/libabsl_hashtablez_sampler.a
     ${PROJECT_LIB_DIR}/libabsl_raw_hash_set.a
     ${PROJECT_LIB_DIR}/libabsl_hash.a
@@ -158,11 +158,9 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
     ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
-
     dl
     ${PROJECT_LIB_DIR}/libsdptransform.a
-    ${PROJECT_LIB_DIR}/libuv_a.a
-    
+    -Wl,--end-group
 )
 ENDif ()
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)

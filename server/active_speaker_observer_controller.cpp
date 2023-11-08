@@ -39,7 +39,7 @@ namespace srv {
     {
         SRV_LOGD("handleWorkerNotifications()");
         
-        auto self = dynamic_pointer_cast<ActiveSpeakerObserverController>(RtpObserverController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<ActiveSpeakerObserverController>(RtpObserverController::shared_from_this());
         
         auto channel = _channel.lock();
         if (!channel) {

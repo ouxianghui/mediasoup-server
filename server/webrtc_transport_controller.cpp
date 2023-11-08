@@ -169,7 +169,7 @@ namespace srv {
             return;
         }
         
-        auto self = dynamic_pointer_cast<WebRtcTransportController>(TransportController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<WebRtcTransportController>(TransportController::shared_from_this());
         channel->_notificationSignal.connect(&WebRtcTransportController::onChannel, self);
     }
 

@@ -21,10 +21,9 @@ echo "${CROSS_COMPILE}"
 ./config no-asm no-async no-shared no-dso --prefix=${main_dir}/release --cross-compile-prefix=${CROSS_COMPILE}
 sed -i 's/\-m64//g' ./Makefile
 else
-
 echo "${CROSS_COMPILE}"
 ./config --prefix=${main_dir}/release
 fi
 
-make
+make -j7
 make install

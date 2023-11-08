@@ -34,10 +34,10 @@
 #include "oatpp/network/Server.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
 
-void run(int argc, const char * argv[])
+void run(const oatpp::base::CommandLineArguments& cmdArgs)
 {
     /* Register Components in scope of run() method */
-    AppComponent components(argc, argv);
+    AppComponent components(cmdArgs);
 
     /* Get router component */
     OATPP_COMPONENT(std::shared_ptr<oatpp::web::server::HttpRouter>, router);
@@ -95,12 +95,11 @@ void run(int argc, const char * argv[])
 
 int main(int argc, const char * argv[])
 {
-
-    MSEngine->init("/Users/jackie.ou/Desktop/Research/mediasoup-server/server/config.json");
+    MSEngine->init("/home/ubuntu/dev/mediasoup-server/server/config.json");
     
     oatpp::base::Environment::init();
 
-    run(argc, argv);
+    run(oatpp::base::CommandLineArguments(argc, argv));
     
     MSEngine->destroy();
 

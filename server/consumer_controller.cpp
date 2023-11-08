@@ -196,8 +196,8 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             _preferredLayers = data;
         }
         else {
-            _preferredLayers.spatialLayer = -1;
-            _preferredLayers.temporalLayer = -1;
+            _preferredLayers.spatialLayer = 0;
+            _preferredLayers.temporalLayer = 0;
         }
     }
 

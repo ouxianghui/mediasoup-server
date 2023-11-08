@@ -1150,6 +1150,7 @@ void Room::onHandleSetConsumerPriority(const std::shared_ptr<Peer>& peer, const 
         return;
     }
 
+    //SRV_LOGD("request.dump: %s", request.dump().c_str());
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     const auto& priority = data["priority"];

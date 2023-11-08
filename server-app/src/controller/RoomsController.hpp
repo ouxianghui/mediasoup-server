@@ -59,10 +59,10 @@ public:
         {
             oatpp::String subprotocol = request->getHeader("Sec-WebSocket-Protocol");
             
-            //OATPP_ASSERT_HTTP(subprotocol == WS_SUBPROTOCOL, Status::CODE_400, "unknown subprotocol")
+            OATPP_ASSERT_HTTP(subprotocol == WS_SUBPROTOCOL, Status::CODE_400, "unknown subprotocol")
             
-            auto roomId = request->getQueryParameter("roomId", "123456");
-            auto peerId = request->getQueryParameter("peerId", "123456");
+            auto roomId = request->getQueryParameter("roomId", "139415115");
+            auto peerId = request->getQueryParameter("peerId", "1394");
             auto forceH264 = request->getQueryParameter("forceH264", "false"); //type is oatpp::string should convert to bool
             auto forceVP9 = request->getQueryParameter("forceVP9", "false");
             
@@ -81,7 +81,7 @@ public:
             /* Set connection upgrade params */
             response->setConnectionUpgradeParameters(parameters);
             
-//            response->putHeader("Sec-WebSocket-Protocol", WS_SUBPROTOCOL);
+            response->putHeader("Sec-WebSocket-Protocol", WS_SUBPROTOCOL);
 
             return _return(response);
         }

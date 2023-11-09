@@ -135,31 +135,6 @@ namespace srv {
         std::atomic_bool _closed { false };
         std::shared_ptr<asio::steady_timer> _timer;
     };
-    
-    struct StatBase
-    {
-        // Common to all RtpStreams.
-        std::string type;
-        int32_t timestamp;
-        uint32_t ssrc;
-        uint32_t rtxSsrc;
-        std::string kind;
-        std::string mimeType;
-        int32_t packetsLost;
-        int32_t fractionLost;
-        int32_t packetsDiscarded;
-        int32_t packetsRetransmitted;
-        int32_t packetsRepaired;
-        int32_t nackCount;
-        int32_t nackPacketCount;
-        int32_t pliCount;
-        int32_t firCount;
-        int32_t score;
-        int32_t packetCount;
-        int32_t byteCount;
-        int32_t bitrate;
-        int32_t roundTripTime;
-    };
 
     class MediaSoupError : public std::runtime_error
     {
@@ -176,33 +151,6 @@ namespace srv {
     };
 
     inline MediaSoupTypeError::MediaSoupTypeError(const char* description) : MediaSoupError(description) {}
-
-    #ifdef MSC_LOG_FILE_LINE
-        #define _MSC_LOG_STR " %s:%d | %s::%s()"
-        #define _MSC_LOG_STR_DESC _MSC_LOG_STR " | "
-        #define _MSC_FILE (std::strchr(__FILE__, '/') ? std::strchr(__FILE__, '/') + 1 : __FILE__)
-        #define _MSC_LOG_ARG _MSC_FILE, __LINE__, MSC_CLASS, __FUNCTION__
-    #else
-        #define _MSC_LOG_STR " %s::%s()"
-        #define _MSC_LOG_STR_DESC _MSC_LOG_STR " | "
-        #define _MSC_LOG_ARG MSC_CLASS, __FUNCTION__
-    #endif
-
-    #define MSC_ERROR(desc, ...) \
-    do { \
-        printf("[ERROR]" _MSC_LOG_STR_DESC desc, _MSC_LOG_ARG, ##__VA_ARGS__); \
-    } \
-    while (false)
-
-    #define SRV_THROW_TYPE_ERROR(desc, ...) \
-    do { \
-        MSC_ERROR("throwing MediaSoupTypeError: " desc, ##__VA_ARGS__); \
-        \
-        static char buffer[2000]; \
-        \
-        std::snprintf(buffer, 2000, desc, ##__VA_ARGS__); \
-        throw srv::MediaSoupTypeError(buffer); \
-    } while (false)
 
     class WebsocketRequest : public std::enable_shared_from_this<WebsocketRequest>
     {
@@ -303,4 +251,55 @@ namespace srv {
         std::shared_ptr<asio::steady_timer> _timer;
     };
 
+    struct StatBase
+    {
+        // Common to all RtpStreams.
+        std::string type;
+        int32_t timestamp;
+        uint32_t ssrc;
+        uint32_t rtxSsrc;
+        std::string kind;
+        std::string mimeType;
+        int32_t packetsLost;
+        int32_t fractionLost;
+        int32_t packetsDiscarded;
+        int32_t packetsRetransmitted;
+        int32_t packetsRepaired;
+        int32_t nackCount;
+        int32_t nackPacketCount;
+        int32_t pliCount;
+        int32_t firCount;
+        int32_t score;
+        int32_t packetCount;
+        int32_t byteCount;
+        int32_t bitrate;
+        int32_t roundTripTime;
+    };
 }
+
+#ifdef MSC_LOG_FILE_LINE
+    #define _MSC_LOG_STR " %s:%d | %s::%s()"
+    #define _MSC_LOG_STR_DESC _MSC_LOG_STR " | "
+    #define _MSC_FILE (std::strchr(__FILE__, '/') ? std::strchr(__FILE__, '/') + 1 : __FILE__)
+    #define _MSC_LOG_ARG _MSC_FILE, __LINE__, MSC_CLASS, __FUNCTION__
+#else
+    #define _MSC_LOG_STR " %s::%s()"
+    #define _MSC_LOG_STR_DESC _MSC_LOG_STR " | "
+    #define _MSC_LOG_ARG MSC_CLASS, __FUNCTION__
+#endif
+
+#define MSC_ERROR(desc, ...) \
+do { \
+    printf("[ERROR]" _MSC_LOG_STR_DESC desc, _MSC_LOG_ARG, ##__VA_ARGS__); \
+} \
+while (false)
+
+#define SRV_THROW_TYPE_ERROR(desc, ...) \
+do { \
+    MSC_ERROR("throwing MediaSoupTypeError: " desc, ##__VA_ARGS__); \
+    \
+    static char buffer[2000]; \
+    \
+    std::snprintf(buffer, 2000, desc, ##__VA_ARGS__); \
+    throw srv::MediaSoupTypeError(buffer); \
+} while (false)

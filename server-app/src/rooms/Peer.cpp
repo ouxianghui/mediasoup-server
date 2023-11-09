@@ -72,9 +72,6 @@ namespace
             if (_type == Peer::MessageType::RESPONSE || _type == Peer::MessageType::NOTIFICATION || _type == Peer::MessageType::REQUEST) {
                 return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(message)).next(yieldTo(&SendMessageCoroutine::waitFinish));
             }
-            //else if (_type == Peer::MessageType::REQUEST) {
-            //    return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(message)).next(yieldTo(&SendMessageCoroutine::waitResponse));
-            //}
             
             return finish();
         }
@@ -85,23 +82,6 @@ namespace
             }
             return finish();
         }
-        
-        //Action waitResponse() {
-        //    auto peer = _peer.lock();
-        //    if (!peer) {
-        //        return finish();
-        //    }
-        //    auto messageId = _message["id"].get<int>();
-        //    auto method = _message["method"].get<std::string>();
-        //    if (method == "newConsumer") {
-        //        auto data = _message["data"];
-        //        auto consumerId = data["id"].get<std::string>();
-        //        return peer->checkResponse(messageId, method, consumerId, finish());
-        //    }
-        //    else {
-        //        return peer->checkResponse(messageId, "", "", finish());
-        //    }
-        //}
         
     private:
         oatpp::async::Lock* _lock;
@@ -255,21 +235,6 @@ oatpp::async::CoroutineStarter Peer::onApiError(const oatpp::String& errorMessag
 
     return SendErrorCoroutine::start(&_writeLock, _socket, _objectMapper->writeToString(message));
 }
-
-//oatpp::async::Action Peer::checkResponse(int messageId, const std::string& method, const std::string& param, oatpp::async::Action&& nextAction)
-//{
-//    auto item = this->_requestMap.find(messageId);
-//    if (item != _requestMap.end()) {
-//        return oatpp::async::Action::createActionByType(oatpp::async::Action::TYPE_REPEAT);
-//    }
-//    else {
-//        if (method == "newConsumer" && param != "") {
-//            auto& controller = this->_data->consumerControllers[param];
-//            controller->resume();
-//        }
-//        return std::forward<oatpp::async::Action>(nextAction);
-//    }
-//}
 
 void Peer::request(const std::string& method, const nlohmann::json& message)
 {

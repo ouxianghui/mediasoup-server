@@ -147,8 +147,6 @@ public:
     bool sendPing();
 
     void request(const std::string& method, const nlohmann::json& message);
-    
-    //oatpp::async::Action checkResponse(int messageId, const std::string& method, const std::string& param, oatpp::async::Action&& nextAction);
 
     void notify(const std::string& method, const nlohmann::json& message);
 
@@ -219,8 +217,6 @@ private:
     std::atomic_bool _closed {false};
     
 public:
-    //asio::thread_pool _context {1};
-    
     moodycamel::ConcurrentQueue<std::shared_ptr<Message>> _messageQueue;
     
     std::unordered_map<int64_t, std::shared_ptr<Message>> _requestMap;

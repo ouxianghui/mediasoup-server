@@ -1,33 +1,15 @@
-/***************************************************************************
- *
- * Project:   ______                ______ _
- *           / _____)              / _____) |          _
- *          | /      ____ ____ ___| /     | | _   ____| |_
- *          | |     / _  |  _ (___) |     | || \ / _  |  _)
- *          | \____( ( | | | | |  | \_____| | | ( ( | | |__
- *           \______)_||_|_| |_|   \______)_| |_|\_||_|\___)
- *
- *
- * Copyright 2020-present, Leonid Stryzhevskyi <lganzzzo@gmail.com>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- ***************************************************************************/
+/************************************************************************
+* @Copyright: 2023-2024
+* @FileName:
+* @Description: Leia-SFU
+* @Version: 1.0.0
+* @Author: Jackie Ou
+* @CreateTime: 2023-11-1
+*************************************************************************/
 
-#ifndef Statistics_hpp
-#define Statistics_hpp
+#pragma once
 
-#include "dto/DTOs.hpp"
+#include "dto/dtos.hpp"
 #include "oatpp/parser/json/mapping/ObjectMapper.hpp"
 #include "oatpp/core/Types.hpp"
 
@@ -74,5 +56,3 @@ private:
     std::chrono::duration<v_int64, std::micro> _pushInterval;
     std::chrono::duration<v_int64, std::micro> _updateInterval;
 };
-
-#endif // Statistics_hpp

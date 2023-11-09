@@ -1,10 +1,10 @@
 /************************************************************************
 * @Copyright: 2023-2024
 * @FileName:
-* @Description: Open source mediasoup C++ controller library
+* @Description: Leia-SFU
 * @Version: 1.0.0
 * @Author: Jackie Ou
-* @CreateTime: 2023-10-30
+* @CreateTime: 2023-11-1
 *************************************************************************/
 
 #pragma once

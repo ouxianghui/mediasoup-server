@@ -29,22 +29,22 @@ ENDIF ()
 include_directories(src)
 
 set(sources
-    src/App.cpp
-    src/AppComponent.hpp
-    src/controller/RoomsController.hpp
-    src/controller/StatisticsController.hpp
-    src/rooms/Peer.cpp
-    src/rooms/Peer.hpp
-    src/rooms/Room.cpp
-    src/rooms/Room.hpp
-    src/rooms/Lobby.cpp
-    src/rooms/Lobby.hpp
-    src/utils/Statistics.cpp
-    src/utils/Statistics.hpp
-    src/utils/Message.cpp
-    src/utils/Message.hpp
-    src/dto/DTOs.hpp
-    src/dto/Config.hpp
+    src/app.cpp
+    src/app_component.hpp
+    src/controller/rooms_controller.hpp
+    src/controller/statistics_controller.hpp
+    src/rooms/peer.cpp
+    src/rooms/peer.hpp
+    src/rooms/room.cpp
+    src/rooms/room.hpp
+    src/rooms/lobby.cpp
+    src/rooms/lobby.hpp
+    src/utils/statistics.cpp
+    src/utils/statistics.hpp
+    src/utils/message.cpp
+    src/utils/message.hpp
+    src/dto/dtos.hpp
+    src/dto/config.hpp
 )
 
 add_executable(${PROJECT_NAME} ${sources} )
@@ -133,13 +133,13 @@ IF (WIN32)
 ELSE ()
 
 target_link_libraries(${PROJECT_NAME}
-    -Wl,--start-group
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/liblibwebrtc.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libserver.a
-    #liblibwebrtc.a
-    #libworker.a
-    #libserver.a
+    #-Wl,--start-group
+    #${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/liblibwebrtc.a
+    #${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
+    #${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libserver.a
+    liblibwebrtc.a
+    libworker.a
+    libserver.a
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a
@@ -163,7 +163,7 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
     dl
     ${PROJECT_LIB_DIR}/libsdptransform.a
-    -Wl,--end-group
+    #-Wl,--end-group
 )
 ENDif ()
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)

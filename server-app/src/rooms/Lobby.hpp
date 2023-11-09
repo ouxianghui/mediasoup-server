@@ -1,37 +1,19 @@
-/***************************************************************************
- *
- * Project:   ______                ______ _
- *           / _____)              / _____) |          _
- *          | /      ____ ____ ___| /     | | _   ____| |_
- *          | |     / _  |  _ (___) |     | || \ / _  |  _)
- *          | \____( ( | | | | |  | \_____| | | ( ( | | |__
- *           \______)_||_|_| |_|   \______)_| |_|\_||_|\___)
- *
- *
- * Copyright 2020-present, Leonid Stryzhevskyi <lganzzzo@gmail.com>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- ***************************************************************************/
+/************************************************************************
+* @Copyright: 2023-2024
+* @FileName:
+* @Description: Leia-SFU
+* @Version: 1.0.0
+* @Author: Jackie Ou
+* @CreateTime: 2023-11-1
+*************************************************************************/
 
-#ifndef ASYNC_SERVER_ROOMS_LOBBY_HPP
-#define ASYNC_SERVER_ROOMS_LOBBY_HPP
+#pragma once
 
 #include <memory>
 #include <unordered_map>
 #include <mutex>
-#include "Room.hpp"
-#include "utils/Statistics.hpp"
+#include "room.hpp"
+#include "utils/statistics.hpp"
 #include "oatpp-websocket/AsyncConnectionHandler.hpp"
 
 class Lobby : public oatpp::websocket::AsyncConnectionHandler::SocketInstanceListener, public std::enable_shared_from_this<Lobby>
@@ -88,6 +70,3 @@ public:
 private:
     OATPP_COMPONENT(std::shared_ptr<Statistics>, _statistics);
 };
-
-
-#endif //ASYNC_SERVER_ROOMS_LOBBY_HPP

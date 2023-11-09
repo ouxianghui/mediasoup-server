@@ -132,9 +132,13 @@ namespace
         , _message(message) {}
         
         Action act() override {
-            auto sentMsg = oatpp::String(_message.dump().c_str());
-            _peer->_sents[_message["id"].get<int>()] = _message;
-            return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(sentMsg)).next(yieldTo(&RequestCoroutine::waitResponse));
+            int64_t id = _message["id"].get<int>();
+            auto request = std::make_shared<srv::WebsocketRequest>(id);
+            request->setData(_message);
+            _peer->_requestMap[id] = request;
+            
+            auto message = oatpp::String(_message.dump().c_str());
+            return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(message)).next(yieldTo(&RequestCoroutine::waitResponse));
         }
         
         Action waitResponse() {
@@ -258,8 +262,8 @@ oatpp::async::CoroutineStarter Peer::onApiError(const oatpp::String& errorMessag
 
 oatpp::async::Action Peer::checkResponseAsync(int messageId, const std::string& method, const std::string& param, oatpp::async::Action&& nextAction)
 {
-    auto item = this->_sents.find(messageId);
-    if (item != _sents.end()) {
+    auto item = this->_requestMap.find(messageId);
+    if (item != _requestMap.end()) {
         return oatpp::async::Action::createActionByType(oatpp::async::Action::TYPE_REPEAT);
     }
     else {
@@ -385,20 +389,20 @@ void Peer::handleRequest(const nlohmann::json& request)
 
 void Peer::handleResponse(const nlohmann::json& response)
 {
-    auto item = this->_sents.find(response["id"].get<int>());
-    if (item == _sents.end()) {
+    auto item = this->_requestMap.find(response["id"].get<int>());
+    if (item == _requestMap.end()) {
         SRV_LOGE("[Peer] response id not found in map!");
         return;
     }
     
     if (response.contains("ok")) {
         if (response["ok"].get<bool>()) {
-            this->_sents.erase(item);
+            this->_requestMap.erase(item);
         }
     }
     else {
         SRV_LOGW("error response!");
-        this->_sents.erase(item);
+        this->_requestMap.erase(item);
     }
 }
 
@@ -439,7 +443,7 @@ void Peer::close()
         c->close();
     }
 
-    _sents.clear();
+    _requestMap.clear();
 
     // Emit 'close' event.
     _closeSignal(_id);

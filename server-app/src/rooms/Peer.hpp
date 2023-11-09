@@ -41,6 +41,7 @@
 #include "oatpp/core/macro/component.hpp"
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
+#include "types.h"
 
 using AcceptFunc = std::function<void(const nlohmann::json& request, const nlohmann::json& data)>;
 using RejectFunc = std::function<void(const nlohmann::json& request, int errorCode, const std::string& errorReason)>;
@@ -189,8 +190,9 @@ private:
     std::atomic_bool _closed {false};
     
 public:
-    // TODO: 
-    std::unordered_map<int64_t, nlohmann::json> _sents;
+    asio::thread_pool _context {1};
+    
+    std::unordered_map<int64_t, std::shared_ptr<srv::WebsocketRequest>> _requestMap;
     
 private:
     /* Inject application components */

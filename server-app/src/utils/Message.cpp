@@ -18,6 +18,7 @@ namespace {
         std::random_device sd;
         std::minstd_rand linear(sd());
         std::uniform_int_distribution<int64_t>dist(0, std::numeric_limits<int64_t>::max());
+        return dist(linear);
     }
 }
 

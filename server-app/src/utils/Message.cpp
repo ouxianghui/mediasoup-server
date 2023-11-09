@@ -15,9 +15,9 @@ namespace {
     using std::uniform_real_distribution;
     int64_t generateRandomNumber()
     {
-        default_random_engine e;
-        uniform_real_distribution<int64_t> u(0, std::numeric_limits<int64_t>::max());
-        return u(e);
+        std::random_device sd;
+        std::minstd_rand linear(sd());
+        std::uniform_int_distribution<int64_t>dist(0, std::numeric_limits<int64_t>::max());
     }
 }
 

@@ -402,7 +402,8 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             // the Consumer so the remote endpoint will receive the a first RTP packet
             // of this new stream once its PeerConnection is already ready to process
             // and associate it.
-            consumerController->resume(); // TODO: should resume ?
+            
+            //consumerController->resume(); // TODO: should resume ?
 
             nlohmann::json scoreMsg;
             scoreMsg["consumerId"] = consumerController->id();

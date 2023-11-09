@@ -174,7 +174,7 @@ void Room::pingAllPeers()
     std::lock_guard<std::mutex> guard(_peerMutex);
     for(auto& pair : _peerMap) {
         auto& peer = pair.second;
-        if (!peer->sendPingAsync()) {
+        if (!peer->sendPing()) {
             peer->invalidateSocket();
             ++_statistics->EVENT_PEER_ZOMBIE_DROPPED;
         }
@@ -218,7 +218,7 @@ void Room::onPeerClose(const std::string& peerId)
         if (peer != _peerMap.end()) {
             if (peer->second->data()->joined) {
                 for (const auto& otherPeer : otherPeers) {
-                    otherPeer.second->notifyAsync("peerClosed", msg);
+                    otherPeer.second->notify("peerClosed", msg);
                 }
             }
             // Iterate and close all mediasoup Transport associated to this Peer, so all
@@ -330,7 +330,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             nlohmann::json msg;
             msg["consumerId"] = id;
                 
-            cp->notifyAsync("consumerClosed", msg);
+            cp->notify("consumerClosed", msg);
         });
         
         consumerController->_producerPauseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
@@ -341,7 +341,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             nlohmann::json msg;
             msg["consumerId"] = id;
             
-            cp->notifyAsync("consumerPaused", msg);
+            cp->notify("consumerPaused", msg);
         });
         
         consumerController->_producerResumeSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
@@ -352,7 +352,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             nlohmann::json msg;
             msg["consumerId"] = id;
             
-            cp->notifyAsync("consumerResumed", msg);
+            cp->notify("consumerResumed", msg);
         });
         
         consumerController->_scoreSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](const srv::ConsumerScore& score){
@@ -364,7 +364,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             msg["consumerId"] = id;
             msg["score"] = score;
             
-            cp->notifyAsync("consumerScore", msg);
+            cp->notify("consumerScore", msg);
         });
         
         consumerController->_layersChangeSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](const srv::ConsumerLayers& layers){
@@ -377,7 +377,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             msg["spatialLayer"] = layers.spatialLayer;
             msg["temporalLayer"] = layers.temporalLayer;
             
-            cp->notifyAsync("consumerLayersChanged", msg);
+            cp->notify("consumerLayersChanged", msg);
         });
         
         consumerController->_traceSignal.connect([id = consumerController->id()](const srv::ConsumerTraceEventData& trace){
@@ -396,7 +396,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             msg["appData"] = producerController->appData();
             msg["producerPaused"] = consumerController->producerPaused();
             
-            consumerPeer->requestAsync("newConsumer", msg);
+            consumerPeer->request("newConsumer", msg);
 
             // Now that we got the positive response from the remote endpoint, resume
             // the Consumer so the remote endpoint will receive the a first RTP packet
@@ -408,7 +408,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             scoreMsg["consumerId"] = consumerController->id();
             scoreMsg["score"] = consumerController->score();
             
-            consumerPeer->notifyAsync("consumerScore", scoreMsg);
+            consumerPeer->notify("consumerScore", scoreMsg);
         }
         catch (const char* error) {
             SRV_LOGE("createConsumer() | failed: %s", error);
@@ -472,7 +472,7 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
         nlohmann::json msg;
         msg["dataConsumerId"] = id;
     
-        dcp->notifyAsync("dataConsumerClosed", msg);
+        dcp->notify("dataConsumerClosed", msg);
     });
     
     // Send a protoo request to the remote Peer with Consumer parameters.
@@ -487,7 +487,7 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
         msg["protocol"] = dataConsumerController->protocol();
         msg["appData"] = dataProducerController->appData();
         
-        dataConsumerPeer->requestAsync("newDataConsumer", msg);
+        dataConsumerPeer->request("newDataConsumer", msg);
     }
     catch (...) {
         SRV_LOGE("createDataConsumer() | failed");
@@ -513,7 +513,7 @@ void Room::onAudioVolumes(const std::vector<srv::AudioLevelObserverVolume>& volu
         msg["volume"] = volume.volume;
         
         for (const auto& peer : peers) {
-            peer.second->notifyAsync("activeSpeaker", msg);
+            peer.second->notify("activeSpeaker", msg);
         }
     }
 }
@@ -527,7 +527,7 @@ void Room::onAudioSilence()
     msg["peerId"] = "";
     
     for (const auto& peer : peers) {
-        peer.second->notifyAsync("activeSpeaker", msg);
+        peer.second->notify("activeSpeaker", msg);
     }
 }
 
@@ -651,24 +651,24 @@ void Room::onHandleJoin(const std::shared_ptr<Peer>& peer, const nlohmann::json&
     peer->data()->rtpCapabilities = rtpCapabilities;
     peer->data()->sctpCapabilities = sctpCapabilities;
     
-    auto peers = getJoinedPeers(peer->id());
+    auto otherPeers = getJoinedPeers(peer->id());
     
     nlohmann::json peerInfos = nlohmann::json::array();
-    for( const auto& kv : peers) {
+    for( const auto& kv : otherPeers) {
         const auto& peerId = kv.first;
-        const auto& peer = kv.second;
-        peerInfos.push_back({
-            {"id" , peer->id() },
-            {"displayName", peer->data()->displayName },
-            {"device", peer->data()->device }
-        });
+        const auto& otherPeer = kv.second;
+        nlohmann::json info;
+        info["id"] = otherPeer->id();
+        info["displayName"] = otherPeer->data()->displayName;
+        info["device"] = otherPeer->data()->device;
+        peerInfos.push_back(info);
     }
     
     accept(request, {{ "peers", peerInfos }});
     
     peer->data()->joined = true;
 
-    for (const auto& kv : peers) {
+    for (const auto& kv : otherPeers) {
         const auto& joinedPeer = kv.second;
         // Create Consumers for existing Producers.
         for (const auto& ikv : joinedPeer->data()->producerControllers) {
@@ -694,8 +694,8 @@ void Room::onHandleJoin(const std::shared_ptr<Peer>& peer, const nlohmann::json&
     msg["displayName"] = peer->data()->displayName;
     msg["device"] = peer->data()->device;
     
-    for (const auto& otherPeer : peers) {
-        otherPeer.second->notifyAsync("newPeer", msg);
+    for (const auto& otherPeer : otherPeers) {
+        otherPeer.second->notify("newPeer", msg);
     }
 }
 
@@ -767,7 +767,7 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
                 msg["effectiveDesiredBitrate"] = data.info["effectiveDesiredBitrate"];
                 msg["availableBitrate"] = data.info["availableBitrate"];
                 
-                peer->notifyAsync("downlinkBwe", msg);
+                peer->notify("downlinkBwe", msg);
             }
         }
     });
@@ -919,7 +919,7 @@ void Room::onHandleProduce(const std::shared_ptr<Peer>& peer, const nlohmann::js
         nlohmann::json msg;
         msg["producerId"] = id;
         msg["scores"] = scores;
-        peer->notifyAsync("producerScore", msg);
+        peer->notify("producerScore", msg);
     });
 
     producerController->_videoOrientationChangeSignal.connect([id = producerController->id()](const srv::ProducerVideoOrientation& videoOrientation){
@@ -1282,7 +1282,7 @@ void Room::onHandleChangeDisplayName(const std::shared_ptr<Peer>& peer, const nl
     auto peers = getJoinedPeers(peer->id());
     for( const auto& kv : peers) {
         const auto& otherPeer = kv.second;
-        otherPeer->notifyAsync("peerDisplayNameChanged", msg);
+        otherPeer->notify("peerDisplayNameChanged", msg);
     }
     
     accept(request, {});

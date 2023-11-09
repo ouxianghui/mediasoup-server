@@ -13,12 +13,11 @@
 namespace {
     using std::default_random_engine;
     using std::uniform_real_distribution;
-    int generateRandomNumber()
+    int64_t generateRandomNumber()
     {
         default_random_engine e;
-        uniform_real_distribution<double> u(0, 1);
-        
-        return int(u(e) * 10000000);
+        uniform_real_distribution<int64_t> u(0, std::numeric_limits<int64_t>::max());
+        return u(e);
     }
 }
 
@@ -30,7 +29,7 @@ nlohmann::json Message::parse(const std::string& raw)
     if (object.contains("request")) {
         if (object["request"].is_boolean()) {
             message["request"] = true;
-            message["id"] = object["id"].get<int>();
+            message["id"] = object["id"].get<int64_t>();
             message["method"] = object["method"].get<std::string>();
             message["data"] = object["data"];
         }
@@ -38,7 +37,7 @@ nlohmann::json Message::parse(const std::string& raw)
     else if (object.contains("response")) {
         if (object["response"].is_boolean()) {
             message["response"] = true;
-            message["id"] = object["id"].get<int>();
+            message["id"] = object["id"].get<int64_t>();
             if (object["ok"].is_boolean()) {
                 if (object["ok"]) {
                     message["ok"] = true;
@@ -46,7 +45,7 @@ nlohmann::json Message::parse(const std::string& raw)
                 }
                 else {
                     message["ok"] = false;
-                    message["errorCode"] = object["errorCode"].get<int>();
+                    message["errorCode"] = object["errorCode"].get<int32_t>();
                     message["errorReason"] = object["errorReason"].get<std::string>();
                 }
             }
@@ -80,7 +79,7 @@ nlohmann::json Message::createSuccessResponse(const nlohmann::json& request, con
 {
     nlohmann::json response;
     response["response"] = true;
-    response["id"] = request["id"].get<int>();
+    response["id"] = request["id"].get<int64_t>();
     response["ok"] = true;
     response["data"] = data;
     
@@ -91,7 +90,7 @@ nlohmann::json Message::createErrorResponse(const nlohmann::json& request, int e
 {
     nlohmann::json response;
     response["response"] = true;
-    response["id"] = request["id"].get<int>();
+    response["id"] = request["id"].get<int64_t>();
     response["ok"] = false;
     response["errorCode"] = errorCode;
     response["errorReason"] = errorReason;

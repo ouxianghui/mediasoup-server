@@ -57,20 +57,59 @@ namespace
     public:
         SendMessageCoroutine(oatpp::async::Lock* lock,
                              const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& websocket,
-                             const oatpp::String& message)
+                             const nlohmann::json& message,
+                             Peer::MessageType type,
+                             std::function<void()> complete)
         : _lock(lock)
         , _websocket(websocket)
         , _message(message)
-        {}
+        , _type(type)
+        , _complete(complete) {}
 
         Action act() override {
-            return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(_message)).next(finish());
+            auto message = oatpp::String(_message.dump().c_str());
+            
+            if (_type == Peer::MessageType::RESPONSE || _type == Peer::MessageType::NOTIFICATION || _type == Peer::MessageType::REQUEST) {
+                return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(message)).next(yieldTo(&SendMessageCoroutine::waitFinish));
+            }
+            //else if (_type == Peer::MessageType::REQUEST) {
+            //    return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(message)).next(yieldTo(&SendMessageCoroutine::waitResponse));
+            //}
+            
+            return finish();
         }
+        
+        Action waitFinish() {
+            if (_complete) {
+                _complete();
+            }
+            return finish();
+        }
+        
+        //Action waitResponse() {
+        //    auto peer = _peer.lock();
+        //    if (!peer) {
+        //        return finish();
+        //    }
+        //    auto messageId = _message["id"].get<int>();
+        //    auto method = _message["method"].get<std::string>();
+        //    if (method == "newConsumer") {
+        //        auto data = _message["data"];
+        //        auto consumerId = data["id"].get<std::string>();
+        //        return peer->checkResponse(messageId, method, consumerId, finish());
+        //    }
+        //    else {
+        //        return peer->checkResponse(messageId, "", "", finish());
+        //    }
+        //}
         
     private:
         oatpp::async::Lock* _lock;
         std::shared_ptr<oatpp::websocket::AsyncWebSocket> _websocket;
-        oatpp::String _message;
+        std::weak_ptr<Peer> _peer;
+        nlohmann::json _message;
+        Peer::MessageType _type;
+        std::function<void()> _complete;
     };
 
     class SendPingCoroutine : public oatpp::async::Coroutine<SendPingCoroutine> {
@@ -111,68 +150,6 @@ namespace
                     /* async error after error message and close-frame are sent */
                     new oatpp::async::Error("API Error")
                     );
-        }
-        
-    private:
-        oatpp::async::Lock* _lock;
-        std::shared_ptr<oatpp::websocket::AsyncWebSocket> _websocket;
-        oatpp::String _message;
-    };
-
-    class RequestCoroutine : public oatpp::async::Coroutine<RequestCoroutine>
-    {
-    public:
-        RequestCoroutine(const std::shared_ptr<Peer>& peer,
-                         oatpp::async::Lock* lock,
-                         const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& websocket,
-                         const nlohmann::json& message)
-        : _peer(peer)
-        , _lock(lock)
-        , _websocket(websocket)
-        , _message(message) {}
-        
-        Action act() override {
-            int64_t id = _message["id"].get<int>();
-            auto request = std::make_shared<srv::WebsocketRequest>(id);
-            request->setData(_message);
-            _peer->_requestMap[id] = request;
-            
-            auto message = oatpp::String(_message.dump().c_str());
-            return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(message)).next(yieldTo(&RequestCoroutine::waitResponse));
-        }
-        
-        Action waitResponse() {
-            auto messageId = _message["id"].get<int>();
-            auto method = _message["method"].get<std::string>();
-            if (method == "newConsumer") {
-                auto data = _message["data"];
-                auto consumerId = data["id"].get<std::string>();
-                return _peer->checkResponseAsync(messageId, method, consumerId, finish());
-            }
-            else {
-                return _peer->checkResponseAsync(messageId, "", "", finish());
-            }
-        }
-        
-    private:
-        std::shared_ptr<Peer> _peer;
-        oatpp::async::Lock* _lock;
-        std::shared_ptr<oatpp::websocket::AsyncWebSocket> _websocket;
-        nlohmann::json _message;
-    };
-
-    class NotifyCoroutine : public oatpp::async::Coroutine<NotifyCoroutine>
-    {
-    public:
-        NotifyCoroutine(oatpp::async::Lock* lock,
-                        const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& websocket,
-                        const oatpp::String& message)
-        : _lock(lock)
-        , _websocket(websocket)
-        , _message(message) {}
-        
-        Action act() override {
-            return oatpp::async::synchronize(_lock, _websocket->sendOneFrameTextAsync(_message)).next(finish());
         }
         
     private:
@@ -221,14 +198,33 @@ void Peer::destroy()
     
 }
 
-void Peer::sendMessageAsync(const nlohmann::json& message)
+void Peer::sendMessage(const nlohmann::json& message, MessageType type)
 {
     if (_socket) {
-        _asyncExecutor->execute<SendMessageCoroutine>(&_writeLock, _socket, oatpp::String(message.dump().c_str()));
+        _executing = true;
+        _asyncExecutor->execute<SendMessageCoroutine>(&_writeLock, _socket, message, type, [wself = std::weak_ptr<Peer>(shared_from_this())](){
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            self->_executing = false;
+            self->runOne();
+        });
     }
 }
 
-bool Peer::sendPingAsync()
+void Peer::runOne()
+{
+    if (_executing) {
+        return;
+    }
+    std::shared_ptr<Message> msg;
+    if (_messageQueue.try_enqueue(msg)) {
+        sendMessage(msg->data(), msg->type());
+    }
+}
+
+bool Peer::sendPing()
 {
     /******************************************************
      *
@@ -260,35 +256,48 @@ oatpp::async::CoroutineStarter Peer::onApiError(const oatpp::String& errorMessag
     return SendErrorCoroutine::start(&_writeLock, _socket, _objectMapper->writeToString(message));
 }
 
-oatpp::async::Action Peer::checkResponseAsync(int messageId, const std::string& method, const std::string& param, oatpp::async::Action&& nextAction)
+//oatpp::async::Action Peer::checkResponse(int messageId, const std::string& method, const std::string& param, oatpp::async::Action&& nextAction)
+//{
+//    auto item = this->_requestMap.find(messageId);
+//    if (item != _requestMap.end()) {
+//        return oatpp::async::Action::createActionByType(oatpp::async::Action::TYPE_REPEAT);
+//    }
+//    else {
+//        if (method == "newConsumer" && param != "") {
+//            auto& controller = this->_data->consumerControllers[param];
+//            controller->resume();
+//        }
+//        return std::forward<oatpp::async::Action>(nextAction);
+//    }
+//}
+
+void Peer::request(const std::string& method, const nlohmann::json& message)
 {
-    auto item = this->_requestMap.find(messageId);
-    if (item != _requestMap.end()) {
-        return oatpp::async::Action::createActionByType(oatpp::async::Action::TYPE_REPEAT);
-    }
-    else {
-        if (method == "newConsumer" && param != "") {
-            auto& controller = this->_data->consumerControllers[param];
-            controller->resume();
+    if (_socket) {
+        auto request = ::Message::createRequest(method, message);
+        SRV_LOGD("[Room] [Peer] request: %s", request.dump(4).c_str());
+        auto id = request["id"].get<int64_t>();
+        auto msg = std::make_shared<Message>(id, request, MessageType::REQUEST);
+        _messageQueue.enqueue(msg);
+        _requestMap[id] = msg;
+        if (!_executing) {
+            runOne();
         }
-        return std::forward<oatpp::async::Action>(nextAction);
     }
 }
 
-void Peer::requestAsync(const std::string& method, const nlohmann::json& message)
+void Peer::notify(const std::string& method, const nlohmann::json& message)
 {
     if (_socket) {
-        auto request = Message::createRequest(method, message);
-        _asyncExecutor->execute<RequestCoroutine>(shared_from_this(), &_writeLock, _socket, request);
-    }
-}
-
-void Peer::notifyAsync(const std::string& method, const nlohmann::json& message)
-{
-    if (_socket) {
-        auto notify = Message::createNotification(method, message);
-        SRV_LOGD("[Room] [Peer] notifyAsync notify: %s", notify.dump(4).c_str());
-        _asyncExecutor->execute<NotifyCoroutine>(&_writeLock, _socket, oatpp::String(notify.dump().c_str()));
+        auto notification = ::Message::createNotification(method, message);
+        SRV_LOGD("[Room] [Peer] notification: %s", notification.dump(4).c_str());
+        
+        auto msg = std::make_shared<Message>(notification["id"].get<int64_t>(), notification, MessageType::NOTIFICATION);
+        _messageQueue.enqueue(msg);
+        
+        if (!_executing) {
+            runOne();
+        }
     }
 }
 
@@ -372,7 +381,7 @@ oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebS
         //message->peerId = _id;
         //message->timestamp = oatpp::base::Environment::getMicroTickCount();
 
-        nlohmann::json msg = Message::parse(wholeMessage->std_str());
+        nlohmann::json msg = ::Message::parse(wholeMessage->std_str());
         return handleMessage(msg);
 
     } else if (size > 0) { // message frame received
@@ -389,21 +398,23 @@ void Peer::handleRequest(const nlohmann::json& request)
 
 void Peer::handleResponse(const nlohmann::json& response)
 {
-    auto item = this->_requestMap.find(response["id"].get<int>());
+    auto item = this->_requestMap.find(response["id"].get<int64_t>());
     if (item == _requestMap.end()) {
         SRV_LOGE("[Peer] response id not found in map!");
         return;
     }
     
-    if (response.contains("ok")) {
-        if (response["ok"].get<bool>()) {
-            this->_requestMap.erase(item);
+    auto msg = item->second;
+    auto data = msg->data();
+    if (data.contains("method") && data["method"].get<std::string>() == "newConsumer") {
+        auto consumerId = data["id"].get<std::string>();
+        if (!consumerId.empty()) {
+            auto& controller = this->_data->consumerControllers[consumerId];
+            controller->resume();
         }
     }
-    else {
-        SRV_LOGW("error response!");
-        this->_requestMap.erase(item);
-    }
+
+    this->_requestMap.erase(item);
 }
 
 void Peer::handleNotification(const nlohmann::json& notification)
@@ -413,16 +424,28 @@ void Peer::handleNotification(const nlohmann::json& notification)
 
 void Peer::accept(const nlohmann::json& request, const nlohmann::json& data)
 {
-    auto response = Message::createSuccessResponse(request, data);
+    auto response = ::Message::createSuccessResponse(request, data);
     SRV_LOGD("[Room] [Peer] handleRequest with accept response: %s", response.dump(4).c_str());
-    sendMessageAsync(response);
+    
+    auto msg = std::make_shared<Message>(response["id"].get<int64_t>(), response, MessageType::RESPONSE);
+    _messageQueue.enqueue(msg);
+    
+    if (!_executing) {
+        runOne();
+    }
 }
 
 void Peer::reject(const nlohmann::json& request, int errorCode, const std::string& errorReason)
 {
-    auto response = Message::createErrorResponse(request, errorCode, errorReason);
+    auto response = ::Message::createErrorResponse(request, errorCode, errorReason);
     SRV_LOGD("[Room] [Peer] handleRequest with reject response: %s", response.dump(4).c_str());
-    sendMessageAsync(response);
+    
+    auto msg = std::make_shared<Message>(response["id"].get<int64_t>(), response, MessageType::RESPONSE);
+    _messageQueue.enqueue(msg);
+    
+    if (!_executing) {
+        runOne();
+    }
 }
 
 void Peer::close()

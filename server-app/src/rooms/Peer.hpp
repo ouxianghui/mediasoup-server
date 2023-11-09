@@ -41,6 +41,7 @@
 #include "oatpp/core/macro/component.hpp"
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
+#include "moodycamel/concurrentqueue.h"
 #include "types.h"
 
 using AcceptFunc = std::function<void(const nlohmann::json& request, const nlohmann::json& data)>;
@@ -93,6 +94,32 @@ public:
 class Peer : public oatpp::websocket::AsyncWebSocket::Listener, public std::enable_shared_from_this<Peer>
 {
 public:
+    enum class MessageType : uint8_t {
+        REQUEST = 0,
+        RESPONSE = 1,
+        NOTIFICATION = 2
+    };
+
+    class Message {
+    public:
+        Message(int64_t id, MessageType type, const nlohmann::json& data)
+        : _id(id)
+        , _type(type)
+        , _data(data) {}
+        
+        int64_t id() { return _id; }
+        
+        MessageType type() { return _type; }
+        
+        const nlohmann::json& data() { return _data; }
+        
+    private:
+        int64_t _id;
+        MessageType _type;
+        nlohmann::json _data;
+    };
+    
+public:
     Peer(const std::shared_ptr<AsyncWebSocket>& socket, const std::string& roomId, const std::string& peerId);
     
     ~Peer();
@@ -117,15 +144,13 @@ public:
     
     bool closed() { return _closed; }
     
-    void sendMessageAsync(const nlohmann::json& message);
-    
-    bool sendPingAsync();
+    bool sendPing();
 
-    void requestAsync(const std::string& method, const nlohmann::json& message);
+    void request(const std::string& method, const nlohmann::json& message);
     
-    oatpp::async::Action checkResponseAsync(int messageId, const std::string& method, const std::string& param, oatpp::async::Action&& nextAction);
+    //oatpp::async::Action checkResponse(int messageId, const std::string& method, const std::string& param, oatpp::async::Action&& nextAction);
 
-    void notifyAsync(const std::string& method, const nlohmann::json& message);
+    void notify(const std::string& method, const nlohmann::json& message);
 
 private:
     // WebSocket Listener methods
@@ -142,6 +167,8 @@ private:
     
     oatpp::async::CoroutineStarter handleMessage(const nlohmann::json& message);
     
+    void sendMessage(const nlohmann::json& message, MessageType type);
+    
     void handleRequest(const nlohmann::json& request);
     
     void handleResponse(const nlohmann::json& response);
@@ -151,6 +178,8 @@ private:
     void accept(const nlohmann::json& request, const nlohmann::json& data);
     
     void reject(const nlohmann::json& request, int errorCode, const std::string& errorReason);
+    
+    void runOne();
     
 public:
     // signals
@@ -190,9 +219,13 @@ private:
     std::atomic_bool _closed {false};
     
 public:
-    asio::thread_pool _context {1};
+    //asio::thread_pool _context {1};
     
-    std::unordered_map<int64_t, std::shared_ptr<srv::WebsocketRequest>> _requestMap;
+    moodycamel::ConcurrentQueue<std::shared_ptr<Message>> _messageQueue;
+    
+    std::unordered_map<int64_t, std::shared_ptr<Message>> _requestMap;
+    
+    std::atomic_bool _executing {false};
     
 private:
     /* Inject application components */

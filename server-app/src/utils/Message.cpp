@@ -13,11 +13,11 @@
 namespace {
     using std::default_random_engine;
     using std::uniform_real_distribution;
-    int64_t generateRandomNumber()
+    int32_t generateRandomNumber()
     {
         std::random_device sd;
         std::minstd_rand linear(sd());
-        std::uniform_int_distribution<int64_t>dist(0, std::numeric_limits<int64_t>::max());
+        std::uniform_int_distribution<int32_t>dist(0, std::numeric_limits<int32_t>::max());
         return dist(linear);
     }
 }

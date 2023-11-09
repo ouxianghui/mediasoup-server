@@ -219,7 +219,7 @@ void Peer::runOne()
         return;
     }
     std::shared_ptr<Message> msg;
-    if (_messageQueue.try_enqueue(msg)) {
+    if (_messageQueue.try_dequeue(msg)) {
         sendMessage(msg->data(), msg->type());
     }
 }
@@ -277,7 +277,7 @@ void Peer::request(const std::string& method, const nlohmann::json& message)
         auto request = ::Message::createRequest(method, message);
         SRV_LOGD("[Room] [Peer] request: %s", request.dump(4).c_str());
         auto id = request["id"].get<int64_t>();
-        auto msg = std::make_shared<Message>(id, request, MessageType::REQUEST);
+        auto msg = std::make_shared<Message>(id, MessageType::REQUEST, request);
         _messageQueue.enqueue(msg);
         _requestMap[id] = msg;
         if (!_executing) {
@@ -292,7 +292,7 @@ void Peer::notify(const std::string& method, const nlohmann::json& message)
         auto notification = ::Message::createNotification(method, message);
         SRV_LOGD("[Room] [Peer] notification: %s", notification.dump(4).c_str());
         
-        auto msg = std::make_shared<Message>(notification["id"].get<int64_t>(), notification, MessageType::NOTIFICATION);
+        auto msg = std::make_shared<Message>(0,  MessageType::NOTIFICATION, notification);
         _messageQueue.enqueue(msg);
         
         if (!_executing) {
@@ -406,8 +406,9 @@ void Peer::handleResponse(const nlohmann::json& response)
     
     auto msg = item->second;
     auto data = msg->data();
-    if (data.contains("method") && data["method"].get<std::string>() == "newConsumer") {
-        auto consumerId = data["id"].get<std::string>();
+    SRV_LOGE("data: %s", data.dump().c_str());
+    if (data.contains("method") && data["method"].get<std::string>() == "newConsumer" && data.contains("data")) {
+        auto consumerId = data["data"]["id"].get<std::string>();
         if (!consumerId.empty()) {
             auto& controller = this->_data->consumerControllers[consumerId];
             controller->resume();
@@ -427,7 +428,8 @@ void Peer::accept(const nlohmann::json& request, const nlohmann::json& data)
     auto response = ::Message::createSuccessResponse(request, data);
     SRV_LOGD("[Room] [Peer] handleRequest with accept response: %s", response.dump(4).c_str());
     
-    auto msg = std::make_shared<Message>(response["id"].get<int64_t>(), response, MessageType::RESPONSE);
+    int64_t id = response["id"].get<int64_t>();
+    auto msg = std::make_shared<Message>(id, MessageType::RESPONSE, response);
     _messageQueue.enqueue(msg);
     
     if (!_executing) {
@@ -440,7 +442,7 @@ void Peer::reject(const nlohmann::json& request, int errorCode, const std::strin
     auto response = ::Message::createErrorResponse(request, errorCode, errorReason);
     SRV_LOGD("[Room] [Peer] handleRequest with reject response: %s", response.dump(4).c_str());
     
-    auto msg = std::make_shared<Message>(response["id"].get<int64_t>(), response, MessageType::RESPONSE);
+    auto msg = std::make_shared<Message>(response["id"].get<int64_t>(), MessageType::RESPONSE, response);
     _messageQueue.enqueue(msg);
     
     if (!_executing) {

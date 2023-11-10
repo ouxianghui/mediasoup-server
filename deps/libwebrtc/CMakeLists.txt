@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(PROJECT_NAME "libwebrtc")
+set(PROJECT_NAME "webrtc")
 project(${PROJECT_NAME})
 
 include (TestBigEndian)

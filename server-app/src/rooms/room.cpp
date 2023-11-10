@@ -179,7 +179,7 @@ void Room::close()
     // Close the mediasoup Router.
     _routerController->close();
     
-    _closeSignal(_id);
+    this->closeSignal(_id);
 }
 
 void Room::onPeerClose(const std::string& peerId)

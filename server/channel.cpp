@@ -56,11 +56,12 @@ namespace srv {
 
     Channel::Channel()
     {
-        
+        SRV_LOGD("Channel()");
     }
 
     Channel::~Channel()
     {
+        SRV_LOGD("~Channel()");
         clean();
     }
 

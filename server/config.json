@@ -1,8 +1,8 @@
 {
-	"domain": "localhost",
+	"domain": "",
 	"https": {
 		"listenIp": "124.221.73.157",
-		"listenPort": 8443,
+		"listenPort": 4443,
 		"tls": {
 			"cert": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt",
 			"key": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem"
@@ -12,7 +12,7 @@
 		"numWorkers": 4,
 		"workerSettings": {
 			"dtlsCertificateFile": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt",
-			"dtlsPrivateKeyFile":  "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem",
+			"dtlsPrivateKeyFile": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem",
 			"logLevel": "warn",
 			"logTags": [
 				"info",

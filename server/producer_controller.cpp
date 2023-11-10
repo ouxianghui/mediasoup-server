@@ -27,12 +27,12 @@ namespace srv {
     , _appData(appData)
     , _paused(paused)
     {
-
+        SRV_LOGD("ProducerController()");
     }
 
     ProducerController::~ProducerController()
     {
-        
+        SRV_LOGD("~ProducerController()");
     }
 
     void ProducerController::init()

@@ -37,7 +37,7 @@ namespace srv {
 
     WorkerController::~WorkerController()
     {
-        
+        SRV_LOGD("~WorkerController()")
     }
 
     void WorkerController::init()

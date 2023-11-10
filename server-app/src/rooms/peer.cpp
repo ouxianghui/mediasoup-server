@@ -139,6 +139,7 @@ Peer::~Peer()
 
 void Peer::init()
 {
+    SRV_LOGD("init()");
     _accept = [wself = std::weak_ptr<Peer>(shared_from_this())](const nlohmann::json& request, const nlohmann::json& data){
         auto self = wself.lock();
         if (!self) {
@@ -158,7 +159,7 @@ void Peer::init()
 
 void Peer::destroy()
 {
-    
+    SRV_LOGD("destroy()");
 }
 
 void Peer::sendMessage(const nlohmann::json& message, MessageType type)

@@ -63,11 +63,12 @@ namespace srv {
 
     PayloadChannel::PayloadChannel()
     {
-        
+        SRV_LOGD("PayloadChannel()");
     }
 
     PayloadChannel::~PayloadChannel()
     {
+        SRV_LOGD("~PayloadChannel()");
         clean();
     }
 

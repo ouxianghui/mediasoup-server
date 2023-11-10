@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 
-#if 0
+#if 1
 #define SRV_LOGD(...) { \
     fprintf(stderr, "%s: Line %d:\t", __FILE__, __LINE__); \
     fprintf(stderr, __VA_ARGS__); \

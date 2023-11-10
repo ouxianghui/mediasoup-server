@@ -133,3 +133,4 @@ add_subdirectory(worker)
 add_subdirectory(server)
 add_subdirectory(server-app)
 
+add_dependencies(server_app server worker libwebrtc)

@@ -306,7 +306,7 @@ oatpp::async::CoroutineStarter Peer::onClose(const std::shared_ptr<AsyncWebSocke
 {
     SRV_LOGD("onClose()");
     
-    //_closeSignal(_id);
+    //this->closeSignal(_id);
     return nullptr; // do nothing
 }
 
@@ -342,7 +342,7 @@ oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebS
 
 void Peer::handleRequest(const nlohmann::json& request)
 {
-    _requestSignal(shared_from_this(), request, _accept, _reject);
+    this->requestSignal(shared_from_this(), request, _accept, _reject);
 }
 
 void Peer::handleResponse(const nlohmann::json& response)
@@ -369,7 +369,7 @@ void Peer::handleResponse(const nlohmann::json& response)
 
 void Peer::handleNotification(const nlohmann::json& notification)
 {
-    _notificationSignal(notification);
+    this->notificationSignal(notification);
 }
 
 void Peer::accept(const nlohmann::json& request, const nlohmann::json& data)
@@ -420,5 +420,5 @@ void Peer::close()
     _requestMap.clear();
 
     // Emit 'close' event.
-    _closeSignal(_id);
+    this->closeSignal(_id);
 }

@@ -163,11 +163,11 @@ private:
     
 public:
     // signals
-    sigslot::signal<const std::string&> _closeSignal;
+    sigslot::signal<const std::string&> closeSignal;
     
-    sigslot::signal<const std::shared_ptr<Peer>&, const nlohmann::json&, AcceptFunc&, RejectFunc&> _requestSignal;
+    sigslot::signal<const std::shared_ptr<Peer>&, const nlohmann::json&, AcceptFunc&, RejectFunc&> requestSignal;
     
-    sigslot::signal<const nlohmann::json&> _notificationSignal;
+    sigslot::signal<const nlohmann::json&> notificationSignal;
     
 private:
     std::shared_ptr<PeerData> _data;

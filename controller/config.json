@@ -4,15 +4,15 @@
 		"listenIp": "124.221.73.157",
 		"listenPort": 4443,
 		"tls": {
-			"cert": "/home/ubuntu/dev/mediasoup-serve/sfu/cert/test_cert.crt",
-			"key": "/home/ubuntu/dev/mediasoup-serve/sfu/cert/test_key.pem"
+			"cert": "/home/ubuntu/dev/mediasoup-server/sfu/cert/test_cert.crt",
+			"key": "/home/ubuntu/dev/mediasoup-server/sfu/cert/test_key.pem"
 		}
 	},
 	"mediasoup": {
 		"numWorkers": 4,
 		"workerSettings": {
-			"dtlsCertificateFile": "/home/ubuntu/dev/mediasoup-serve/sfu/cert/test_cert.crt",
-			"dtlsPrivateKeyFile":  "/home/ubuntu/dev/mediasoup-serve/sfu/cert/test_key.pem",
+			"dtlsCertificateFile": "/home/ubuntu/dev/mediasoup-server/sfu/cert/test_cert.crt",
+			"dtlsPrivateKeyFile":  "/home/ubuntu/dev/mediasoup-server/sfu/cert/test_key.pem",
 			"logLevel": "warn",
 			"logTags": [
 				"info",

@@ -97,13 +97,13 @@ namespace srv {
         void onWorkerClosed();
         
     public:
-        sigslot::signal<> _workerCloseSignal;
+        sigslot::signal<> workerCloseSignal;
         
-        sigslot::signal<std::shared_ptr<WebRtcServerController>> _closeSignal;
+        sigslot::signal<std::shared_ptr<WebRtcServerController>> closeSignal;
         
-        sigslot::signal<std::shared_ptr<WebRtcTransportController>> _webrtcTransportHandledSignal;
+        sigslot::signal<std::shared_ptr<WebRtcTransportController>> webrtcTransportHandledSignal;
         
-        sigslot::signal<std::shared_ptr<WebRtcTransportController>> _webrtcTransportUnhandledSignal;
+        sigslot::signal<std::shared_ptr<WebRtcTransportController>> webrtcTransportUnhandledSignal;
         
     private:
         void close();

@@ -66,10 +66,10 @@ namespace srv {
             _webRtcTransportMap.clear();
         }
 
-        _workerCloseSignal();
+        this->workerCloseSignal();
 
         // Emit observer event.
-        _closeSignal(shared_from_this());
+        this->closeSignal(shared_from_this());
     }
 
     void WebRtcServerController::close()
@@ -101,12 +101,12 @@ namespace srv {
                 
                 transport->onListenServerClosed();
                 
-                _webrtcTransportUnhandledSignal(transport);
+                this->webrtcTransportUnhandledSignal(transport);
             }
             _webRtcTransportMap.clear();
         }
 
-        _closeSignal(shared_from_this());
+        this->closeSignal(shared_from_this());
     }
 
     void WebRtcServerController::handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& transportController)
@@ -117,9 +117,9 @@ namespace srv {
         }
 
         // Emit observer event.
-        _webrtcTransportHandledSignal(transportController);
+        this->webrtcTransportHandledSignal(transportController);
         
-        transportController->_closeSignal.connect(&WebRtcServerController::onWebRtcTransportClose, shared_from_this());
+        transportController->closeSignal.connect(&WebRtcServerController::onWebRtcTransportClose, shared_from_this());
     }
 
     void WebRtcServerController::onWebRtcTransportClose(const std::string& id_)
@@ -127,7 +127,7 @@ namespace srv {
         std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
         if (_webRtcTransportMap.find(id_) != _webRtcTransportMap.end()) {
             auto controller = _webRtcTransportMap[id_];
-            _webrtcTransportUnhandledSignal(controller);
+            this->webrtcTransportUnhandledSignal(controller);
             _webRtcTransportMap.erase(id_);
         }
     }

@@ -150,12 +150,12 @@ namespace srv {
         void onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen);
         
     public:
-        sigslot::signal<> _transportCloseSignal;
-        sigslot::signal<> _dataProducerCloseSignal;
-        sigslot::signal<const uint8_t*, size_t, int32_t> _messageSignal;
-        sigslot::signal<> _sctpSendBufferFullSignal;
-        sigslot::signal<int32_t> _bufferedAmountLowSignal;
-        sigslot::signal<> _closeSignal;
+        sigslot::signal<> transportCloseSignal;
+        sigslot::signal<> dataProducerCloseSignal;
+        sigslot::signal<const uint8_t*, size_t, int32_t> messageSignal;
+        sigslot::signal<> sctpSendBufferFullSignal;
+        sigslot::signal<int32_t> bufferedAmountLowSignal;
+        sigslot::signal<> closeSignal;
         
     private:
         // Internal data.

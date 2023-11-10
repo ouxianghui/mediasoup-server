@@ -50,13 +50,13 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         nlohmann::json reqData;
         reqData["transportId"] = _internal.transportId;
@@ -68,7 +68,7 @@ namespace srv {
             for (const auto& item : _producerControllers) {
                 auto ctrl = item.second;
                 ctrl->onTransportClosed();
-                _producerCloseSignal(ctrl);
+                this->producerCloseSignal(ctrl);
             }
             _producerControllers.clear();
         }
@@ -87,7 +87,7 @@ namespace srv {
             for (const auto& item : _dataProducerControllers) {
                 auto ctrl = item.second;
                 ctrl->onTransportClosed();
-                _dataProducerCloseSignal(ctrl);
+                this->dataProducerCloseSignal(ctrl);
             }
             _dataProducerControllers.clear();
         }
@@ -101,7 +101,7 @@ namespace srv {
             _dataConsumerControllers.clear();
         }
         
-        _closeSignal(id());
+        this->closeSignal(id());
     }
 
     void TransportController::onRouterClosed()
@@ -119,19 +119,19 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         clearControllers();
         
-        _routerCloseSignal();
+        this->routerCloseSignal();
         
-        _closeSignal(id());
+        this->closeSignal(id());
     }
 
     void TransportController::onListenServerClosed()
@@ -149,19 +149,19 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         clearControllers();
         
-        _listenServerCloseSignal();
+        this->listenServerCloseSignal();
         
-        _closeSignal(id());
+        this->closeSignal(id());
     }
 
     nlohmann::json TransportController::dump()
@@ -361,7 +361,7 @@ namespace srv {
             _producerControllers[producerController->id()] = producerController;
         }
 
-        producerController->_closeSignal.connect([id = producerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this())]() {
+        producerController->closeSignal.connect([id = producerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -369,12 +369,12 @@ namespace srv {
             std::lock_guard<std::mutex> lock(self->_producersMutex);
             if (self->_producerControllers.find(id) != self->_producerControllers.end()) {
                 auto ctrl = self->_producerControllers[id];
-                self->_producerCloseSignal(ctrl);
+                self->producerCloseSignal(ctrl);
                 self->_producerControllers.erase(id);
             }
         });
 
-        _newProducerSignal(producerController);
+        this->newProducerSignal(producerController);
 
         return producerController;
     }
@@ -494,10 +494,10 @@ namespace srv {
                 }
             };
             
-            consumerController->_closeSignal.connect(removeLambda);
-            consumerController->_producerCloseSignal.connect(removeLambda);
+            consumerController->closeSignal.connect(removeLambda);
+            consumerController->producerCloseSignal.connect(removeLambda);
             
-            _newConsumerSignal(consumerController);
+            this->newConsumerSignal(consumerController);
         }
 
         return consumerController;
@@ -575,7 +575,7 @@ namespace srv {
             dataProducerController->init();
             _dataProducerControllers[dataProducerController->id()] = dataProducerController;
             
-            dataProducerController->_closeSignal.connect([id = dataProducerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this())]() {
+            dataProducerController->closeSignal.connect([id = dataProducerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this())]() {
                 auto self = wself.lock();
                 if (!self) {
                     return;
@@ -584,11 +584,11 @@ namespace srv {
                 if (self->_dataProducerControllers.find(id) != self->_dataProducerControllers.end()) {
                     auto ctrl = self->_dataProducerControllers[id];
                     self->_dataProducerControllers.erase(id);
-                    self->_dataProducerCloseSignal(ctrl);
+                    self->dataProducerCloseSignal(ctrl);
                 }
             });
             
-            _newDataProducerSignal(dataProducerController);
+            this->newDataProducerSignal(dataProducerController);
         }
 
         return dataProducerController;
@@ -701,11 +701,11 @@ namespace srv {
                 }
             };
             
-            dataConsumerController->_closeSignal.connect(removeLambda);
-            dataConsumerController->_dataProducerCloseSignal.connect(removeLambda);
+            dataConsumerController->closeSignal.connect(removeLambda);
+            dataConsumerController->dataProducerCloseSignal.connect(removeLambda);
         }
         
-        _newDataConsumerSignal(dataConsumerController);
+        this->newDataConsumerSignal(dataConsumerController);
 
         return dataConsumerController;
     }

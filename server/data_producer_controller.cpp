@@ -59,20 +59,20 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         nlohmann::json reqData;
         reqData["dataProducerId"] = _internal.dataProducerId;
         
         channel->request("transport.closeDataProducer", _internal.transportId, reqData.dump());
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     void DataProducerController::onTransportClosed()
@@ -90,17 +90,17 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
-        _transportCloseSignal();
+        this->transportCloseSignal();
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     nlohmann::json DataProducerController::dump()
@@ -171,13 +171,13 @@ nlohmann::json DataProducerController::getStats()
         // if (!channel) {
         //     return;
         // }
-        // channel->_notificationSignal.connect(&DataProducerController::onChannel, shared_from_this());
+        // channel->notificationSignal.connect(&DataProducerController::onChannel, shared_from_this());
         //
         // auto payloadChannel = _payloadChannel.lock();
         // if (!payloadChannel) {
         //     return;
         // }
-        // payloadChannel->_notificationSignal.connect(&DataProducerController::onPayloadChannel, shared_from_this());
+        // payloadChannel->notificationSignal.connect(&DataProducerController::onPayloadChannel, shared_from_this());
     }
 
     void DataProducerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)

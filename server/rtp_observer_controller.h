@@ -78,12 +78,12 @@ namespace srv {
         void removeProducer(const std::string& producerId);
         
     public:
-        sigslot::signal<> _routerCloseSignal;
-        sigslot::signal<> _closeSignal;
-        sigslot::signal<> _pauseSignal;
-        sigslot::signal<> _resumeSignal;
-        sigslot::signal<std::shared_ptr<ProducerController>> _addProducerSignal;
-        sigslot::signal<std::shared_ptr<ProducerController>> _removeProducerSignal;
+        sigslot::signal<> routerCloseSignal;
+        sigslot::signal<> closeSignal;
+        sigslot::signal<> pauseSignal;
+        sigslot::signal<> resumeSignal;
+        sigslot::signal<std::shared_ptr<ProducerController>> addProducerSignal;
+        sigslot::signal<std::shared_ptr<ProducerController>> removeProducerSignal;
         
     protected:
         std::shared_ptr<RtpObserverConstructorOptions> _options;

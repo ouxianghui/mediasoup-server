@@ -59,20 +59,20 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         nlohmann::json reqData;
         reqData["dataConsumerId"] = _internal.dataConsumerId;
         
         channel->request("transport.closeDataConsumer", _internal.transportId, reqData.dump());
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     void DataConsumerController::onTransportClosed()
@@ -90,17 +90,17 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
-        _transportCloseSignal();
+        this->transportCloseSignal();
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     nlohmann::json DataConsumerController::dump()
@@ -204,13 +204,13 @@ nlohmann::json DataConsumerController::getStats()
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.connect(&DataConsumerController::onChannel, shared_from_this());
+        channel->notificationSignal.connect(&DataConsumerController::onChannel, shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.connect(&DataConsumerController::onPayloadChannel, shared_from_this());
+        payloadChannel->notificationSignal.connect(&DataConsumerController::onPayloadChannel, shared_from_this());
     }
 
     void DataConsumerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -229,26 +229,26 @@ nlohmann::json DataConsumerController::getStats()
             if (!channel) {
                 return;
             }
-            channel->_notificationSignal.disconnect(shared_from_this());
+            channel->notificationSignal.disconnect(shared_from_this());
             
             auto payloadChannel = _payloadChannel.lock();
             if (!payloadChannel) {
                 return;
             }
-            payloadChannel->_notificationSignal.disconnect(shared_from_this());
+            payloadChannel->notificationSignal.disconnect(shared_from_this());
             
-            _dataProducerCloseSignal();
+            this->dataProducerCloseSignal();
             
-            _closeSignal();
+            this->closeSignal();
         }
         else if (event == "sctpsendbufferfull") {
-            _sctpSendBufferFullSignal();
+            sctpSendBufferFullSignal();
         }
         else if (event == "bufferedamountlow") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object() && js.find("score") != js.end()) {
                 int32_t bufferedAmount = js["bufferedAmount"];
-                _bufferedAmountLowSignal(bufferedAmount);
+                this->bufferedAmountLowSignal(bufferedAmount);
             }
         }
         else {
@@ -270,7 +270,7 @@ nlohmann::json DataConsumerController::getStats()
             auto js = nlohmann::json::parse(data);
             if (js.is_object() && js.find("ppid") != js.end()) {
                 int32_t ppid = js["ppid"];
-                _messageSignal(payload, payloadLen, ppid);
+                this->messageSignal(payload, payloadLen, ppid);
             }
         }
         else {

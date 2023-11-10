@@ -189,13 +189,13 @@ namespace srv {
         
     public:
         // signals
-        sigslot::signal<std::shared_ptr<RouterController>> _closeSignal;
+        sigslot::signal<std::shared_ptr<RouterController>> closeSignal;
         
-        sigslot::signal<> _workerCloseSignal;
+        sigslot::signal<> workerCloseSignal;
         
-        sigslot::signal<std::shared_ptr<TransportController>> _newTransportSignal;
+        sigslot::signal<std::shared_ptr<TransportController>> newTransportSignal;
         
-        sigslot::signal<std::shared_ptr<RtpObserverController>> _newRtpObserverSignal;
+        sigslot::signal<std::shared_ptr<RtpObserverController>> newRtpObserverSignal;
         
     private:
         void clear();

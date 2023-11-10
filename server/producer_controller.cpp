@@ -61,20 +61,20 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         nlohmann::json reqData;
         reqData["producerId"] = _internal.producerId;
         
         channel->request("transport.closeProducer", _internal.transportId, reqData.dump());
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     void ProducerController::onTransportClosed()
@@ -92,17 +92,17 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
-        _transportCloseSignal();
+        this->transportCloseSignal();
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     nlohmann::json ProducerController::dump()
@@ -146,7 +146,7 @@ namespace srv {
 
         // Emit observer event.
         if (!wasPaused) {
-            _pauseSignal();
+            this->pauseSignal();
         }
     }
 
@@ -167,7 +167,7 @@ namespace srv {
 
         // Emit observer event.
         if (wasPaused) {
-            _resumeSignal();
+            this->resumeSignal();
         }
     }
 
@@ -211,7 +211,7 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.connect(&ProducerController::onChannel, shared_from_this());
+        channel->notificationSignal.connect(&ProducerController::onChannel, shared_from_this());
     }
 
     void ProducerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -232,21 +232,21 @@ namespace srv {
                     std::lock_guard<std::mutex> lock(_scoreMutex);
                     _score = scores;
                 }
-                _scoreSignal(scores);
+                this->scoreSignal(scores);
             }
         }
         else if (event == "videoorientationchange") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 ProducerVideoOrientation orientation = js;
-                _videoOrientationChangeSignal(orientation);
+                this->videoOrientationChangeSignal(orientation);
             }
         }
         else if (event == "trace") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 ProducerTraceEventData eventData = js;
-                _traceSignal(eventData);
+                this->traceSignal(eventData);
             }
         }
         else {

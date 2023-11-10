@@ -223,13 +223,13 @@ namespace srv {
         void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
         
     public:
-        sigslot::signal<> _transportCloseSignal;
-        sigslot::signal<const std::vector<ProducerScore>&> _scoreSignal;
-        sigslot::signal<const ProducerVideoOrientation&> _videoOrientationChangeSignal;
-        sigslot::signal<const ProducerTraceEventData&> _traceSignal;
-        sigslot::signal<> _closeSignal;
-        sigslot::signal<> _pauseSignal;
-        sigslot::signal<> _resumeSignal;
+        sigslot::signal<> transportCloseSignal;
+        sigslot::signal<const std::vector<ProducerScore>&> scoreSignal;
+        sigslot::signal<const ProducerVideoOrientation&> videoOrientationChangeSignal;
+        sigslot::signal<const ProducerTraceEventData&> traceSignal;
+        sigslot::signal<> closeSignal;
+        sigslot::signal<> pauseSignal;
+        sigslot::signal<> resumeSignal;
         
     private:
         // Internal data.

@@ -67,20 +67,20 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         nlohmann::json reqData;
         reqData["consumerId"] = _internal.consumerId;
         
         channel->request("transport.closeConsumer", _internal.transportId, reqData.dump());
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     void ConsumerController::onTransportClosed()
@@ -98,17 +98,17 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
-        _transportCloseSignal();
+        this->transportCloseSignal();
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     nlohmann::json ConsumerController::dump()
@@ -152,7 +152,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
 
         // Emit observer event.
         if (!wasPaused) {
-            _pauseSignal();
+            this->pauseSignal();
         }
     }
 
@@ -173,7 +173,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
 
         // Emit observer event.
         if (wasPaused && !_producerPaused) {
-            _resumeSignal();
+            this->resumeSignal();
         }
     }
 
@@ -283,13 +283,13 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.connect(&ConsumerController::onChannel, shared_from_this());
+        channel->notificationSignal.connect(&ConsumerController::onChannel, shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.connect(&ConsumerController::onPayloadChannel, shared_from_this());
+        payloadChannel->notificationSignal.connect(&ConsumerController::onPayloadChannel, shared_from_this());
     }
 
     void ConsumerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -308,17 +308,17 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             if (!channel) {
                 return;
             }
-            channel->_notificationSignal.disconnect(shared_from_this());
+            channel->notificationSignal.disconnect(shared_from_this());
             
             auto payloadChannel = _payloadChannel.lock();
             if (!payloadChannel) {
                 return;
             }
-            payloadChannel->_notificationSignal.disconnect(shared_from_this());
+            payloadChannel->notificationSignal.disconnect(shared_from_this());
             
-            _producerCloseSignal();
+            this->producerCloseSignal();
             
-            _closeSignal();
+            this->closeSignal();
         }
         else if (event == "producerpause") {
             if (_producerPaused) {
@@ -329,10 +329,10 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             
             _producerPaused = true;
             
-            _producerPauseSignal();
+            this->producerPauseSignal();
             
             if (!wasPaused) {
-                _pauseSignal();
+                this->pauseSignal();
             }
         }
         else if (event == "producerresume") {
@@ -344,17 +344,17 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             
             _producerPaused = false;
             
-            _producerResumeSignal();
+            this->producerResumeSignal();
             
             if (wasPaused && !_paused) {
-                _resumeSignal();
+                this->resumeSignal();
             }
         }
         else if (event == "score") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 ConsumerScore score = js;
-                _scoreSignal(score);
+                this->scoreSignal(score);
             }
         }
         else if (event == "layerschange") {
@@ -362,14 +362,14 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             if (js.is_object()) {
                 ConsumerLayers layers = js;
                 _currentLayers = layers;
-                _layersChangeSignal(layers);
+                this->layersChangeSignal(layers);
             }
         }
         else if (event == "trace") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 ConsumerTraceEventData eventData = js;
-                _traceSignal(eventData);
+                this->traceSignal(eventData);
             }
         }
         else {
@@ -388,7 +388,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         }
         
         if (event == "rtp") {
-            _rtpSignal(payload, payloadLen);
+            this->rtpSignal(payload, payloadLen);
         }
         else {
             SRV_LOGD("ignoring unknown event %s", event.c_str());

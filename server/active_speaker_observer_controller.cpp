@@ -45,7 +45,7 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.connect(&ActiveSpeakerObserverController::onChannel, self);
+        channel->notificationSignal.connect(&ActiveSpeakerObserverController::onChannel, self);
     }
 
     void ActiveSpeakerObserverController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -63,7 +63,7 @@ namespace srv {
                 assert(_getProducerController);
                 auto producer = _getProducerController(producerId);
                 ActiveSpeakerObserverDominantSpeaker speaker { producer };
-                _dominantSpeakerSignal(speaker);
+                this->dominantSpeakerSignal(speaker);
             }
         }
         else {

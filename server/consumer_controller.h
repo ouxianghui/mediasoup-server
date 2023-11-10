@@ -269,17 +269,17 @@ namespace srv {
         
     public:
         // signals
-        sigslot::signal<> _transportCloseSignal;
-        sigslot::signal<> _producerCloseSignal;
-        sigslot::signal<> _producerPauseSignal;
-        sigslot::signal<> _producerResumeSignal;
-        sigslot::signal<const ConsumerScore&> _scoreSignal;
-        sigslot::signal<const ConsumerLayers&> _layersChangeSignal;
-        sigslot::signal<const ConsumerTraceEventData&> _traceSignal;
-        sigslot::signal<const uint8_t*, size_t> _rtpSignal;
-        sigslot::signal<> _closeSignal;
-        sigslot::signal<> _pauseSignal;
-        sigslot::signal<> _resumeSignal;
+        sigslot::signal<> transportCloseSignal;
+        sigslot::signal<> producerCloseSignal;
+        sigslot::signal<> producerPauseSignal;
+        sigslot::signal<> producerResumeSignal;
+        sigslot::signal<const ConsumerScore&> scoreSignal;
+        sigslot::signal<const ConsumerLayers&> layersChangeSignal;
+        sigslot::signal<const ConsumerTraceEventData&> traceSignal;
+        sigslot::signal<const uint8_t*, size_t> rtpSignal;
+        sigslot::signal<> closeSignal;
+        sigslot::signal<> pauseSignal;
+        sigslot::signal<> resumeSignal;
         
     private:
         // Internal data.

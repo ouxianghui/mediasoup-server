@@ -122,9 +122,10 @@ void Room::createPeer(const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& s
 
     socket->setListener(peer);
 
-    peer->_requestSignal.connect(&Room::onHandleRequest, shared_from_this());
-    peer->_notificationSignal.connect(&Room::onHandleNotification, shared_from_this());
-    peer->_closeSignal.connect(&Room::onPeerClose, shared_from_this());
+    peer->requestSignal.connect(&Room::onHandleRequest, shared_from_this());
+    peer->notificationSignal.connect(&Room::onHandleNotification, shared_from_this());
+    peer->closeSignal.connect(&Room::onPeerClose, shared_from_this());
+    
     _peerMap[peer->id()] = peer;
 }
 
@@ -219,13 +220,13 @@ void Room::onPeerClose(const std::string& peerId)
 
 void Room::handleAudioLevelObserver()
 {
-    _audioLevelObserverController->_volumesSignal.connect(&Room::onAudioVolumes, shared_from_this());
-    _audioLevelObserverController->_silenceSignal.connect(&Room::onAudioSilence, shared_from_this());
+    _audioLevelObserverController->volumesSignal.connect(&Room::onAudioVolumes, shared_from_this());
+    _audioLevelObserverController->silenceSignal.connect(&Room::onAudioSilence, shared_from_this());
 }
 
 void Room::handleActiveSpeakerObserver()
 {
-    _activeSpeakerObserverController->_dominantSpeakerSignal.connect(&Room::onDominantSpeaker, shared_from_this());
+    _activeSpeakerObserverController->dominantSpeakerSignal.connect(&Room::onDominantSpeaker, shared_from_this());
 }
 
 std::unordered_map<std::string, std::shared_ptr<Peer>> Room::getJoinedPeers(const std::string& excludePeerId)
@@ -295,7 +296,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
         
         consumerPeer->data()->consumerControllers[consumerController->id()] = consumerController;
         
-        consumerController->_transportCloseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
+        consumerController->transportCloseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
             auto cp = wcp.lock();
             if (!cp) {
                 return;
@@ -303,7 +304,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             cp->data()->consumerControllers.erase(id);
         });
         
-        consumerController->_producerCloseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
+        consumerController->producerCloseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
             auto cp = wcp.lock();
             if (!cp) {
                 return;
@@ -316,7 +317,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             cp->notify("consumerClosed", msg);
         });
         
-        consumerController->_producerPauseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
+        consumerController->producerPauseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
             auto cp = wcp.lock();
             if (!cp) {
                 return;
@@ -327,7 +328,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             cp->notify("consumerPaused", msg);
         });
         
-        consumerController->_producerResumeSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
+        consumerController->producerResumeSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
             auto cp = wcp.lock();
             if (!cp) {
                 return;
@@ -338,7 +339,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             cp->notify("consumerResumed", msg);
         });
         
-        consumerController->_scoreSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](const srv::ConsumerScore& score){
+        consumerController->scoreSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](const srv::ConsumerScore& score){
             auto cp = wcp.lock();
             if (!cp) {
                 return;
@@ -350,7 +351,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             cp->notify("consumerScore", msg);
         });
         
-        consumerController->_layersChangeSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](const srv::ConsumerLayers& layers){
+        consumerController->layersChangeSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](const srv::ConsumerLayers& layers){
             auto cp = wcp.lock();
             if (!cp) {
                 return;
@@ -363,7 +364,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             cp->notify("consumerLayersChanged", msg);
         });
         
-        consumerController->_traceSignal.connect([id = consumerController->id()](const srv::ConsumerTraceEventData& trace){
+        consumerController->traceSignal.connect([id = consumerController->id()](const srv::ConsumerTraceEventData& trace){
             nlohmann::json data = trace;
             SRV_LOGD("consumer 'trace' event [producerId: %s, trace.type: %s, trace: %s]", id.c_str(), trace.type.c_str(), data.dump().c_str());
         });
@@ -438,7 +439,7 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
     
     dataConsumerPeer->data()->dataConsumerControllers[dataConsumerController->id()] = dataConsumerController;
 
-    dataConsumerController->_transportCloseSignal.connect([id = dataConsumerController->id(), wdcp = std::weak_ptr<Peer>(dataConsumerPeer)](){
+    dataConsumerController->transportCloseSignal.connect([id = dataConsumerController->id(), wdcp = std::weak_ptr<Peer>(dataConsumerPeer)](){
         auto dcp = wdcp.lock();
         if (!dcp) {
             return;
@@ -446,7 +447,7 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
         dcp->data()->dataConsumerControllers.erase(id);
     });
     
-    dataConsumerController->_dataProducerCloseSignal.connect([id = dataConsumerController->id(), wdcp = std::weak_ptr<Peer>(dataConsumerPeer)](){
+    dataConsumerController->dataProducerCloseSignal.connect([id = dataConsumerController->id(), wdcp = std::weak_ptr<Peer>(dataConsumerPeer)](){
         auto dcp = wdcp.lock();
         if (!dcp) {
             return;
@@ -722,11 +723,11 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
     
     auto transportController = _routerController->createWebRtcTransportController(webRtcTransportOptions);
     
-    transportController->_sctpStateChangeSignal.connect([](const std::string& sctpState){
+    transportController->sctpStateChangeSignal.connect([](const std::string& sctpState){
         SRV_LOGD("WebRtcTransport 'sctpstatechange' event [sctpState: %s]", sctpState.c_str());
     });
     
-    transportController->_dtlsStateChangeSignal.connect([](const std::string& dtlsState){
+    transportController->dtlsStateChangeSignal.connect([](const std::string& dtlsState){
         if (dtlsState == "failed" || dtlsState == "closed") {
             SRV_LOGW("WebRtcTransport 'dtlsstatechange' event [sctpState: %s]", dtlsState.c_str());
         }
@@ -740,7 +741,7 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
     
     transportController->enableTraceEvent(types);
     
-    transportController->_traceSignal.connect([transportId = transportController->id(), wpeer = std::weak_ptr<Peer>(peer)](const srv::TransportTraceEventData& data){
+    transportController->traceSignal.connect([transportId = transportController->id(), wpeer = std::weak_ptr<Peer>(peer)](const srv::TransportTraceEventData& data){
         nlohmann::json trace = data;
         SRV_LOGD("transport 'trace' event [transportId: %s, trace.type: %s, trace: %s]", transportId.c_str(), data.type.c_str(), trace.dump().c_str());
         
@@ -895,7 +896,7 @@ void Room::onHandleProduce(const std::shared_ptr<Peer>& peer, const nlohmann::js
     
     peer->data()->producerControllers[producerController->id()] = producerController;
     
-    producerController->_scoreSignal.connect([wpeer = std::weak_ptr<Peer>(peer), id = producerController->id()](const std::vector<srv::ProducerScore>& scores){
+    producerController->scoreSignal.connect([wpeer = std::weak_ptr<Peer>(peer), id = producerController->id()](const std::vector<srv::ProducerScore>& scores){
         auto peer = wpeer.lock();
         if (!peer) {
             return;
@@ -906,12 +907,12 @@ void Room::onHandleProduce(const std::shared_ptr<Peer>& peer, const nlohmann::js
         peer->notify("producerScore", msg);
     });
 
-    producerController->_videoOrientationChangeSignal.connect([id = producerController->id()](const srv::ProducerVideoOrientation& videoOrientation){
+    producerController->videoOrientationChangeSignal.connect([id = producerController->id()](const srv::ProducerVideoOrientation& videoOrientation){
         nlohmann::json jVideoOrientation = videoOrientation;
         SRV_LOGD("producer 'videoorientationchange' event [producerId: %s, videoOrientation: %s]", id.c_str(), jVideoOrientation.dump().c_str());
     });
     
-    producerController->_traceSignal.connect([id = producerController->id()](const srv::ProducerTraceEventData& data){
+    producerController->traceSignal.connect([id = producerController->id()](const srv::ProducerTraceEventData& data){
         nlohmann::json trace = data;
         SRV_LOGD("producer 'videoorientationchange' event [producerId: %s, videoOrientation: %s]", id.c_str(), trace.dump().c_str());
     });

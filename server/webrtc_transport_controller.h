@@ -243,13 +243,13 @@ namespace srv {
 
     public:
         // transport controller id
-        sigslot::signal<const std::string&> _iceStateChangeSignal;
+        sigslot::signal<const std::string&> iceStateChangeSignal;
         
-        sigslot::signal<const TransportTuple&> _iceSelectedTupleChangeSignal;
+        sigslot::signal<const TransportTuple&> iceSelectedTupleChangeSignal;
         
-        sigslot::signal<const std::string&> _dtlsStateChangeSignal;
+        sigslot::signal<const std::string&> dtlsStateChangeSignal;
         
-        sigslot::signal<const std::string&> _sctpStateChangeSignal;
+        sigslot::signal<const std::string&> sctpStateChangeSignal;
         
     private:
         void handleWorkerNotifications();

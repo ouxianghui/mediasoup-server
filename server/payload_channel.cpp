@@ -306,10 +306,10 @@ namespace srv {
         }
         else if (msg.contains("targetId") && msg.contains("event")) {
             if (msg.contains("data")) {
-                _notificationSignal(msg["targetId"], msg["event"], msg["data"].dump(), payload, payloadLen);
+                this->notificationSignal(msg["targetId"], msg["event"], msg["data"].dump(), payload, payloadLen);
             }
             else{
-                _notificationSignal(msg["targetId"], msg["event"], "", payload, payloadLen);
+                this->notificationSignal(msg["targetId"], msg["event"], "", payload, payloadLen);
             }
         }
         else {

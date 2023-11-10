@@ -268,18 +268,18 @@ namespace srv {
         else if (msg.contains("targetId") && msg.contains("event")) {
             if (msg.contains("data")) {
                 if (msg["targetId"].is_string()) {
-                    _notificationSignal(msg["targetId"], msg["event"], msg["data"].dump());
+                    this->notificationSignal(msg["targetId"], msg["event"], msg["data"].dump());
                 }
                 else if (msg["targetId"].is_number()) {
-                    _notificationSignal(std::to_string(msg["targetId"].get<uint64_t>()), msg["event"], msg["data"]);
+                    this->notificationSignal(std::to_string(msg["targetId"].get<uint64_t>()), msg["event"], msg["data"]);
                 }
             }
             else{
                 if (msg["targetId"].is_string()) {
-                    _notificationSignal(msg["targetId"], msg["event"], "");
+                    this->notificationSignal(msg["targetId"], msg["event"], "");
                 }
                 else if (msg["targetId"].is_number()) {
-                    _notificationSignal(std::to_string(msg["targetId"].get<uint64_t>()), msg["event"], "");
+                    this->notificationSignal(std::to_string(msg["targetId"].get<uint64_t>()), msg["event"], "");
                 }
             }
         }

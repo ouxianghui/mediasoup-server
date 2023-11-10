@@ -167,9 +167,9 @@ namespace srv {
         void connect(const nlohmann::json& data) override;
         
     public:
-        sigslot::signal<const TransportTuple&> _tupleSignal;
-        sigslot::signal<const TransportTuple&> _rtcpTupleSignal;
-        sigslot::signal<const std::string&> _sctpStateChangeSignal;
+        sigslot::signal<const TransportTuple&> tupleSignal;
+        sigslot::signal<const TransportTuple&> rtcpTupleSignal;
+        sigslot::signal<const std::string&> sctpStateChangeSignal;
         
     private:
         void handleWorkerNotifications();

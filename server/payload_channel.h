@@ -74,7 +74,7 @@ namespace srv {
         
     public:
         // target id, event, data(json | string), payload, payloadlen
-        sigslot::signal<const std::string&, const std::string&, const std::string&, const uint8_t*, size_t> _notificationSignal;
+        sigslot::signal<const std::string&, const std::string&, const std::string&, const uint8_t*, size_t> notificationSignal;
         
     public:
         asio::static_thread_pool _threadPool {1};

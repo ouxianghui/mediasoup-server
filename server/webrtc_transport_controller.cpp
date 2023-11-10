@@ -170,7 +170,7 @@ namespace srv {
         }
         
         auto self = std::dynamic_pointer_cast<WebRtcTransportController>(TransportController::shared_from_this());
-        channel->_notificationSignal.connect(&WebRtcTransportController::onChannel, self);
+        channel->notificationSignal.connect(&WebRtcTransportController::onChannel, self);
     }
 
     void WebRtcTransportController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -186,7 +186,7 @@ namespace srv {
             if (js.is_object()) {
                 std::string iceState = js["iceState"];
                 this->_data["iceState"] = iceState;
-                _iceStateChangeSignal(iceState);
+                this->iceStateChangeSignal(iceState);
             }
         }
         else if (event == "iceselectedtuplechange") {
@@ -195,7 +195,7 @@ namespace srv {
                 auto iceSelectedTuple = js["iceSelectedTuple"];
                 this->_data["iceSelectedTuple"] = iceSelectedTuple;
                 TransportTuple tuple = js;
-                _iceSelectedTupleChangeSignal(tuple);
+                this->iceSelectedTupleChangeSignal(tuple);
             }
         }
         else if (event == "dtlsstatechange") {
@@ -208,7 +208,7 @@ namespace srv {
                 if (dtlsState == "connected") {
                     this->_data["dtlsRemoteCert"] = js["dtlsRemoteCert"];
                 }
-                _dtlsStateChangeSignal(dtlsState);
+                this->dtlsStateChangeSignal(dtlsState);
             }
         }
         else if (event == "sctpstatechange") {
@@ -216,14 +216,14 @@ namespace srv {
             if (js.is_object()) {
                 auto sctpState = js["sctpState"];
                 this->_data["sctpState"] = sctpState;
-                _sctpStateChangeSignal(sctpState);
+                this->sctpStateChangeSignal(sctpState);
             }
         }
         else if (event == "trace") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 TransportTraceEventData eventData = js;
-                _traceSignal(eventData);
+                this->traceSignal(eventData);
             }
         }
         else {

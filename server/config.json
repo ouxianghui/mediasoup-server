@@ -1,18 +1,18 @@
 {
-	"domain": "",
+	"domain": "localhost",
 	"https": {
 		"listenIp": "124.221.73.157",
-		"listenPort": 4443,
+		"listenPort": 8443,
 		"tls": {
-			"cert": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt",
-			"key": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem"
+			"cert": "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_cert.crt",
+			"key": "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_key.pem"
 		}
 	},
 	"mediasoup": {
 		"numWorkers": 4,
 		"workerSettings": {
-			"dtlsCertificateFile": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_cert.crt",
-			"dtlsPrivateKeyFile": "/home/ubuntu/dev/mediasoup-server/server-app/cert/test_key.pem",
+			"dtlsCertificateFile": "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_cert.crt",
+			"dtlsPrivateKeyFile": "/Users/jackie.ou/Desktop/Research/mediasoup-server/server-app/cert/test_key.pem",
 			"logLevel": "warn",
 			"logTags": [
 				"info",

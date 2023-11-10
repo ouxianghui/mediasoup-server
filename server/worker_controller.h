@@ -211,13 +211,13 @@ namespace srv {
         std::shared_ptr<RouterController> createRouterController(const std::vector<RtpCodecCapability>& mediaCodecs, const nlohmann::json& appData);
         
     public:
-        sigslot::signal<> _startSignal;
+        sigslot::signal<> startSignal;
 
-        sigslot::signal<> _closeSignal;
+        sigslot::signal<> closeSignal;
         
-        sigslot::signal<std::shared_ptr<WebRtcServerController>> _newWebRtcServerSignal;
+        sigslot::signal<std::shared_ptr<WebRtcServerController>> newWebRtcServerSignal;
         
-        sigslot::signal<std::shared_ptr<RouterController>> _newRouterSignal;
+        sigslot::signal<std::shared_ptr<RouterController>> newRouterSignal;
 
     private:
         std::vector<std::string> getArgs(const std::shared_ptr<WorkerSettings>& settings);

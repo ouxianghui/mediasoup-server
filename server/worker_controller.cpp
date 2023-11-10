@@ -167,7 +167,7 @@ namespace srv {
             _routerControllers.clear();
         }
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     nlohmann::json WorkerController::dump()
@@ -239,10 +239,10 @@ namespace srv {
         
         _webRtcServerControllers.emplace(webRtcServerController);
         
-        webRtcServerController->_closeSignal.connect(&WorkerController::onWebRtcServerClose, shared_from_this());
+        webRtcServerController->closeSignal.connect(&WorkerController::onWebRtcServerClose, shared_from_this());
         
         // Emit observer event.
-        _newWebRtcServerSignal(webRtcServerController);
+        this->newWebRtcServerSignal(webRtcServerController);
 
         return webRtcServerController;
     }
@@ -279,9 +279,9 @@ namespace srv {
             _routerControllers.emplace(routerController);
         }
         
-        routerController->_closeSignal.connect(&WorkerController::onRouterClose, shared_from_this());
+        routerController->closeSignal.connect(&WorkerController::onRouterClose, shared_from_this());
         
-        _newRouterSignal(routerController);
+        this->newRouterSignal(routerController);
         
         return routerController;
     }
@@ -306,14 +306,14 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.connect(&WorkerController::onChannel, shared_from_this());
+        channel->notificationSignal.connect(&WorkerController::onChannel, shared_from_this());
     }
 
     void WorkerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
     {
         if (event == "running") {
-            _startSignal();
-            _startSignal.disconnect_all();
+            this->startSignal();
+            this->startSignal.disconnect_all();
             //getDump();
         }
         else {

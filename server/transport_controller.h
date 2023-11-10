@@ -171,20 +171,20 @@ namespace srv {
         void clearControllers();
         
     public:
-        sigslot::signal<> _routerCloseSignal;
-        sigslot::signal<> _listenServerCloseSignal;
-        sigslot::signal<const std::string&> _closeSignal;
+        sigslot::signal<> routerCloseSignal;
+        sigslot::signal<> listenServerCloseSignal;
+        sigslot::signal<const std::string&> closeSignal;
         
-        sigslot::signal<std::shared_ptr<ProducerController>> _producerCloseSignal;
-        sigslot::signal<std::shared_ptr<DataProducerController>> _dataProducerCloseSignal;
+        sigslot::signal<std::shared_ptr<ProducerController>> producerCloseSignal;
+        sigslot::signal<std::shared_ptr<DataProducerController>> dataProducerCloseSignal;
         
-        sigslot::signal<const TransportTraceEventData&> _traceSignal;
+        sigslot::signal<const TransportTraceEventData&> traceSignal;
         
-        sigslot::signal<std::shared_ptr<ProducerController>> _newProducerSignal;
-        sigslot::signal<std::shared_ptr<ConsumerController>> _newConsumerSignal;
+        sigslot::signal<std::shared_ptr<ProducerController>> newProducerSignal;
+        sigslot::signal<std::shared_ptr<ConsumerController>> newConsumerSignal;
         
-        sigslot::signal<std::shared_ptr<DataProducerController>> _newDataProducerSignal;
-        sigslot::signal<std::shared_ptr<DataConsumerController>> _newDataConsumerSignal;
+        sigslot::signal<std::shared_ptr<DataProducerController>> newDataProducerSignal;
+        sigslot::signal<std::shared_ptr<DataConsumerController>> newDataConsumerSignal;
         
     protected:
         // Internal data.

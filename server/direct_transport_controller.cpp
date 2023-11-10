@@ -124,13 +124,13 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.connect(&DirectTransportController::onChannel, self);
+        channel->notificationSignal.connect(&DirectTransportController::onChannel, self);
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.connect(&DirectTransportController::onPayloadChannel, self);
+        payloadChannel->notificationSignal.connect(&DirectTransportController::onPayloadChannel, self);
     }
 
     void DirectTransportController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -145,7 +145,7 @@ namespace srv {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 TransportTraceEventData eventData = js;
-                _traceSignal(eventData);
+                this->traceSignal(eventData);
             }
         }
         else {
@@ -166,7 +166,7 @@ namespace srv {
         }
 
         if (event == "rtcp") {
-            _rtcpSignal(payload, payloadLen);
+            this->rtcpSignal(payload, payloadLen);
         }
         else {
             SRV_LOGD("ignoring unknown event %s", event.c_str());

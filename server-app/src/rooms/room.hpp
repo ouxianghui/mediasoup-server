@@ -71,7 +71,7 @@ public:
     
 public:
     // roomId
-    sigslot::signal<const std::string&> _closeSignal;
+    sigslot::signal<const std::string&> closeSignal;
     
 private:
     void handleAudioLevelObserver();

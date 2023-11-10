@@ -95,7 +95,7 @@ namespace srv {
         void sendRtcp(const uint8_t* payload, size_t payloadLen);
         
     public:
-        sigslot::signal<const uint8_t*, size_t> _rtcpSignal;
+        sigslot::signal<const uint8_t*, size_t> rtcpSignal;
         
     private:
         void handleWorkerNotifications();

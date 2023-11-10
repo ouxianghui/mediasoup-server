@@ -191,10 +191,10 @@ namespace srv {
                 }
             };
             
-            consumerController->_closeSignal.connect(removeLambda);
-            consumerController->_producerCloseSignal.connect(removeLambda);
+            consumerController->closeSignal.connect(removeLambda);
+            consumerController->producerCloseSignal.connect(removeLambda);
             
-            _newConsumerSignal(consumerController);
+            this->newConsumerSignal(consumerController);
         }
 
         return consumerController;
@@ -218,7 +218,7 @@ namespace srv {
         }
         
         auto self = std::dynamic_pointer_cast<PipeTransportController>(TransportController::shared_from_this());
-        channel->_notificationSignal.connect(&PipeTransportController::onChannel, self);
+        channel->notificationSignal.connect(&PipeTransportController::onChannel, self);
     }
 
     void PipeTransportController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -234,14 +234,14 @@ namespace srv {
             if (js.is_object()) {
                 auto sctpState = js["sctpState"];
                 this->_data["sctpState"] = sctpState;
-                _sctpStateChangeSignal(sctpState);
+                this->sctpStateChangeSignal(sctpState);
             }
         }
         else if (event == "trace") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 TransportTraceEventData eventData = js;
-                _traceSignal(eventData);
+                this->traceSignal(eventData);
             }
         }
         else {

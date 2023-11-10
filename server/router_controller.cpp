@@ -151,7 +151,7 @@ namespace srv {
 
         clear();
 
-        _closeSignal(shared_from_this());
+        this->closeSignal(shared_from_this());
     }
 
     void RouterController::onWorkerClosed()
@@ -167,9 +167,9 @@ namespace srv {
 
         clear();
 
-        _workerCloseSignal();
+        this->workerCloseSignal();
         
-        _closeSignal(shared_from_this());
+        this->closeSignal(shared_from_this());
     }
         
     nlohmann::json RouterController::dump()
@@ -267,7 +267,7 @@ namespace srv {
         
         connectSignals(transportController);
         
-        _newTransportSignal(transportController);
+        this->newTransportSignal(transportController);
         
         // TODO: check thread
         if (webRtcServer) {
@@ -346,7 +346,7 @@ namespace srv {
         
         connectSignals(transportController);
         
-        _newTransportSignal(transportController);
+        this->newTransportSignal(transportController);
 
         return transportController;
     }
@@ -402,7 +402,7 @@ namespace srv {
         
         connectSignals(transportController);
         
-        _newTransportSignal(transportController);
+        this->newTransportSignal(transportController);
 
         return transportController;
     }
@@ -460,7 +460,7 @@ namespace srv {
             _rtpObserverControllers[internal.rtpObserverId] = rtpObserverController;
         }
         
-        rtpObserverController->_closeSignal.connect([id = rtpObserverController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
+        rtpObserverController->closeSignal.connect([id = rtpObserverController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -471,7 +471,7 @@ namespace srv {
             }
         });
         
-        _newRtpObserverSignal(rtpObserverController);
+        this->newRtpObserverSignal(rtpObserverController);
         
         return rtpObserverController;
     }
@@ -524,7 +524,7 @@ namespace srv {
             _rtpObserverControllers[internal.rtpObserverId] = rtpObserverController;
         }
         
-        rtpObserverController->_closeSignal.connect([id = rtpObserverController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
+        rtpObserverController->closeSignal.connect([id = rtpObserverController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -535,7 +535,7 @@ namespace srv {
             }
         });
         
-        _newRtpObserverSignal(rtpObserverController);
+        this->newRtpObserverSignal(rtpObserverController);
         
         return rtpObserverController;
     }
@@ -566,7 +566,7 @@ namespace srv {
 
     void RouterController::connectSignals(const std::shared_ptr<TransportController>& transportController)
     {
-        transportController->_closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](const std::string& transportId) {
+        transportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](const std::string& transportId) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -577,7 +577,7 @@ namespace srv {
             }
         });
         
-        transportController->_listenServerCloseSignal.connect([id = transportController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
+        transportController->listenServerCloseSignal.connect([id = transportController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -588,7 +588,7 @@ namespace srv {
             }
         });
         
-        transportController->_newProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<ProducerController> producerController) {
+        transportController->newProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<ProducerController> producerController) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -602,7 +602,7 @@ namespace srv {
             }
         });
         
-        transportController->_producerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<ProducerController> producerController) {
+        transportController->producerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<ProducerController> producerController) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -616,7 +616,7 @@ namespace srv {
             }
         });
         
-        transportController->_newDataProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<DataProducerController> dataProducerController) {
+        transportController->newDataProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<DataProducerController> dataProducerController) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -630,7 +630,7 @@ namespace srv {
             }
         });
         
-        transportController->_dataProducerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<DataProducerController> dataProducerController) {
+        transportController->dataProducerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<DataProducerController> dataProducerController) {
             auto self = wself.lock();
             if (!self) {
                 return;

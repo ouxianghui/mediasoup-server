@@ -47,7 +47,7 @@ namespace srv {
         void destroy();
         
     public:
-        sigslot::signal<const ActiveSpeakerObserverDominantSpeaker&> _dominantSpeakerSignal;
+        sigslot::signal<const ActiveSpeakerObserverDominantSpeaker&> dominantSpeakerSignal;
         
     private:
         void handleWorkerNotifications();

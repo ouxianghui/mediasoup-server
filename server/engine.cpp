@@ -98,7 +98,7 @@ namespace srv {
             _workerControllers.emplace_back(workerController);
         }
         
-        workerController->_startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()), wWorkerController = std::weak_ptr<WorkerController>(workerController)]() {
+        workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()), wWorkerController = std::weak_ptr<WorkerController>(workerController)]() {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -118,7 +118,7 @@ namespace srv {
                 }
                 workerController->createWebRtcServerController(self->_webRtcServerOptions, nlohmann::json());
             });
-            self->_newWorkerSignal(workerController);
+            self->newWorkerSignal(workerController);
         });
         
         workerController->runWorker();

@@ -66,8 +66,8 @@ namespace srv {
         void destroy();
         
     public:
-        sigslot::signal<const std::vector<AudioLevelObserverVolume>&> _volumesSignal;
-        sigslot::signal<> _silenceSignal;
+        sigslot::signal<const std::vector<AudioLevelObserverVolume>&> volumesSignal;
+        sigslot::signal<> silenceSignal;
         
     private:
         void handleWorkerNotifications();

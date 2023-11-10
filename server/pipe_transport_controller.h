@@ -158,7 +158,7 @@ namespace srv {
         std::shared_ptr<ConsumerController> consume(const std::shared_ptr<ConsumerOptions>& options) override;
         
     public:
-        sigslot::signal<const std::string&> _sctpStateChangeSignal;
+        sigslot::signal<const std::string&> sctpStateChangeSignal;
         
     private:
         void removeConsumerController(const std::string& id);

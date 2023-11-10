@@ -35,7 +35,7 @@ namespace srv {
         std::shared_ptr<WorkerController> getWorkerController();
         
     public:
-        sigslot::signal<std::shared_ptr<WorkerController>> _newWorkerSignal;
+        sigslot::signal<std::shared_ptr<WorkerController>> newWorkerSignal;
         
     private:
         Engine();

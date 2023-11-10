@@ -45,7 +45,7 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.connect(&AudioLevelObserverController::onChannel, self);
+        channel->notificationSignal.connect(&AudioLevelObserverController::onChannel, self);
     }
 
     void AudioLevelObserverController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -68,12 +68,12 @@ namespace srv {
                     volumes.push_back(vol);
                 }
                 if (volumes.size() > 0) {
-                    _volumesSignal(volumes);
+                    this->volumesSignal(volumes);
                 }
             }
         }
         else if (event == "silence") {
-            _silenceSignal();
+            this->silenceSignal();
         }
         else {
             SRV_LOGD("ignoring unknown event %s", event.c_str());

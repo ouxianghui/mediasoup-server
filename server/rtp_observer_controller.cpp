@@ -43,20 +43,20 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
         nlohmann::json reqData;
         reqData["rtpObserverId"] = _internal.rtpObserverId;
         
         channel->request("router.closeRtpObserver", _internal.routerId, reqData.dump());
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     void RtpObserverController::onRouterClosed()
@@ -74,17 +74,17 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->_notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         auto payloadChannel = _payloadChannel.lock();
         if (!payloadChannel) {
             return;
         }
-        payloadChannel->_notificationSignal.disconnect(shared_from_this());
+        payloadChannel->notificationSignal.disconnect(shared_from_this());
         
-        _routerCloseSignal();
+        this->routerCloseSignal();
         
-        _closeSignal();
+        this->closeSignal();
     }
 
     void RtpObserverController::pause()
@@ -104,7 +104,7 @@ namespace srv {
 
         // Emit observer event.
         if (!wasPaused) {
-            _pauseSignal();
+            this->pauseSignal();
         }
     }
 
@@ -125,7 +125,7 @@ namespace srv {
 
         // Emit observer event.
         if (wasPaused) {
-            _resumeSignal();
+            this->resumeSignal();
         }
     }
 
@@ -159,7 +159,7 @@ namespace srv {
 
         channel->request("rtpObserver.addProducer", _internal.rtpObserverId, reqData.dump());
 
-        _addProducerSignal(producer);
+        this->addProducerSignal(producer);
     }
 
     void RtpObserverController::removeProducer(const std::string& producerId)
@@ -192,7 +192,7 @@ namespace srv {
 
         channel->request("rtpObserver.removeProducer", _internal.rtpObserverId, reqData.dump());
 
-        _removeProducerSignal(producer);
+        this->removeProducerSignal(producer);
     }
 
 }

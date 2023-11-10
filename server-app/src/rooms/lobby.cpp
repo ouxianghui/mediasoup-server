@@ -27,7 +27,7 @@ std::shared_ptr<Room> Lobby::getOrCreateRoom(const std::string& roomId)
     if (!room) {
         room = Room::create(roomId, 0);
         room->init();
-        room->_closeSignal.connect(&Lobby::onRoomClose, shared_from_this());
+        room->closeSignal.connect(&Lobby::onRoomClose, shared_from_this());
     }
     return room;
 }

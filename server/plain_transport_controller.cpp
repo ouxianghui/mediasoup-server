@@ -121,7 +121,7 @@ namespace srv {
         }
         
         auto self = std::dynamic_pointer_cast<PlainTransportController>(TransportController::shared_from_this());
-        channel->_notificationSignal.connect(&PlainTransportController::onChannel, self);
+        channel->notificationSignal.connect(&PlainTransportController::onChannel, self);
     }
 
     void PlainTransportController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
@@ -137,7 +137,7 @@ namespace srv {
             if (js.is_object()) {
                 auto tuple = js["tuple"];
                 this->_data["tuple"] = tuple;
-                _tupleSignal(tuple);
+                this->tupleSignal(tuple);
             }
         }
         else if (event == "rtcptuple") {
@@ -145,7 +145,7 @@ namespace srv {
             if (js.is_object()) {
                 auto rtcpTuple = js["rtcpTuple"];
                 this->_data["rtcpTuple"] = rtcpTuple;
-                _rtcpTupleSignal(rtcpTuple);
+                this->rtcpTupleSignal(rtcpTuple);
             }
         }
         else if (event == "sctpstatechange") {
@@ -153,14 +153,14 @@ namespace srv {
             if (js.is_object()) {
                 auto sctpState = js["sctpState"];
                 this->_data["sctpState"] = sctpState;
-                _sctpStateChangeSignal(sctpState);
+                this->sctpStateChangeSignal(sctpState);
             }
         }
         else if (event == "trace") {
             auto js = nlohmann::json::parse(data);
             if (js.is_object()) {
                 TransportTraceEventData eventData = js;
-                _traceSignal(eventData);
+                this->traceSignal(eventData);
             }
         }
         else {

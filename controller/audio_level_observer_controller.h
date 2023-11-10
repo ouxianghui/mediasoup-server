@@ -67,6 +67,7 @@ namespace srv {
         
     public:
         sigslot::signal<const std::vector<AudioLevelObserverVolume>&> volumesSignal;
+        
         sigslot::signal<> silenceSignal;
         
     private:

@@ -131,6 +131,7 @@ namespace srv {
         
     public:
         sigslot::signal<> transportCloseSignal;
+        
         sigslot::signal<> closeSignal;
         
     private:

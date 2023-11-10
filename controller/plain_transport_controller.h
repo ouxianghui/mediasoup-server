@@ -168,7 +168,9 @@ namespace srv {
         
     public:
         sigslot::signal<const TransportTuple&> tupleSignal;
+        
         sigslot::signal<const TransportTuple&> rtcpTupleSignal;
+        
         sigslot::signal<const std::string&> sctpStateChangeSignal;
         
     private:

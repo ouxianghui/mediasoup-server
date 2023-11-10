@@ -151,10 +151,15 @@ namespace srv {
         
     public:
         sigslot::signal<> transportCloseSignal;
+        
         sigslot::signal<> dataProducerCloseSignal;
+        
         sigslot::signal<const uint8_t*, size_t, int32_t> messageSignal;
+        
         sigslot::signal<> sctpSendBufferFullSignal;
+        
         sigslot::signal<int32_t> bufferedAmountLowSignal;
+        
         sigslot::signal<> closeSignal;
         
     private:

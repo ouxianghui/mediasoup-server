@@ -270,15 +270,25 @@ namespace srv {
     public:
         // signals
         sigslot::signal<> transportCloseSignal;
+        
         sigslot::signal<> producerCloseSignal;
+        
         sigslot::signal<> producerPauseSignal;
+        
         sigslot::signal<> producerResumeSignal;
+        
         sigslot::signal<const ConsumerScore&> scoreSignal;
+        
         sigslot::signal<const ConsumerLayers&> layersChangeSignal;
+        
         sigslot::signal<const ConsumerTraceEventData&> traceSignal;
+        
         sigslot::signal<const uint8_t*, size_t> rtpSignal;
+        
         sigslot::signal<> closeSignal;
+        
         sigslot::signal<> pauseSignal;
+        
         sigslot::signal<> resumeSignal;
         
     private:

@@ -172,18 +172,23 @@ namespace srv {
         
     public:
         sigslot::signal<> routerCloseSignal;
+        
         sigslot::signal<> listenServerCloseSignal;
+        
         sigslot::signal<const std::string&> closeSignal;
         
         sigslot::signal<std::shared_ptr<ProducerController>> producerCloseSignal;
+        
         sigslot::signal<std::shared_ptr<DataProducerController>> dataProducerCloseSignal;
         
         sigslot::signal<const TransportTraceEventData&> traceSignal;
         
         sigslot::signal<std::shared_ptr<ProducerController>> newProducerSignal;
+        
         sigslot::signal<std::shared_ptr<ConsumerController>> newConsumerSignal;
         
         sigslot::signal<std::shared_ptr<DataProducerController>> newDataProducerSignal;
+        
         sigslot::signal<std::shared_ptr<DataConsumerController>> newDataConsumerSignal;
         
     protected:

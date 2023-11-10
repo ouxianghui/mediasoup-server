@@ -224,11 +224,17 @@ namespace srv {
         
     public:
         sigslot::signal<> transportCloseSignal;
+        
         sigslot::signal<const std::vector<ProducerScore>&> scoreSignal;
+        
         sigslot::signal<const ProducerVideoOrientation&> videoOrientationChangeSignal;
+        
         sigslot::signal<const ProducerTraceEventData&> traceSignal;
+        
         sigslot::signal<> closeSignal;
+        
         sigslot::signal<> pauseSignal;
+        
         sigslot::signal<> resumeSignal;
         
     private:

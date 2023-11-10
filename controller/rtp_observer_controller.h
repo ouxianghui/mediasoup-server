@@ -79,10 +79,15 @@ namespace srv {
         
     public:
         sigslot::signal<> routerCloseSignal;
+        
         sigslot::signal<> closeSignal;
+        
         sigslot::signal<> pauseSignal;
+        
         sigslot::signal<> resumeSignal;
+        
         sigslot::signal<std::shared_ptr<ProducerController>> addProducerSignal;
+        
         sigslot::signal<std::shared_ptr<ProducerController>> removeProducerSignal;
         
     protected:

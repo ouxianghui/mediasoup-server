@@ -645,6 +645,288 @@ namespace srv {
         });
     }
 
+std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options)
+{
+    SRV_LOGD("pipeToRouter()");
+    
+    std::shared_ptr<PipeToRouterResult> result;
+    
+    if (!options) {
+        SRV_LOGE("options must be a valid pointer");
+        return result;
+    }
+    
+    const auto& producerId = options->producerId;
+    
+    const auto& dataProducerId = options->dataProducerId;
+    
+    std::shared_ptr<RouterController> router = options->router;
+
+    const auto& listenIp = options->listenIp;
+
+    bool enableSctp = options->enableSctp;
+    
+    const auto& numSctpStreams = options->numSctpStreams;
+
+    bool enableRtx = options->enableRtx;
+    
+    bool enableSrtp = options->enableSctp;
+    
+    if (producerId.empty() && dataProducerId.empty()) {
+        SRV_LOGE("missing producerId or dataProducerId");
+        return result;
+    }
+    else if (!producerId.empty() && !dataProducerId.empty()) {
+        SRV_LOGE("just producerId or dataProducerId can be given");
+        return result;
+    }
+    else if (!router) {
+        SRV_LOGE("Router not found");
+        return result;
+    }
+    else if (router.get() == this) {
+        SRV_LOGE("cannot use this Router as destination");
+        return result;
+    }
+    
+    
+    std::shared_ptr<ProducerController> producerController;
+    std::shared_ptr<DataProducerController> dataProducerController;
+
+    if (!producerId.empty()) {
+        if (this->_producerControllers.find(producerId) == this->_producerControllers.end()) {
+            SRV_LOGE("Producer not found");
+            return result;
+        }
+        producerController = _producerControllers[producerId];
+    }
+    else if (!dataProducerId.empty()) {
+        if (this->_dataProducerControllers.find(dataProducerId) == this->_dataProducerControllers.end()) {
+            SRV_LOGE("Data producer not found");
+            return result;
+        }
+        dataProducerController = _dataProducerControllers[dataProducerId];
+    }
+
+    auto pipeTransportPairKey = router->id();
+    std::shared_ptr<PipeTransportController> localPipeTransportController;
+    std::shared_ptr<PipeTransportController> remotePipeTransportController;
+    PipeTransportControllerPair pipeTransportControllerPair;
+    
+    if (_routerPipeTransportPairMap.find(pipeTransportPairKey) == _routerPipeTransportPairMap.end()) {
+        SRV_LOGE("given key already exists in this Router");
+        return result;
+    }
+    else {
+        std::shared_ptr<PipeTransportOptions> ptOptions = std::make_shared<PipeTransportOptions>();
+        ptOptions->listenIp = listenIp;
+        ptOptions->enableSctp = enableSctp;
+        ptOptions->numSctpStreams = numSctpStreams;
+        ptOptions->enableRtx = enableRtx;
+        ptOptions->enableSrtp = enableSrtp;
+        
+        localPipeTransportController = this->createPipeTransportController(ptOptions);
+        pipeTransportControllerPair[this->id()] = localPipeTransportController;
+        
+        remotePipeTransportController = router->createPipeTransportController(ptOptions);
+        pipeTransportControllerPair[router->id()] = remotePipeTransportController;
+        
+        localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakRemote = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (auto remote = weakRemote.lock()) {
+                remote->close();
+            }
+            if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
+                self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
+            }
+        });
+        
+        localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakLocal = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (auto local = weakLocal.lock()) {
+                local->close();
+            }
+            if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
+                self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
+            }
+        });
+        
+        nlohmann::json rData;
+        rData["ip"] = remotePipeTransportController->tuple().localIp;
+        rData["port"] = remotePipeTransportController->tuple().localPort;
+        rData["srtpParameters"] = remotePipeTransportController->srtpParameters();
+        localPipeTransportController->connect(rData);
+        
+        nlohmann::json lData;
+        lData["ip"] = localPipeTransportController->tuple().localIp;
+        lData["port"] = localPipeTransportController->tuple().localPort;
+        lData["srtpParameters"] = localPipeTransportController->srtpParameters();
+        remotePipeTransportController->connect(lData);
+        
+        this->_routerPipeTransportPairMap[pipeTransportPairKey] = pipeTransportControllerPair;
+        
+        router->addPipeTransportPair(this->id(), pipeTransportControllerPair);
+    }
+    
+    if (producerController) {
+        std::shared_ptr<ConsumerController> pipeConsumerController;
+        std::shared_ptr<ProducerController> pipeProducerController;
+        
+        try {
+            auto cOptions = std::make_shared<ConsumerOptions>();
+            cOptions->producerId = producerId;
+            pipeConsumerController = localPipeTransportController->consume(cOptions);
+            
+            auto pOptions = std::make_shared<ProducerOptions>();
+            pOptions->id = producerController->id();
+            pOptions->kind = pipeConsumerController->kind();
+            pOptions->rtpParameters = pipeConsumerController->rtpParameters();
+            pOptions->paused = pipeConsumerController->producerPaused();
+            pOptions->appData = producerController->appData();
+            pipeProducerController = remotePipeTransportController->produce(pOptions);
+            
+            if (producerController->closed()) {
+                SRV_LOGE("original Producer closed");
+                return result;
+            }
+            
+            // Ensure that producer.paused has not changed in the meanwhile and, if so, sync the pipeProducer.
+            if (pipeProducerController->paused() != producerController->paused()) {
+                if (producerController->paused()) {
+                    pipeProducerController->pause();
+                }
+                else {
+                    pipeProducerController->resume();
+                }
+            }
+            
+            // Pipe events from the pipe Consumer to the pipe Producer.
+            pipeConsumerController->closeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                if (auto pipeProducerController = weakPipeProducerController.lock()) {
+                    pipeProducerController->close();
+                }
+            });
+            
+            pipeConsumerController->pauseSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                if (auto pipeProducerController = weakPipeProducerController.lock()) {
+                    pipeProducerController->pause();
+                }
+            });
+            
+            pipeConsumerController->resumeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                if (auto pipeProducerController = weakPipeProducerController.lock()) {
+                    pipeProducerController->resume();
+                }
+            });
+            
+            // Pipe events from the pipe Producer to the pipe Consumer.
+            pipeProducerController->closeSignal.connect([weakPipeConsumerController = std::weak_ptr<ConsumerController>(pipeConsumerController)](){
+                if (auto pipeConsumerController = weakPipeConsumerController.lock()) {
+                    pipeConsumerController->close();
+                }
+            });
+            
+            result = std::make_shared<PipeToRouterResult>();
+            result->pipeConsumerController = pipeConsumerController;
+            result->pipeProducerController = pipeProducerController;
+            
+            return result;
+        }
+        catch (const char* what) {
+            SRV_LOGE("pipeToRouter() | error creating pipe Consumer/Producer pair:%s", what);
+            if (pipeConsumerController) {
+                pipeConsumerController->close();
+            }
+
+            if (pipeProducerController) {
+                pipeProducerController->close();
+            }
+        }
+    }
+    else if (dataProducerController) {
+        std::shared_ptr<DataConsumerController> pipeDataConsumerController;
+        std::shared_ptr<DataProducerController> pipeDataProducerController;
+        try {
+            auto cOptions = std::make_shared<DataConsumerOptions>();
+            cOptions->dataProducerId = dataProducerId;
+            // TODO: check all default params
+            pipeDataConsumerController = localPipeTransportController->consumeData(cOptions);
+            
+            auto pOptions = std::make_shared<DataProducerOptions>();
+            pOptions->id = dataProducerController->id();
+            pOptions->sctpStreamParameters = pipeDataConsumerController->sctpStreamParameters();
+            pOptions->label = pipeDataConsumerController->label();
+            pOptions->protocol = pipeDataConsumerController->protocol();
+            pOptions->appData = dataProducerController->appData();
+            
+            if (dataProducerController->closed()) {
+                SRV_LOGE("original data producer closed");
+                return result;
+            }
+            
+            // Pipe events from the pipe DataConsumer to the pipe DataProducer.
+            pipeDataConsumerController->closeSignal.connect([weakPipeDataProducerController = std::weak_ptr<DataProducerController>(pipeDataProducerController)](){
+                if (auto pipeDataProducerController = weakPipeDataProducerController.lock()) {
+                    pipeDataProducerController->close();
+                }
+            });
+            
+            
+            // Pipe events from the pipe DataProducer to the pipe DataConsumer.
+            pipeDataProducerController->closeSignal.connect([weakPipeDataConsumerController = std::weak_ptr<DataConsumerController>(pipeDataConsumerController)](){
+                if (auto pipeDataConsumerController = weakPipeDataConsumerController.lock()) {
+                    pipeDataConsumerController->close();
+                }
+            });
+            
+            result = std::make_shared<PipeToRouterResult>();
+            result->pipeDataConsumerController = pipeDataConsumerController;
+            result->pipeDataProducerController = pipeDataProducerController;
+            
+            return result;
+        }
+        catch (const char* what) {
+            SRV_LOGE("pipeToRouter() | error creating pipe DataConsumer/DataProducer pair:%s", what);
+            if (pipeDataConsumerController) {
+                pipeDataConsumerController->close();
+            }
+
+            if (pipeDataProducerController) {
+                pipeDataProducerController->close();
+            }
+        }
+    }
+    
+    return result;
+}
+
+// key: router.id
+void RouterController::addPipeTransportPair(const std::string& key, PipeTransportControllerPair& pair)
+{
+    if (_routerPipeTransportPairMap.find(key) != _routerPipeTransportPairMap.end()) {
+        SRV_LOGE("given key already exists in this Router");
+        return;
+    }
+    
+    _routerPipeTransportPairMap[key] = pair;
+    
+    auto localPipeTransportController = pair[_internal.routerId];
+    
+    localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), key](const std::string& routerId){
+        auto self = wself.lock();
+        if (!self) {
+            return;
+        }
+        self->_routerPipeTransportPairMap.erase(key);
+    });
+}
+
 }
 
 namespace srv

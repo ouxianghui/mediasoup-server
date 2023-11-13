@@ -43,7 +43,7 @@ namespace srv {
     class ActiveSpeakerObserverController;
     struct AudioLevelObserverOptions;
     class AudioLevelObserverController;
-
+    class PipeTransportController;
 
     struct RouterData
     {
@@ -115,28 +115,25 @@ namespace srv {
         /**
          * The Consumer created in the current Router.
          */
-        std::shared_ptr<ConsumerController> pipeConsumer;
+        std::shared_ptr<ConsumerController> pipeConsumerController;
 
         /**
          * The Producer created in the target Router.
          */
-        std::shared_ptr<ProducerController> pipeProducer;
+        std::shared_ptr<ProducerController> pipeProducerController;
 
         /**
          * The DataConsumer created in the current Router.
          */
-        std::shared_ptr<DataConsumerController> pipeDataConsumer;
+        std::shared_ptr<DataConsumerController> pipeDataConsumerController;
 
         /**
          * The DataProducer created in the target Router.
          */
-        std::shared_ptr<DataProducerController> pipeDataProducer;
+        std::shared_ptr<DataProducerController> pipeDataProducerController;
     };
 
-    // struct PipeTransportPair
-    // {
-    //     [key: string]: PipeTransport;
-    // };
+    using PipeTransportControllerPair = std::unordered_map<std::string, std::shared_ptr<PipeTransportController>>;
 
     struct RouterInternal
     {
@@ -187,6 +184,8 @@ namespace srv {
         
         std::shared_ptr<AudioLevelObserverController> createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options);
         
+        std::shared_ptr<PipeToRouterResult> pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options);
+        
     public:
         // signals
         sigslot::signal<std::shared_ptr<RouterController>> closeSignal;
@@ -205,6 +204,9 @@ namespace srv {
         std::shared_ptr<DataProducerController> getDataProducerController(const std::string& dataProducerId);
         
         void connectSignals(const std::shared_ptr<TransportController>& transportController);
+        
+        // key: router.id
+        void addPipeTransportPair(const std::string& key, PipeTransportControllerPair& pair);
         
     private:
         // Internal data.
@@ -247,9 +249,8 @@ namespace srv {
         
         std::function<RtpCapabilities()> _getRouterRtpCapabilities;
         
-        // // Map of PipeTransport pair Promises indexed by the id of the Router in
-        // // which pipeToRouter() was called.
-        // readonly #mapRouterPairPipeTransportPairPromise: Map<string, Promise<PipeTransportPair>> = new Map();
+        // Map of PipeTransport pair indexed by the id of the Router in which pipeToRouter() was called.
+        std::unordered_map<std::string, PipeTransportControllerPair> _routerPipeTransportPairMap;
     };
 
 }

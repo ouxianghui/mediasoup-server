@@ -113,19 +113,6 @@ namespace srv {
     void to_json(nlohmann::json& j, const PipeTransportStat& st);
     void from_json(const nlohmann::json& j, PipeTransportStat& st);
 
-    struct PipeConsumerOptions
-    {
-        /**
-         * The id of the Producer to consume.
-         */
-        std::string producerId;
-
-        /**
-         * Custom application data.
-         */
-        nlohmann::json appData;
-    };
-
     struct PipeTransportConstructorOptions : TransportConstructorOptions {};
 
     class PipeTransportController : public TransportController

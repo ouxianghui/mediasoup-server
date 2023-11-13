@@ -81,7 +81,7 @@ namespace srv {
         /**
          * Target Router instance.
          */
-        std::shared_ptr<RouterController> router;
+        std::shared_ptr<RouterController> routerController;
 
         /**
          * IP used in the PipeTransport pair. Default '127.0.0.1'.

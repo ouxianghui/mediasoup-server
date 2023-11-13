@@ -660,7 +660,7 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
     
     const auto& dataProducerId = options->dataProducerId;
     
-    std::shared_ptr<RouterController> router = options->router;
+    std::shared_ptr<RouterController> routerController = options->routerController;
 
     const auto& listenIp = options->listenIp;
 
@@ -680,11 +680,11 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
         SRV_LOGE("just producerId or dataProducerId can be given");
         return result;
     }
-    else if (!router) {
+    else if (!routerController) {
         SRV_LOGE("Router not found");
         return result;
     }
-    else if (router.get() == this) {
+    else if (routerController.get() == this) {
         SRV_LOGE("cannot use this Router as destination");
         return result;
     }
@@ -708,7 +708,7 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
         dataProducerController = _dataProducerControllers[dataProducerId];
     }
 
-    auto pipeTransportPairKey = router->id();
+    auto pipeTransportPairKey = routerController->id();
     std::shared_ptr<PipeTransportController> localPipeTransportController;
     std::shared_ptr<PipeTransportController> remotePipeTransportController;
     PipeTransportControllerPair pipeTransportControllerPair;
@@ -728,8 +728,8 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
         localPipeTransportController = this->createPipeTransportController(ptOptions);
         pipeTransportControllerPair[this->id()] = localPipeTransportController;
         
-        remotePipeTransportController = router->createPipeTransportController(ptOptions);
-        pipeTransportControllerPair[router->id()] = remotePipeTransportController;
+        remotePipeTransportController = routerController->createPipeTransportController(ptOptions);
+        pipeTransportControllerPair[routerController->id()] = remotePipeTransportController;
         
         localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakRemote = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){
             auto self = wself.lock();
@@ -771,7 +771,7 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
         
         this->_routerPipeTransportPairMap[pipeTransportPairKey] = pipeTransportControllerPair;
         
-        router->addPipeTransportPair(this->id(), pipeTransportControllerPair);
+        routerController->addPipeTransportPair(this->id(), pipeTransportControllerPair);
     }
     
     if (producerController) {
@@ -875,7 +875,6 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
                     pipeDataProducerController->close();
                 }
             });
-            
             
             // Pipe events from the pipe DataProducer to the pipe DataConsumer.
             pipeDataProducerController->closeSignal.connect([weakPipeDataConsumerController = std::weak_ptr<DataConsumerController>(pipeDataConsumerController)](){

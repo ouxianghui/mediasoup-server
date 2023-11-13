@@ -40,7 +40,7 @@ public:
      * Max size of the received bytes. (the whole MessageDto structure).
      * The actual payload is smaller.
      */
-    DTO_FIELD(UInt64, maxMessageSizeBytes) = 8 * 1024; // Default - 8Kb
+    DTO_FIELD(UInt64, maxMessageSizeBytes) = 24 * 1024; // Default - 8Kb
 
 public:
     oatpp::String getHostString() {

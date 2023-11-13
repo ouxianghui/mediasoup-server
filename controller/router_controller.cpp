@@ -718,7 +718,7 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
         return result;
     }
     else {
-        std::shared_ptr<PipeTransportOptions> ptOptions = std::make_shared<PipeTransportOptions>();
+        auto ptOptions = std::make_shared<PipeTransportOptions>();
         ptOptions->listenIp = listenIp;
         ptOptions->enableSctp = enableSctp;
         ptOptions->numSctpStreams = numSctpStreams;

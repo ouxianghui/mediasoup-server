@@ -94,9 +94,9 @@ void Lobby::onBeforeDestroy_NonBlocking(const std::shared_ptr<AsyncWebSocket>& s
     {
         std::lock_guard<std::mutex> lock(_roomMapMutex);
         if (auto room = _roomMap[roomId.c_str()]) {
-            room->removePeer(peer->id());
-            peer->invalidateSocket();
             peer->close();
+            peer->invalidateSocket();
+            room->removePeer(peer->id());
             if (room->isEmpty()) {
                 deleteRoom(roomId.c_str());
             }

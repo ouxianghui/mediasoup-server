@@ -63,43 +63,51 @@ namespace srv {
         
         channel->request("router.closeTransport", _internal.routerId, reqData.dump());
         
+        std::unordered_map<std::string, std::shared_ptr<ProducerController>> producerControllers;
         {
             std::lock_guard<std::mutex> lock(_producersMutex);
-            for (const auto& item : _producerControllers) {
-                auto ctrl = item.second;
-                ctrl->onTransportClosed();
-                this->producerCloseSignal(ctrl);
-            }
-            _producerControllers.clear();
+            producerControllers = _producerControllers;
         }
+        for (const auto& item : producerControllers) {
+            auto ctrl = item.second;
+            ctrl->onTransportClosed();
+            this->producerCloseSignal(ctrl);
+        }
+        //_producerControllers.clear();
         
+        std::unordered_map<std::string, std::shared_ptr<ConsumerController>> consumerControllers;
         {
             std::lock_guard<std::mutex> lock(_consumersMutex);
-            for (const auto& item : _consumerControllers) {
-                auto ctrl = item.second;
-                ctrl->onTransportClosed();
-            }
-            _consumerControllers.clear();
+            consumerControllers = _consumerControllers;
         }
+        for (const auto& item : consumerControllers) {
+            auto ctrl = item.second;
+            ctrl->onTransportClosed();
+        }
+        //_consumerControllers.clear();
         
+        std::unordered_map<std::string, std::shared_ptr<DataProducerController>> dataProducerControllers;
         {
             std::lock_guard<std::mutex> lock(_dataProducersMutex);
-            for (const auto& item : _dataProducerControllers) {
-                auto ctrl = item.second;
-                ctrl->onTransportClosed();
-                this->dataProducerCloseSignal(ctrl);
-            }
-            _dataProducerControllers.clear();
+            dataProducerControllers = _dataProducerControllers;
         }
+        for (const auto& item : dataProducerControllers) {
+            auto ctrl = item.second;
+            ctrl->onTransportClosed();
+            this->dataProducerCloseSignal(ctrl);
+        }
+        //_dataProducerControllers.clear();
         
+        std::unordered_map<std::string, std::shared_ptr<DataConsumerController>> dataConsumerControllers;
         {
             std::lock_guard<std::mutex> lock(_dataConsumersMutex);
-            for (const auto& item : _dataConsumerControllers) {
-                auto ctrl = item.second;
-                ctrl->onTransportClosed();
-            }
-            _dataConsumerControllers.clear();
+            dataConsumerControllers = _dataConsumerControllers;
         }
+        for (const auto& item : dataConsumerControllers) {
+            auto ctrl = item.second;
+            ctrl->onTransportClosed();
+        }
+        //_dataConsumerControllers.clear();
         
         this->closeSignal(id());
     }

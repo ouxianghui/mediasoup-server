@@ -571,7 +571,7 @@ namespace srv {
             if (!self) {
                 return;
             }
-            //std::lock_guard<std::mutex> lock(self->_transportsMutex);
+            std::lock_guard<std::mutex> lock(self->_transportsMutex);
             if (self->_transportControllers.find(transportId) != self->_transportControllers.end()) {
                 self->_transportControllers.erase(transportId);
             }
@@ -582,7 +582,7 @@ namespace srv {
             if (!self) {
                 return;
             }
-            //std::lock_guard<std::mutex> lock(self->_transportsMutex);
+            std::lock_guard<std::mutex> lock(self->_transportsMutex);
             if (self->_transportControllers.find(id) != self->_transportControllers.end()) {
                 self->_transportControllers.erase(id);
             }
@@ -596,7 +596,7 @@ namespace srv {
             if (!producerController) {
                 return;
             }
-            //std::lock_guard<std::mutex> lock(self->_producersMutex);
+            std::lock_guard<std::mutex> lock(self->_producersMutex);
             if (self->_producerControllers.find(producerController->id()) == self->_producerControllers.end()) {
                 self->_producerControllers[producerController->id()] = producerController;
             }
@@ -610,7 +610,7 @@ namespace srv {
             if (!producerController) {
                 return;
             }
-            //std::lock_guard<std::mutex> lock(self->_producersMutex);
+            std::lock_guard<std::mutex> lock(self->_producersMutex);
             if (self->_producerControllers.find(producerController->id()) != self->_producerControllers.end()) {
                 self->_producerControllers.erase(producerController->id());
             }
@@ -624,7 +624,7 @@ namespace srv {
             if (!dataProducerController) {
                 return;
             }
-            //std::lock_guard<std::mutex> lock(self->_dataProducersMutex);
+            std::lock_guard<std::mutex> lock(self->_dataProducersMutex);
             if (self->_dataProducerControllers.find(dataProducerController->id()) == self->_dataProducerControllers.end()) {
                 self->_dataProducerControllers[dataProducerController->id()] = dataProducerController;
             }
@@ -638,7 +638,7 @@ namespace srv {
             if (!dataProducerController) {
                 return;
             }
-            //std::lock_guard<std::mutex> lock(self->_dataProducersMutex);
+            std::lock_guard<std::mutex> lock(self->_dataProducersMutex);
             if (self->_dataProducerControllers.find(dataProducerController->id()) != self->_dataProducerControllers.end()) {
                 self->_dataProducerControllers.erase(dataProducerController->id());;
             }
@@ -855,7 +855,6 @@ std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::sh
         try {
             auto cOptions = std::make_shared<DataConsumerOptions>();
             cOptions->dataProducerId = dataProducerId;
-            // TODO: check all default params
             pipeDataConsumerController = localPipeTransportController->consumeData(cOptions);
             
             auto pOptions = std::make_shared<DataProducerOptions>();

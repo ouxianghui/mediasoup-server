@@ -84,7 +84,7 @@ start() {
     # check again after start server
     for ((i = 0; i < 5; i++)); do
         # sleep a little while, for sfu may start then crash.
-        sleep 1
+        sleep 0.5
         load_process_info
         ret=$?; if [[ 0 -ne $ret ]]; then 
             failed_msg "SFU start failed"; 

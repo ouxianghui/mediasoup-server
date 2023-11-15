@@ -35,5 +35,5 @@
 **/release
 xcode/
 
-install/bin/*
-install/logs/*
+install/bin/sfu
+install/logs/*.log

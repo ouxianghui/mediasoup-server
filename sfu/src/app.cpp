@@ -78,13 +78,23 @@ void run(const oatpp::base::CommandLineArguments& cmdArgs)
 
 int main(int argc, const char * argv[])
 {
-    MSEngine->init("/home/ubuntu/dev/mediasoup-server/controller/config.json");
+    oatpp::base::CommandLineArguments cmdArgs(argc, argv);
     
-    //MSEngine->init("/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/controller/config.json");
+    if (!cmdArgs.hasArgument("--conf")) {
+        SRV_LOGE("Configuration file must be provided.\neg: ./sfu --conf path-to-file/config.json");
+        return -1;
+    }
+    std::string configFile = cmdArgs.getNamedArgumentValue("--conf", "");
+    
+    //MSEngine->init("/home/ubuntu/dev/mediasoup-server/install/conf/config.json");
+    
+    //MSEngine->init("/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/install/conf/config.json");
+    
+    MSEngine->init(configFile);
     
     oatpp::base::Environment::init();
 
-    run(oatpp::base::CommandLineArguments(argc, argv));
+    run(cmdArgs);
     
     MSEngine->destroy();
 

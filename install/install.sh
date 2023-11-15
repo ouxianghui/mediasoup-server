@@ -14,6 +14,7 @@ if [[ ! -f $0 ]]; then
 else 
     echo "execute scripts in file: $0";
     work_dir=`dirname $0`; work_dir=`(cd ${work_dir} && pwd)`
+    echo "work_dir: ${work_dir}";
 fi
 product_dir=$work_dir
 
@@ -58,7 +59,7 @@ ok_msg "old sfu backuped"
 # prepare files.
 ok_msg "prepare files"
 (
-    sed -i "s|^ROOT=.*|ROOT=\"${INSTALL}\"|g" $work_dir/${INSTALL}/etc/init.d/sfu
+    sed -i "s|^ROOT=.*|ROOT=\"${INSTALL}\"|g" $work_dir/etc/init.d/sfu
 ) >> $log 2>&1
 ret=$?; if [[ 0 -ne ${ret} ]]; then failed_msg "prepare files failed"; exit $ret; fi
 ok_msg "prepare files success"
@@ -67,10 +68,10 @@ ok_msg "prepare files success"
 ok_msg "copy core components"
 (
     mkdir -p $install_root
-    cp -r $work_dir/${INSTALL}/conf $install_root &&
-    cp -r $work_dir/${INSTALL}/etc $install_root &&
-    cp -r $work_dir/${INSTALL}/usr $install_root &&
-    cp -r $work_dir/${INSTALL}/bin $install_root
+    cp -r $work_dir/conf $install_root &&
+    cp -r $work_dir/etc $install_root &&
+    cp -r $work_dir/usr $install_root &&
+    cp -r $work_dir/bin $install_root
 ) >>$log 2>&1
 ret=$?; if [[ 0 -ne ${ret} ]]; then failed_msg "copy core components failed"; exit $ret; fi
 ok_msg "copy core components success"
@@ -131,7 +132,7 @@ fi
 echo ""
 echo "see: https://github.com/X-Leia/SFU.git"
 echo "install success, you can start SFU on CentOS6:"
-echo -e "${GREEN}      sudo /etc/init.d/srf start${BLACK}"
+echo -e "${GREEN}      sudo /etc/init.d/sfu start${BLACK}"
 echo "or CentOS7:"
 echo -e "${GREEN}      sudo systemctl start sfu${BLACK}"
 echo "sfu root is ${INSTALL}"

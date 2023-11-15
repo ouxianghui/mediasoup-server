@@ -165,5 +165,6 @@ target_link_libraries(${PROJECT_NAME}
     -Wl,--end-group
 )
 ENDif ()
-install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+#install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/../install/bin)
 

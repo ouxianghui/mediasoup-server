@@ -7,7 +7,8 @@
 * @CreateTime: 2023-11-1
 *************************************************************************/
 
-#include <unistd.h>
+#include <sys/unistd.h>
+#include <sys/wait.h>
 #include <iostream>
 #include <atomic>
 #include "engine.h"
@@ -42,7 +43,7 @@ int32_t writePidFile(const std::string& pidFile)
     if (fcntl(fd, F_SETLK, &lock) == -1) {
         if (errno == EACCES || errno == EAGAIN) {
             ::close(fd);
-            SRV_LOGE("srs is already running");
+            SRV_LOGE("sfu is already running");
             return -1;
         }
         SRV_LOGE("access to pid file: %s", pidFile.c_str());
@@ -181,8 +182,7 @@ int main(int argc, const char * argv[])
         // son
         SRV_LOGD("son(daemon) process running.");
         
-        std::string pidFile("/usr/local/sfu/bin/sfu.pid");
-        writePidFile("pidFile");
+        writePidFile("/usr/local/sfu/bin/sfu.pid");
     }
     
     //MSEngine->init("/home/ubuntu/dev/mediasoup-server/install/conf/config.json");

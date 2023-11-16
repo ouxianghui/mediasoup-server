@@ -1,7 +1,7 @@
 {
-	"domain": "10.32.56.32",
+	"domain": "192.168.0.104",
 	"https": {
-		"listenIp": "10.32.56.32",
+		"listenIp": "192.168.0.104",
 		"listenPort": 4443,
 		"tls": {
 			"cert": "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_cert.crt",
@@ -83,13 +83,13 @@
 			"listenInfos": [{
 					"protocol": "udp",
 					"ip": "0.0.0.0",
-					"announcedIp": "10.32.56.32",
+					"announcedIp": "192.168.0.104",
 					"port": 44444
 				},
 				{
 					"protocol": "tcp",
 					"ip": "0.0.0.0",
-					"announcedIp": "10.32.56.32",
+					"announcedIp": "192.168.0.104",
 					"port": 44444
 				}
 			]
@@ -97,7 +97,7 @@
 		"webRtcTransportOptions": {
 			"listenIps": [{
 				"ip": "0.0.0.0",
-				"announcedIp": "10.32.56.32"
+				"announcedIp": "192.168.0.104"
 			}],
 			"initialAvailableOutgoingBitrate": 1000000,
 			"minimumAvailableOutgoingBitrate": 600000,
@@ -107,7 +107,7 @@
 		"plainTransportOptions": {
 			"listenIp": {
 				"ip": "0.0.0.0",
-				"announcedIp": "10.32.56.32"
+				"announcedIp": "192.168.0.104"
 			},
 			"maxSctpMessageSize": 262144
 		}

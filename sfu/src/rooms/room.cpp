@@ -721,6 +721,9 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
        webRtcTransportOptions->enableTcp = true;
     }
     
+    // TODO: confguration for single port multiplexing
+    webRtcTransportOptions->webRtcServer = MSEngine->getWorkerController()->webRtcServerController();
+    
     auto transportController = _routerController->createWebRtcTransportController(webRtcTransportOptions);
     
     transportController->sctpStateChangeSignal.connect([](const std::string& sctpState){

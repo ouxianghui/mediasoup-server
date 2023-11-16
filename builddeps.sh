@@ -1,7 +1,6 @@
 cur_dir=$(cd "$(dirname "$0")"; pwd)
 parent_dir=$(dirname $(pwd))
 cd script
- ./buildconcurrencpp.sh
  ./buildsigslot.sh
  ./buildopenssl.sh
  ./buildoatpp.sh

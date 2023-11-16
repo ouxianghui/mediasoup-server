@@ -40,6 +40,7 @@ namespace cfg {
 
         struct Mediasoup {
             int32_t numWorkers;
+            bool useWebRtcServer = true;
             WorkerSettings workerSettings;
             RouterOptions routerOptions;
             WebRtcServerOptions webRtcServerOptions;

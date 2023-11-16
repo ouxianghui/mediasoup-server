@@ -109,10 +109,11 @@ namespace srv {
                 j.at("tls").get_to(st.tls);
             }
         }
-
+    
         void to_json(nlohmann::json& j, const Mediasoup& st)
         {
             j["numWorkers"] = st.numWorkers;
+            j["useWebRtcServer"] = st.useWebRtcServer;
             j["workerSettings"] = st.workerSettings;
             j["routerOptions"] = st.routerOptions;
             j["webRtcServerOptions"] = st.webRtcServerOptions;
@@ -124,6 +125,9 @@ namespace srv {
         {
             if (j.contains("numWorkers")) {
                 j.at("numWorkers").get_to(st.numWorkers);
+            }
+            if (j.contains("useWebRtcServer")) {
+                j.at("useWebRtcServer").get_to(st.useWebRtcServer);
             }
             if (j.contains("workerSettings")) {
                 j.at("workerSettings").get_to(st.workerSettings);

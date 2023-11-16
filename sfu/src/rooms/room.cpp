@@ -721,8 +721,10 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
        webRtcTransportOptions->enableTcp = true;
     }
     
-    // TODO: confguration for single port multiplexing
-    webRtcTransportOptions->webRtcServer = MSEngine->getWorkerController()->webRtcServerController();
+    // single port multiplexing
+    if (MSConfig->params()->mediasoup.useWebRtcServer) {
+        webRtcTransportOptions->webRtcServer = MSEngine->getWorkerController()->webRtcServerController();
+    }
     
     auto transportController = _routerController->createWebRtcTransportController(webRtcTransportOptions);
     

@@ -10,6 +10,7 @@
 	},
 	"mediasoup": {
 		"numWorkers": 4,
+		"useWebRtcServer": true,
 		"workerSettings": {
 			"dtlsCertificateFile": "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_cert.crt",
 			"dtlsPrivateKeyFile":  "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_key.pem",

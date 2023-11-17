@@ -39,6 +39,8 @@ set(sources
     src/rooms/room.hpp
     src/rooms/lobby.cpp
     src/rooms/lobby.hpp
+    src/rooms/video_sharing_controller.hpp
+    src/rooms/video_sharing_controller.cpp
     src/utils/statistics.cpp
     src/utils/statistics.hpp
     src/utils/message.cpp
@@ -99,46 +101,11 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
 )
 
-#LINK_DIRECTORIES(i
-#  ${PROJECT_LIB_DIR}
-#)
-
-IF (WIN32)
-  target_link_libraries(${PROJECT_NAME}
-      worker
-      server
-      libwebrtc
-      ${PROJECT_LIB_DIR}/oatpp-websocket.lib
-      ${PROJECT_LIB_DIR}/oatpp.lib
-      ${PROJECT_LIB_DIR}/oatpp-openssl.lib
-      ${PROJECT_LIB_DIR}/uv_a.lib
-      ${PROJECT_LIB_DIR}/libssl.lib
-      ${PROJECT_LIB_DIR}/libcrypto.lib
-      ${PROJECT_LIB_DIR}/srtp2.lib
-      ${PROJECT_LIB_DIR}/usrsctp.lib
-      ${PROJECT_LIB_DIR}/absl_internal_throw_delegate.lib
-      ${PROJECT_LIB_DIR}/absl_strings.lib
-      ${PROJECT_LIB_DIR}/absl_optional.lib
-      ${PROJECT_LIB_DIR}/absl_base.lib
-      ${PROJECT_LIB_DIR}/absl_bad_optional_access.lib
-      ${PROJECT_LIB_DIR}/absl_bad_variant_access.lib
-      ${PROJECT_LIB_DIR}/absl_internal_bad_any_cast_impl.lib
-      ${PROJECT_LIB_DIR}/sdptransform.lib
-      ${PROJECT_LIB_DIR}/getopt.lib
-      ws2_32
-      userenv
-  )
-  
-ELSE ()
-
+if (APPLE) 
 target_link_libraries(${PROJECT_NAME}
-    -Wl,--start-group
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libwebrtc.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
-    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libcontroller.a
-    #libwebrtc.a
-    #libworker.a
-    #libcontroller.a
+    libwebrtc.a
+    libworker.a
+    libcontroller.a
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a
@@ -147,12 +114,9 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libcrypto.a
     ${PROJECT_LIB_DIR}/libsrtp2.a
     ${PROJECT_LIB_DIR}/libusrsctp.a
-    #${PROJECT_LIB_DIR}/libabsl_internal_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings.a
-    #${PROJECT_LIB_DIR}/libabsl_optional.a
     ${PROJECT_LIB_DIR}/libabsl_bad_optional_access.a
     ${PROJECT_LIB_DIR}/libabsl_bad_variant_access.a
-    #${PROJECT_LIB_DIR}/libabsl_internal_bad_any_cast_impl.a
     ${PROJECT_LIB_DIR}/libabsl_hashtablez_sampler.a
     ${PROJECT_LIB_DIR}/libabsl_raw_hash_set.a
     ${PROJECT_LIB_DIR}/libabsl_hash.a
@@ -160,11 +124,39 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
     ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
-    dl
     ${PROJECT_LIB_DIR}/libsdptransform.a
+    dl
+)
+else ()
+target_link_libraries(${PROJECT_NAME}
+    -Wl,--start-group
+    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libwebrtc.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
+    ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libcontroller.a
+    ${PROJECT_LIB_DIR}/liboatpp-websocket.a
+    ${PROJECT_LIB_DIR}/liboatpp.a
+    ${PROJECT_LIB_DIR}/liboatpp-openssl.a
+    ${PROJECT_LIB_DIR}/libuv_a.a
+    ${PROJECT_LIB_DIR}/libssl.a
+    ${PROJECT_LIB_DIR}/libcrypto.a
+    ${PROJECT_LIB_DIR}/libsrtp2.a
+    ${PROJECT_LIB_DIR}/libusrsctp.a
+    ${PROJECT_LIB_DIR}/libabsl_strings.a
+    ${PROJECT_LIB_DIR}/libabsl_bad_optional_access.a
+    ${PROJECT_LIB_DIR}/libabsl_bad_variant_access.a
+    ${PROJECT_LIB_DIR}/libabsl_hashtablez_sampler.a
+    ${PROJECT_LIB_DIR}/libabsl_raw_hash_set.a
+    ${PROJECT_LIB_DIR}/libabsl_hash.a
+    ${PROJECT_LIB_DIR}/libabsl_city.a
+    ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
+    ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
+    ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
+    ${PROJECT_LIB_DIR}/libsdptransform.a
+    dl
     -Wl,--end-group
 )
-ENDif ()
+endif ()
+
 #install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/../install/bin)
 

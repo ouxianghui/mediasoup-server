@@ -29,6 +29,8 @@ namespace srv {
     class ActiveSpeakerObserverDominantSpeaker;
 }
 
+class VideoSharingController;
+
 class Room : public std::enable_shared_from_this<Room>
 {
 public:
@@ -101,6 +103,10 @@ private:
     
     void onHandleProduce(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject);
     
+    void onHandleDefaultProduce(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject);
+    
+    void onHandleSharingProduce(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject);
+    
     void onHandleCloseProducer(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject);
     
     void onHandlePauseProducer(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject);
@@ -153,6 +159,9 @@ private:
     std::atomic_int32_t _consumerReplicas {0};
     
     std::atomic_bool _closed {false};
+    
+    std::mutex _sharingMutex;
+    std::shared_ptr<VideoSharingController> _videoSharingController;
     
 private:
     OATPP_COMPONENT(oatpp::Object<ConfigDto>, _appConfig);

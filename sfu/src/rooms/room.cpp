@@ -18,6 +18,7 @@
 #include "audio_level_observer_controller.h"
 #include "active_speaker_observer_controller.h"
 #include "transport_controller.h"
+#include "video_sharing_controller.hpp"
 
 std::shared_ptr<Room> Room::create(const std::string& roomId, int32_t consumerReplicas)
 {
@@ -81,6 +82,7 @@ Room::Room(const std::string& roomId,
 , _routerController(routerController)
 , _audioLevelObserverController(audioLevelObserverController)
 , _activeSpeakerObserverController(activeSpeakerObserverController)
+, _videoSharingController(std::make_shared<VideoSharingController>())
 {
     SRV_LOGD("Room()");
     
@@ -806,12 +808,13 @@ void Room::onHandleConnectWebRtcTransport(const std::shared_ptr<Peer>& peer, con
     const auto& transportId = data["transportId"];
     const auto& dtlsParameters = data["dtlsParameters"];
     
-    const auto& transportController = peer->data()->transportControllers[transportId];
-    if (!transportController) {
+    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& transportController = peer->data()->transportControllers[transportId];
     
     nlohmann::json params;
     params["dtlsParameters"] = dtlsParameters;
@@ -835,12 +838,13 @@ void Room::onHandleRestartIce(const std::shared_ptr<Peer>& peer, const nlohmann:
     const auto& data = request["data"];
     const auto& transportId = data["transportId"];
     
-    const auto& transportController = peer->data()->transportControllers[transportId];
-    if (!transportController) {
+    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& transportController = peer->data()->transportControllers[transportId];
     
     if (auto wtc = std::dynamic_pointer_cast<srv::WebRtcTransportController>(transportController)) {
         auto iceParameters = wtc->restartIce();
@@ -864,18 +868,44 @@ void Room::onHandleProduce(const std::shared_ptr<Peer>& peer, const nlohmann::js
     }
     
     const auto& data = request["data"];
+    const auto& kind = data["kind"];
+    if (kind == "video" && data.contains("appData") && data["appData"].contains("sharing") && data["appData"]["sharing"].get<bool>()) {
+        onHandleSharingProduce(peer, request, accept, reject);
+    }
+    else {
+        onHandleDefaultProduce(peer, request, accept, reject);
+    }
+}
+
+void Room::onHandleDefaultProduce(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
+{
+    std::string method;
+    if (request.contains("method")) {
+        method = request["method"];
+    }
+    
+    assert(method == "produce");
+    
+    if (!peer->data()->joined) {
+        SRV_LOGE("Peer not yet joined");
+        accept(request, {});
+        return;
+    }
+    
+    const auto& data = request["data"];
     const auto& transportId = data["transportId"];
     const auto& kind = data["kind"];
     
     const auto& rtpParameters = data["rtpParameters"];
     SRV_LOGD("produce rtpParameters: %s", rtpParameters.dump(4).c_str());
     
-    const auto& transportController = peer->data()->transportControllers[transportId];
-    if (!transportController) {
+    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& transportController = peer->data()->transportControllers[transportId];
     
     nlohmann::json appData;
     if (data.contains("appData")) {
@@ -939,6 +969,99 @@ void Room::onHandleProduce(const std::shared_ptr<Peer>& peer, const nlohmann::js
     }
 }
 
+void Room::onHandleSharingProduce(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
+{
+    std::string method;
+    if (request.contains("method")) {
+        method = request["method"];
+    }
+    
+    assert(method == "produce");
+    
+    if (!peer->data()->joined) {
+        SRV_LOGE("Peer not yet joined");
+        accept(request, {});
+        return;
+    }
+    
+    const auto& data = request["data"];
+    const auto& transportId = data["transportId"];
+    const auto& kind = data["kind"];
+    
+    const auto& rtpParameters = data["rtpParameters"];
+    SRV_LOGD("produce rtpParameters: %s", rtpParameters.dump(4).c_str());
+    
+    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
+        SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
+        accept(request, {});
+        return;
+    }
+    
+    const auto& transportController = peer->data()->transportControllers[transportId];
+
+    nlohmann::json appData;
+    if (data.contains("appData")) {
+        appData = data["appData"];
+    }
+    
+    nlohmann::json producerAppData;
+    producerAppData["peerId"] = peer->id();
+    appData.merge_patch(producerAppData);
+    
+    auto options = std::make_shared<srv::ProducerOptions>();
+    options->kind = kind;
+    options->rtpParameters = rtpParameters;
+    options->appData = appData;
+    options->keyFrameRequestDelay = 5000;
+
+    nlohmann::json jrtpParameters = options->rtpParameters;
+    
+    SRV_LOGD("produce jrtpParameters: %s", jrtpParameters.dump(4).c_str());
+    
+    auto producerController = transportController->produce(options);
+    
+    {
+        std::lock_guard<std::mutex> lock(_sharingMutex);
+        if (_videoSharingController->attached() && !_videoSharingController->closed()) {
+            _videoSharingController->close();
+            _videoSharingController->detach();
+        }
+        _videoSharingController->attach(producerController);
+    }
+    
+    producerController->scoreSignal.connect([wpeer = std::weak_ptr<Peer>(peer), id = producerController->id()](const std::vector<srv::ProducerScore>& scores){
+        auto peer = wpeer.lock();
+        if (!peer) {
+            return;
+        }
+        nlohmann::json msg;
+        msg["producerId"] = id;
+        msg["scores"] = scores;
+        peer->notify("producerScore", msg);
+    });
+
+    producerController->videoOrientationChangeSignal.connect([id = producerController->id()](const srv::ProducerVideoOrientation& videoOrientation){
+        nlohmann::json jVideoOrientation = videoOrientation;
+        SRV_LOGD("producer 'videoorientationchange' event [producerId: %s, videoOrientation: %s]", id.c_str(), jVideoOrientation.dump().c_str());
+    });
+    
+    producerController->traceSignal.connect([id = producerController->id()](const srv::ProducerTraceEventData& data){
+        nlohmann::json trace = data;
+        SRV_LOGD("producer 'videoorientationchange' event [producerId: %s, videoOrientation: %s]", id.c_str(), trace.dump().c_str());
+    });
+    
+    nlohmann::json msg;
+    msg["id"] = producerController->id();
+    
+    accept(request, msg);
+    
+    auto peers = getJoinedPeers(peer->id());
+    
+    for( const auto& kv : peers) {
+        createConsumer(kv.second, peer, producerController);
+    }
+}
+
 void Room::onHandleCloseProducer(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
 {
     std::string method;
@@ -957,17 +1080,27 @@ void Room::onHandleCloseProducer(const std::shared_ptr<Peer>& peer, const nlohma
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    const auto& producerConstroller = peer->data()->producerControllers[producerId];
-    if (!producerConstroller) {
-        SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
+    std::shared_ptr<srv::ProducerController> producerConstroller;
+    if (peer->data()->producerControllers.find(producerId) != peer->data()->producerControllers.end()) {
+        producerConstroller = peer->data()->producerControllers[producerId];
+        producerConstroller->close();
+        peer->data()->producerControllers.erase(producerConstroller->id());
         accept(request, {});
         return;
     }
     
-    producerConstroller->close();
-    
-    peer->data()->producerControllers.erase(producerConstroller->id());
-    
+    {
+        std::lock_guard<std::mutex> lock(_sharingMutex);
+        if (_videoSharingController->producerController()->id() == producerId) {
+            producerConstroller = _videoSharingController->producerController();
+            producerConstroller->close();
+            _videoSharingController->detach();
+            accept(request, {});
+            return;
+        }
+    }
+
+    SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
     accept(request, {});
 }
 
@@ -989,12 +1122,13 @@ void Room::onHandlePauseProducer(const std::shared_ptr<Peer>& peer, const nlohma
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    const auto& producerConstroller = peer->data()->producerControllers[producerId];
-    if (!producerConstroller) {
+    if (peer->data()->producerControllers.find(producerId) == peer->data()->producerControllers.end()) {
         SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& producerConstroller = peer->data()->producerControllers[producerId];
     
     producerConstroller->pause();
     
@@ -1019,12 +1153,13 @@ void Room::onHandleResumeProducer(const std::shared_ptr<Peer>& peer, const nlohm
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    const auto& producerConstroller = peer->data()->producerControllers[producerId];
-    if (!producerConstroller) {
+    if (peer->data()->producerControllers.find(producerId) == peer->data()->producerControllers.end()) {
         SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& producerConstroller = peer->data()->producerControllers[producerId];
     
     producerConstroller->resume();
     
@@ -1049,13 +1184,14 @@ void Room::onHandlePauseConsumer(const std::shared_ptr<Peer>& peer, const nlohma
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
-    if (!consumerConstroller) {
+    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
     }
     
+    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
+
     consumerConstroller->pause();
     
     accept(request, {});
@@ -1079,12 +1215,13 @@ void Room::onHandleResumeConsumer(const std::shared_ptr<Peer>& peer, const nlohm
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
-    if (!consumerConstroller) {
+    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
     
     consumerConstroller->resume();
     
@@ -1113,12 +1250,13 @@ void Room::onHandleSetConsumerPreferredLayers(const std::shared_ptr<Peer>& peer,
     consumerLayers.spatialLayer = data["spatialLayer"];
     consumerLayers.temporalLayer = data["temporalLayer"];
 
-    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
-    if (!consumerConstroller) {
+    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
     
     consumerConstroller->setPreferredLayers(consumerLayers);
     
@@ -1145,12 +1283,13 @@ void Room::onHandleSetConsumerPriority(const std::shared_ptr<Peer>& peer, const 
     const auto& consumerId = data["consumerId"];
     const auto& priority = data["priority"];
     
-    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
-    if (!consumerConstroller) {
+    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
     
     consumerConstroller->setPriority(priority);
     
@@ -1175,12 +1314,13 @@ void Room::onHandleRequestConsumerKeyFrame(const std::shared_ptr<Peer>& peer, co
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
-    if (!consumerConstroller) {
+    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
     
     consumerConstroller->requestKeyFrame();
     
@@ -1209,12 +1349,13 @@ void Room::onHandleProduceData(const std::shared_ptr<Peer>& peer, const nlohmann
     const auto& protocol = data["protocol"];
     const auto& appData = data["appData"];
     
-    const auto& transportController = peer->data()->transportControllers[transportId];
-    if (!transportController) {
+    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& transportController = peer->data()->transportControllers[transportId];
     
     auto option = std::make_shared<srv::DataProducerOptions>();
     option->sctpStreamParameters = sctpStreamParameters,
@@ -1296,13 +1437,14 @@ void Room::onHandleGetTransportStats(const std::shared_ptr<Peer>& peer, const nl
     const auto& data = request["data"];
     const auto& transportId = data["transportId"];
     
-    const auto& transportController = peer->data()->transportControllers[transportId];
-    if (!transportController) {
+    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
     }
     
+    const auto& transportController = peer->data()->transportControllers[transportId];
+
     auto stats = transportController->getStats();
     
     accept(request, stats);
@@ -1326,13 +1468,14 @@ void Room::onHandleGetProducerStats(const std::shared_ptr<Peer>& peer, const nlo
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    const auto& producerConstroller = peer->data()->producerControllers[producerId];
-    if (!producerConstroller) {
+    if (peer->data()->producerControllers.find(producerId) == peer->data()->producerControllers.end()) {
         SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
         accept(request, {});
         return;
     }
     
+    const auto& producerConstroller = peer->data()->producerControllers[producerId];
+
     auto stats = producerConstroller->getStats();
     
     accept(request, stats);
@@ -1356,13 +1499,14 @@ void Room::onHandleGetConsumerStats(const std::shared_ptr<Peer>& peer, const nlo
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
-    if (!consumerConstroller) {
+    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
     }
     
+    const auto& consumerConstroller = peer->data()->consumerControllers[consumerId];
+
     auto stats = consumerConstroller->getStats();
     
     accept(request, stats);
@@ -1386,12 +1530,13 @@ void Room::onHandleGetDataConsumerStats(const std::shared_ptr<Peer>& peer, const
     const auto& data = request["data"];
     const auto& dataProducerId = data["dataProducerId"];
     
-    const auto& dataProducerConstroller = peer->data()->dataProducerControllers[dataProducerId];
-    if (!dataProducerConstroller) {
+    if (peer->data()->dataProducerControllers.find(dataProducerId) == peer->data()->dataProducerControllers.end()) {
         SRV_LOGD("data producer with id producerId: %s not found", dataProducerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& dataProducerConstroller = peer->data()->dataProducerControllers[dataProducerId];
     
     auto stats = dataProducerConstroller->getStats();
     
@@ -1416,12 +1561,13 @@ void Room::onHandleGetDataProducerStats(const std::shared_ptr<Peer>& peer, const
     const auto& data = request["data"];
     const auto& dataConsumerId = data["dataConsumerId"];
     
-    const auto& dataConsumerConstroller = peer->data()->consumerControllers[dataConsumerId];
-    if (!dataConsumerConstroller) {
+    if (peer->data()->consumerControllers.find(dataConsumerId) == peer->data()->consumerControllers.end()) {
         SRV_LOGD("data consumer with id consumerId: %s not found", dataConsumerId.dump().c_str());
         accept(request, {});
         return;
     }
+    
+    const auto& dataConsumerConstroller = peer->data()->consumerControllers[dataConsumerId];
     
     auto stats = dataConsumerConstroller->getStats();
     

@@ -659,8 +659,8 @@ void Room::onHandleJoin(const std::shared_ptr<Peer>& peer, const nlohmann::json&
         const auto& joinedPeer = kv.second;
         // Create Consumers for existing Producers.
         for (const auto& ikv : joinedPeer->data()->producerControllers) {
-            const auto& producer = ikv.second;
-            createConsumer(peer, joinedPeer, producer);
+            const auto& producerController = ikv.second;
+            createConsumer(peer, joinedPeer, producerController);
         }
 
         // Create DataConsumers for existing DataProducers.
@@ -670,6 +670,15 @@ void Room::onHandleJoin(const std::shared_ptr<Peer>& peer, const nlohmann::json&
                 continue;
             }
             createDataConsumer(peer, joinedPeer, dataProducerController);
+        }
+        
+        // Create Consumers for sharing Producer.
+        {
+            std::lock_guard<std::mutex> lock(_sharingMutex);
+            if (_videoSharingController->attached() && !_videoSharingController->closed()) {
+                const auto& producerController = _videoSharingController->producerController();
+                createConsumer(peer, joinedPeer, producerController);
+            }
         }
     }
     

@@ -671,14 +671,14 @@ void Room::onHandleJoin(const std::shared_ptr<Peer>& peer, const nlohmann::json&
             }
             createDataConsumer(peer, joinedPeer, dataProducerController);
         }
-        
-        // Create Consumers for sharing Producer.
-        {
-            std::lock_guard<std::mutex> lock(_sharingMutex);
-            if (_videoSharingController->attached() && !_videoSharingController->closed()) {
-                const auto& producerController = _videoSharingController->producerController();
-                createConsumer(peer, joinedPeer, producerController);
-            }
+    }
+    
+    // Create Consumers for sharing Producer.
+    {
+        std::lock_guard<std::mutex> lock(_sharingMutex);
+        if (_videoSharingController->attached() && !_videoSharingController->closed()) {
+            const auto& producerController = _videoSharingController->producerController();
+            createConsumer(peer, _videoSharingController->peer(), producerController);
         }
     }
     
@@ -1035,7 +1035,7 @@ void Room::onHandleSharingProduce(const std::shared_ptr<Peer>& peer, const nlohm
             _videoSharingController->close();
             _videoSharingController->detach();
         }
-        _videoSharingController->attach(producerController);
+        _videoSharingController->attach(peer, producerController);
     }
     
     producerController->scoreSignal.connect([wpeer = std::weak_ptr<Peer>(peer), id = producerController->id()](const std::vector<srv::ProducerScore>& scores){

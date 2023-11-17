@@ -18,6 +18,8 @@ namespace srv {
     class ProducerController;
 }
 
+class Peer;
+
 class VideoSharingController : public std::enable_shared_from_this<VideoSharingController> {
 public:
     VideoSharingController();
@@ -30,7 +32,7 @@ public:
     
     std::string id();
     
-    void attach(const std::shared_ptr<srv::ProducerController>& producerController);
+    void attach(const std::shared_ptr<Peer>& peer, const std::shared_ptr<srv::ProducerController>& producerController);
     
     void detach();
     
@@ -46,8 +48,12 @@ public:
 
     bool closed();
     
+    const std::shared_ptr<Peer>& peer();
+    
     const std::shared_ptr<srv::ProducerController>& producerController();
     
 private:
+    std::shared_ptr<Peer> _peer;
+    
     std::shared_ptr<srv::ProducerController> _producerController;
 };

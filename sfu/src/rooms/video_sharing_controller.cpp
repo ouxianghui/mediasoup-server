@@ -44,6 +44,7 @@ void VideoSharingController::attach(const std::shared_ptr<Peer>& peer, const std
 
 void VideoSharingController::detach()
 {
+    _peer = nullptr;
     _producerController = nullptr;
 }
 

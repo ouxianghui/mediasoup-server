@@ -289,6 +289,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             options->enableRtx = true;
             options->paused = true;
             consumerController = transportController->consume(options);
+            consumerController->setAppData(producerController->appData());
             
         }
         catch (const char *error) {
@@ -311,11 +312,16 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             if (!cp) {
                 return;
             }
-            cp->data()->consumerControllers.erase(id);
             
             nlohmann::json msg;
             msg["consumerId"] = id;
-                
+            
+            if (cp->data()->consumerControllers.find(id) != cp->data()->consumerControllers.end()) {
+                auto consumerController = cp->data()->consumerControllers[id];
+                msg["appData"] = consumerController->appData();
+            }
+            
+            cp->data()->consumerControllers.erase(id);
             cp->notify("consumerClosed", msg);
         });
         
@@ -673,7 +679,7 @@ void Room::onHandleJoin(const std::shared_ptr<Peer>& peer, const nlohmann::json&
         }
     }
     
-    // Create Consumers for sharing Producer.
+    // Create Consumer for sharing Producer.
     {
         std::lock_guard<std::mutex> lock(_sharingMutex);
         if (_videoSharingController->attached() && !_videoSharingController->closed()) {
@@ -878,7 +884,7 @@ void Room::onHandleProduce(const std::shared_ptr<Peer>& peer, const nlohmann::js
     
     const auto& data = request["data"];
     const auto& kind = data["kind"];
-    if (kind == "video" && data.contains("appData") && data["appData"].contains("sharing") && data["appData"]["sharing"].get<bool>()) {
+    if (kind == "video" && data.contains("appData") && data["appData"].contains("sharing")) {
         onHandleSharingProduce(peer, request, accept, reject);
     }
     else {
@@ -1028,6 +1034,7 @@ void Room::onHandleSharingProduce(const std::shared_ptr<Peer>& peer, const nlohm
     SRV_LOGD("produce jrtpParameters: %s", jrtpParameters.dump(4).c_str());
     
     auto producerController = transportController->produce(options);
+    producerController->setAppData(appData);
     
     {
         std::lock_guard<std::mutex> lock(_sharingMutex);

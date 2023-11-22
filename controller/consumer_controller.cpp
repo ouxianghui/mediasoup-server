@@ -143,15 +143,15 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
-        
-        auto wasPaused = _paused || _producerPaused;
 
         channel->request("consumer.pause", _internal.consumerId, "{}");
+        
+        bool wasPaused = _paused;
 
         _paused = true;
 
         // Emit observer event.
-        if (!wasPaused) {
+        if (!wasPaused && !_producerPaused) {
             this->pauseSignal();
         }
     }
@@ -164,10 +164,10 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
-        
-        auto wasPaused = _paused || _producerPaused;
 
         channel->request("consumer.resume", _internal.consumerId, "{}");
+
+        bool wasPaused = _paused;
 
         _paused = false;
 
@@ -325,13 +325,11 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
                 return;
             }
             
-            auto wasPaused = _paused || _producerPaused;
-            
             _producerPaused = true;
             
             this->producerPauseSignal();
             
-            if (!wasPaused) {
+            if (!_paused) {
                 this->pauseSignal();
             }
         }
@@ -340,13 +338,11 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
                 return;
             }
             
-            auto wasPaused = _paused || _producerPaused;
-            
             _producerPaused = false;
             
             this->producerResumeSignal();
             
-            if (wasPaused && !_paused) {
+            if (!_paused) {
                 this->resumeSignal();
             }
         }

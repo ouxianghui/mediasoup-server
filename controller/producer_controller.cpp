@@ -137,11 +137,11 @@ namespace srv {
         if (!channel) {
             return;
         }
-        
-        bool wasPaused = _paused;
 
         channel->request("producer.pause", _internal.producerId, "{}");
-
+        
+        bool wasPaused = _paused;
+        
         _paused = true;
 
         // Emit observer event.
@@ -158,11 +158,11 @@ namespace srv {
         if (!channel) {
             return;
         }
-        
-        bool wasPaused = _paused;
 
         channel->request("producer.resume", _internal.producerId, "{}");
-
+        
+        bool wasPaused = _paused;
+        
         _paused = false;
 
         // Emit observer event.

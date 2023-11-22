@@ -115,7 +115,7 @@ namespace srv {
         return channel->request("dataConsumer.dump", _internal.dataConsumerId, "{}");
     }
 
-nlohmann::json DataConsumerController::getStats()
+    nlohmann::json DataConsumerController::getStats()
     {
         SRV_LOGD("getStats()");
         

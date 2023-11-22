@@ -13,7 +13,6 @@
 #include "Utils.hpp"
 #include "Worker.hpp"
 #include "Channel/ChannelSocket.hpp"
-#include "PayloadChannel/PayloadChannelSocket.hpp"
 #include "RTC/DtlsTransport.hpp"
 #include "RTC/SrtpSession.hpp"
 #include <uv.h>
@@ -21,7 +20,6 @@
 #include <cerrno>
 #include <csignal> // sigaction()
 #include <string>
-#include <thread>
 
 void IgnoreSignals();
 
@@ -36,24 +34,15 @@ extern "C" int mediasoup_worker_run(
   ChannelReadFn channelReadFn,
   ChannelReadCtx channelReadCtx,
   ChannelWriteFn channelWriteFn,
-  ChannelWriteCtx channelWriteCtx,
-  PayloadChannelReadFn payloadChannelReadFn,
-  PayloadChannelReadCtx payloadChannelReadCtx,
-  PayloadChannelWriteFn payloadChannelWriteFn,
-  PayloadChannelWriteCtx payloadChannelWriteCtx)
+  ChannelWriteCtx channelWriteCtx)
 {
 	// Initialize libuv stuff (we need it for the Channel).
-    DepLibUV::ClassInit();
+	DepLibUV::ClassInit();
 
 	// Channel socket. If Worker instance runs properly, this socket is closed by
 	// it in its destructor. Otherwise it's closed here by also letting libuv
 	// deallocate its UV handles.
 	std::unique_ptr<Channel::ChannelSocket> channel{ nullptr };
-
-	// PayloadChannel socket. If Worker instance runs properly, this socket is
-	// closed by it in its destructor. Otherwise it's closed here by also letting
-	// libuv deallocate its UV handles.
-	std::unique_ptr<PayloadChannel::PayloadChannelSocket> payloadChannel{ nullptr };
 
 	try
 	{
@@ -78,44 +67,18 @@ extern "C" int mediasoup_worker_run(
 		return 40;
 	}
 
-	try
-	{
-		if (payloadChannelReadFn)
-		{
-			payloadChannel.reset(new PayloadChannel::PayloadChannelSocket(
-			  payloadChannelReadFn, payloadChannelReadCtx, payloadChannelWriteFn, payloadChannelWriteCtx));
-		}
-		else
-		{
-			payloadChannel.reset(
-			  new PayloadChannel::PayloadChannelSocket(payloadConsumeChannelFd, payloadProduceChannelFd));
-		}
-	}
-	catch (const MediaSoupError& error)
-	{
-		MS_ERROR_STD("error creating the PayloadChannel: %s", error.what());
-
-		channel->Close();
-		DepLibUV::RunLoop();
-		DepLibUV::ClassDestroy();
-
-		// 40 is a custom exit code to notify "unknown error" to the Node library.
-		return 40;
-	}
-
 	// Initialize the Logger.
 	Logger::ClassInit(channel.get());
-    
+
 	try
 	{
-        Settings::SetConfiguration(argc, argv);
+		Settings::SetConfiguration(argc, argv);
 	}
 	catch (const MediaSoupTypeError& error)
 	{
 		MS_ERROR_STD("settings error: %s", error.what());
 
 		channel->Close();
-		payloadChannel->Close();
 		DepLibUV::RunLoop();
 		DepLibUV::ClassDestroy();
 
@@ -127,7 +90,6 @@ extern "C" int mediasoup_worker_run(
 		MS_ERROR_STD("unexpected settings error: %s", error.what());
 
 		channel->Close();
-		payloadChannel->Close();
 		DepLibUV::RunLoop();
 		DepLibUV::ClassDestroy();
 
@@ -159,11 +121,11 @@ extern "C" int mediasoup_worker_run(
 	try
 	{
 		// Initialize static stuff.
-        DepOpenSSL::ClassInit();
-        DepLibSRTP::ClassInit();
+		DepOpenSSL::ClassInit();
+		DepLibSRTP::ClassInit();
 		DepUsrSCTP::ClassInit();
-        DepLibWebRTC::ClassInit();
-        Utils::Crypto::ClassInit();
+		DepLibWebRTC::ClassInit();
+		Utils::Crypto::ClassInit();
 		RTC::DtlsTransport::ClassInit();
 		RTC::SrtpSession::ClassInit();
 
@@ -173,7 +135,7 @@ extern "C" int mediasoup_worker_run(
 #endif
 
 		// Run the Worker.
-		Worker worker(channel.get(), payloadChannel.get());
+		Worker worker(channel.get());
 
 		// Free static stuff.
 		DepLibSRTP::ClassDestroy();

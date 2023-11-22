@@ -94,8 +94,6 @@
 #include <cstdlib> // std::abort()
 #include <cstring>
 
-//#define MS_LOG_DEV_LEVEL  3
-
 // clang-format off
 
 #define _MS_TAG_ENABLED(tag) Settings::configuration.logTags.tag
@@ -195,8 +193,6 @@ public:
 		{ \
 			const int loggerWritten = std::snprintf(Logger::buffer, Logger::bufferSize, "D" _MS_LOG_STR_DESC desc, _MS_LOG_ARG, ##__VA_ARGS__); \
 			Logger::channel->SendLog(Logger::buffer, static_cast<uint32_t>(loggerWritten)); \
-            std::fprintf(stdout, _MS_LOG_STR_DESC desc _MS_LOG_SEPARATOR_CHAR_STD, _MS_LOG_ARG, ##__VA_ARGS__); \
-            std::fflush(stdout); \
 		} \
 	} \
 	while (false)
@@ -359,7 +355,9 @@ public:
 		  bufferDataLen += loggerWritten; \
 		} \
 		if (bufferDataLen != 0) \
+		{ \
 			Logger::channel->SendLog(Logger::buffer, static_cast<uint32_t>(bufferDataLen)); \
+		} \
 	} \
 	while (false)
 

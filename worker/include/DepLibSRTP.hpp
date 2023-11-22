@@ -1,7 +1,7 @@
 #ifndef MS_DEP_LIBSRTP_HPP
 #define MS_DEP_LIBSRTP_HPP
 
-#include <srtp2/srtp.h>
+#include <srtp.h>
 #include <vector>
 
 class DepLibSRTP

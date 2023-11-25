@@ -23,40 +23,12 @@ namespace srv {
     class Channel;
     class WebRtcTransportController;
 
-    struct WebRtcServerListenInfo
-    {
-        /**
-         * Network protocol.
-         * options: tcp | udp
-         */
-        std::string protocol;
-
-        /**
-         * Listening IPv4 or IPv6.
-         */
-        std::string ip;
-
-        /**
-         * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
-         * private IP).
-         */
-        std::string announcedIp;
-
-        /**
-         * Listening port.
-         */
-        int32_t port = 0;
-    };
-
-    void to_json(nlohmann::json& j, const WebRtcServerListenInfo& st);
-    void from_json(const nlohmann::json& j, WebRtcServerListenInfo& st);
-
     struct WebRtcServerOptions
     {
         /**
          * Listen infos.
          */
-        std::vector<WebRtcServerListenInfo> listenInfos;
+        std::vector<TransportListenInfo> listenInfos;
 
         /**
          * Custom application data.

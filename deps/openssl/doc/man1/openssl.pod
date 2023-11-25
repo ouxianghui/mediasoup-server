@@ -568,12 +568,10 @@ When a specific TLS version is required, only that version will be offered or
 accepted.
 Only one specific protocol can be given and it cannot be combined with any of
 the B<no_> options.
-The B<no_*> options do not work with B<s_time> and B<ciphers> commands but work with
-B<s_client> and B<s_server> commands.
 
 =item B<-dtls>, B<-dtls1>, B<-dtls1_2>
 
-These options specify to use DTLS instead of TLS.
+These options specify to use DTLS instead of DLTS.
 With B<-dtls>, clients will negotiate any supported DTLS protocol version.
 Use the B<-dtls1> or B<-dtls1_2> options to support only DTLS1.0 or DTLS1.2,
 respectively.
@@ -673,8 +671,8 @@ see L<openssl-env(7)>.
 
 Enable tracing output of OpenSSL library, by name.
 This output will only make sense if you know OpenSSL internals well.
-Also, it might not give you any output at all
-if OpenSSL was built without tracing support.
+Also, it might not give you any output at all, depending on how
+OpenSSL was built.
 
 The value is a comma separated list of names, with the following
 available:
@@ -752,10 +750,6 @@ Traces encoder operations.
 =item B<REF_COUNT>
 
 Traces decrementing certain ASN.1 structure references.
-
-=item B<HTTP>
-
-HTTP client diagnostics
 
 =back
 
@@ -837,7 +831,7 @@ that program with no arguments is now equivalent to C<openssl help>.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2022 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

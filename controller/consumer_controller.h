@@ -17,7 +17,10 @@
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
+#include "rtp_stream.h"
 #include "rtp_parameters.h"
+#include "FBS/notification.h"
+#include "FBS/consumer.h"
 
 namespace srv {
 
@@ -33,9 +36,6 @@ namespace srv {
          */
         int32_t temporalLayer;
     };
-
-    void to_json(nlohmann::json& j, const ConsumerLayers& st);
-    void from_json(const nlohmann::json& j, ConsumerLayers& st);
 
     struct ConsumerOptions
     {
@@ -105,6 +105,63 @@ namespace srv {
         nlohmann::json appData;
     };
 
+    struct RtpPacketDump {
+        uint8_t payloadType;
+        uint16_t sequenceNumber;
+        uint64_t timestamp;
+        bool marker;
+        uint32_t ssrc;
+        bool isKeyFrame;
+        uint64_t size;
+        uint64_t payloadSize;
+        uint8_t spatialLayer;
+        uint8_t temporalLayer;
+        std::string mid;
+        std::string rid;
+        std::string rrid;
+        uint16_t wideSequenceNumber;
+        
+        
+        srv::RtpPacketDump& operator=(const FBS::RtpPacket::Dump* dump) {
+            this->payloadType = dump->payloadType();
+            this->sequenceNumber = dump->sequenceNumber();
+            this->timestamp = dump->timestamp();
+            this->marker = dump->marker();
+            this->ssrc = dump->ssrc();
+            this->isKeyFrame = dump->isKeyFrame();
+            this->size = dump->size();
+            this->payloadSize = dump->payloadSize();
+            this->spatialLayer = dump->spatialLayer();
+            this->temporalLayer = dump->temporalLayer();
+            this->mid = dump->mid()->str();
+            this->rid = dump->rid()->str();
+            this->rrid = dump->rrid()->str();
+            this->wideSequenceNumber = dump->wideSequenceNumber().value_or(0);
+            return *this;
+        }
+    };
+
+    struct TraceInfo {};
+
+    struct KeyFrameTraceInfo : TraceInfo {
+        RtpPacketDump rtpPacket;
+        bool isRtx;
+    };
+
+    struct FirTraceInfo : TraceInfo {
+        uint32_t ssrc;
+    };
+
+    struct PliTraceInfo : TraceInfo {
+        uint32_t ssrc;
+    };
+
+    struct RtpTraceInfo : TraceInfo {
+        RtpPacketDump rtpPacket;
+        bool isRtx;
+    };
+
+
     /**
      * Valid types for 'trace' event.
      */
@@ -135,11 +192,8 @@ namespace srv {
         /**
          * Per type information.
          */
-        nlohmann::json info;
+        std::shared_ptr<TraceInfo> info;
     };
-
-    void to_json(nlohmann::json& j, const ConsumerTraceEventData& st);
-    void from_json(const nlohmann::json& j, ConsumerTraceEventData& st);
 
     struct ConsumerScore
     {
@@ -160,16 +214,11 @@ namespace srv {
         std::vector<int32_t> producerScores;
     };
 
-    void to_json(nlohmann::json& j, const ConsumerScore& st);
-    void from_json(const nlohmann::json& j, ConsumerScore& st);
-
-    struct ConsumerStat : public StatBase {};
-
-    void to_json(nlohmann::json& j, const ConsumerStat& st);
-    void from_json(const nlohmann::json& j, ConsumerStat& st);
+    using ConsumerStat = RtpStreamSendStats;
 
     struct ConsumerInternal
     {
+        std::string routerId;
         std::string transportId;
         std::string consumerId;
     };
@@ -187,6 +236,90 @@ namespace srv {
         std::string type;
     };
 
+    struct RtxStreamParameters
+    {
+        uint32_t ssrc;
+        uint8_t payloadType;
+        std::string mimeType;
+        uint32_t clockRate;
+        std::string rrid;
+        std::string cname;
+    };
+
+    struct RtxStreamDump
+    {
+        RtxStreamParameters params;
+    };
+
+    struct RtpStreamParameters
+    {
+        size_t encodingIdx;
+        uint32_t ssrc;
+        uint8_t payloadType;
+        std::string mimeType;
+        uint32_t clockRate;
+        std::string rid;
+        std::string cname;
+        uint32_t rtxSsrc;
+        uint8_t rtxPayloadType;
+        bool useNack;
+        bool usePli;
+        bool useFir;
+        bool useInBandFec;
+        bool useDtx;
+        uint8_t spatialLayers;
+        uint8_t temporalLayers;
+    };
+
+    struct RtpStreamDump
+    {
+        RtpStreamParameters params;
+        uint8_t score;
+        RtxStreamDump rtxStream;
+    };
+
+    struct BaseConsumerDump
+    {
+        std::string id;
+        std::string producerId;
+        std::string kind;
+        RtpParameters rtpParameters;
+        std::vector<RtpEncodingParameters> consumableRtpEncodings;
+        std::vector<uint8_t> supportedCodecPayloadTypes;
+        std::vector<std::string> traceEventTypes;
+        bool paused;
+        bool producerPaused;
+        int32_t priority;
+    };
+
+    struct SimpleConsumerDump : BaseConsumerDump
+    {
+        std::string type;
+        RtpStreamDump rtpStream;
+    };
+
+    struct SimulcastConsumerDump : BaseConsumerDump
+    {
+        std::string type;
+        RtpStreamDump rtpStream;
+        int16_t preferredSpatialLayer;
+        int16_t targetSpatialLayer;
+        int16_t currentSpatialLayer;
+        int16_t preferredTemporalLayer;
+        int16_t targetTemporalLayer;
+        int16_t currentTemporalLayer;
+    };
+
+    using SvcConsumerDump = SimulcastConsumerDump;
+
+    struct PipeConsumerDump : BaseConsumerDump
+    {
+        std::string type;
+        std::vector<RtpStreamDump> rtpStreams;
+    };
+
+    using ConsumerDump = BaseConsumerDump;
+
     class Channel;
     class PayloadChannel;
 
@@ -196,7 +329,6 @@ namespace srv {
         ConsumerController(const ConsumerInternal& internal,
                            const ConsumerData& data,
                            const std::shared_ptr<Channel>& channel,
-                           std::shared_ptr<PayloadChannel> payloadChannel,
                            const nlohmann::json& appData,
                            bool paused,
                            bool producerPaused,
@@ -241,9 +373,9 @@ namespace srv {
         
         void onTransportClosed();
         
-        nlohmann::json dump();
+        std::shared_ptr<ConsumerDump> dump();
         
-        nlohmann::json getStats();
+        std::vector<std::shared_ptr<ConsumerStat>> getStats();
         
         void pause();
         
@@ -262,10 +394,34 @@ namespace srv {
         
     private:
         void handleWorkerNotifications();
+
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        std::shared_ptr<ConsumerDump> parseConsumerDumpResponse(const FBS::Consumer::DumpResponse* response);
         
-        void onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen);
+        std::shared_ptr<BaseConsumerDump> parseBaseConsumerDump(const FBS::Consumer::BaseConsumerDump* data);
+
+        std::shared_ptr<SimpleConsumerDump> parseSimpleConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+
+        std::shared_ptr<SimulcastConsumerDump> parseSimulcastConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+
+        std::shared_ptr<SvcConsumerDump> parseSvcConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+
+        std::shared_ptr<PipeConsumerDump> parsePipeConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+        
+        std::shared_ptr<ConsumerTraceEventData> parseTraceEventData(const FBS::Consumer::TraceNotification* trace);
+        
+        std::shared_ptr<ConsumerLayers>  parseConsumerLayers(const FBS::Consumer::ConsumerLayers* data);
+
+        std::shared_ptr<RtpStreamParameters> parseRtpStreamParameters(const FBS::RtpStream::Params* data);
+        
+        std::shared_ptr<RtxStreamParameters> parseRtxStreamParameters(const FBS::RtxStream::Params* data);
+
+        std::shared_ptr<RtxStreamDump> parseRtxStream(const FBS::RtxStream::RtxDump* data);
+
+        std::shared_ptr<RtpStreamDump> parseRtpStream(const FBS::RtpStream::Dump* data);
+
+        std::vector<std::shared_ptr<ConsumerStat>> parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary);
         
     public:
         // signals
@@ -300,9 +456,6 @@ namespace srv {
 
         // Channel instance.
         std::weak_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };

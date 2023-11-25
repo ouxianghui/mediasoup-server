@@ -1,5 +1,5 @@
 /*
- * Copyright 2001-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2001-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -46,8 +46,8 @@ typedef struct st_engine_cleanup_item {
     ENGINE_CLEANUP_CB *cb;
 } ENGINE_CLEANUP_ITEM;
 DEFINE_STACK_OF(ENGINE_CLEANUP_ITEM)
-int engine_cleanup_add_first(ENGINE_CLEANUP_CB *cb);
-int engine_cleanup_add_last(ENGINE_CLEANUP_CB *cb);
+void engine_cleanup_add_first(ENGINE_CLEANUP_CB *cb);
+void engine_cleanup_add_last(ENGINE_CLEANUP_CB *cb);
 
 /* We need stacks of ENGINEs for use in eng_table.c */
 DEFINE_STACK_OF(ENGINE)
@@ -156,6 +156,6 @@ struct engine_st {
 
 typedef struct st_engine_pile ENGINE_PILE;
 
-DEFINE_LHASH_OF_EX(ENGINE_PILE);
+DEFINE_LHASH_OF(ENGINE_PILE);
 
 #endif                          /* OSSL_CRYPTO_ENGINE_ENG_LOCAL_H */

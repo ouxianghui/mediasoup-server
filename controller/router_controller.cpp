@@ -13,7 +13,6 @@
 #include "uuid.h"
 #include "ortc.h"
 #include "channel.h"
-#include "payload_channel.h"
 #include "rtp_observer_controller.h"
 #include "webrtc_server_controller.h"
 #include "webrtc_transport_controller.h"
@@ -28,12 +27,10 @@ namespace srv {
     RouterController::RouterController(const RouterInternal& internal,
                                        const RouterData& data,
                                        const std::shared_ptr<Channel>& channel,
-                                       std::shared_ptr<PayloadChannel> payloadChannel,
                                        const nlohmann::json& appData)
     : _internal(internal)
     , _data(data)
     , _channel(channel)
-    , _payloadChannel(payloadChannel)
     , _appData(appData)
     {
         SRV_LOGD("RouterController()");
@@ -172,7 +169,7 @@ namespace srv {
         this->closeSignal(shared_from_this());
     }
         
-    nlohmann::json RouterController::dump()
+    std::shared_ptr<RouterDump> RouterController::dump()
     {
         SRV_LOGD("dump()");
         
@@ -252,7 +249,6 @@ namespace srv {
         wtcOptions->internal = internal;
         wtcOptions->data = jsData;
         wtcOptions->channel = _channel.lock();
-        wtcOptions->payloadChannel = _payloadChannel.lock();
         wtcOptions->appData = appData;
         wtcOptions->getRouterRtpCapabilities = _getRouterRtpCapabilities;
         wtcOptions->getProducerController = _getProducerController;
@@ -331,7 +327,6 @@ namespace srv {
         ptcOptions->internal = internal;
         ptcOptions->data = jsData;
         ptcOptions->channel = _channel.lock();
-        ptcOptions->payloadChannel = _payloadChannel.lock();
         ptcOptions->appData = appData;
         ptcOptions->getRouterRtpCapabilities = _getRouterRtpCapabilities;
         ptcOptions->getProducerController = _getProducerController;
@@ -387,7 +382,6 @@ namespace srv {
         dtcOptions->internal = internal;
         dtcOptions->data = jsData;
         dtcOptions->channel = _channel.lock();
-        dtcOptions->payloadChannel = _payloadChannel.lock();
         dtcOptions->appData = appData;
         dtcOptions->getRouterRtpCapabilities = _getRouterRtpCapabilities;
         dtcOptions->getProducerController = _getProducerController;
@@ -448,7 +442,6 @@ namespace srv {
         auto roocOptions = std::make_shared<RtpObserverObserverConstructorOptions>();
         roocOptions->internal = internal;
         roocOptions->channel = _channel.lock();
-        roocOptions->payloadChannel = _payloadChannel.lock();
         roocOptions->appData = appData;
         roocOptions->getProducerController = _getProducerController;
         
@@ -513,7 +506,6 @@ namespace srv {
         auto alocOptions = std::make_shared<AudioLevelObserverConstructorOptions>();
         alocOptions->internal = internal;
         alocOptions->channel = _channel.lock();
-        alocOptions->payloadChannel = _payloadChannel.lock();
         alocOptions->appData = appData;
         alocOptions->getProducerController = _getProducerController;
         

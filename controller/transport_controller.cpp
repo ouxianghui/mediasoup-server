@@ -798,22 +798,6 @@ namespace srv {
 
 namespace srv
 {
-    void to_json(nlohmann::json& j, const TransportListenIp& st)
-    {
-        j["ip"] = st.ip;
-        j["announcedIp"] = st.announcedIp;
-    }
-
-    void from_json(const nlohmann::json& j, TransportListenIp& st)
-    {
-        if (j.contains("ip")) {
-            j.at("ip").get_to(st.ip);
-        }
-        if (j.contains("announcedIp")) {
-            j.at("announcedIp").get_to(st.announcedIp);
-        }
-    }
-
     void to_json(nlohmann::json& j, const TransportTuple& st)
     {
         j["localIp"] = st.localIp;

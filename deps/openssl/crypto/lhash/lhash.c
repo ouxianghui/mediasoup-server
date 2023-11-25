@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -266,12 +266,12 @@ static void contract(OPENSSL_LHASH *lh)
         if (n == NULL) {
             /* fputs("realloc error in lhash",stderr); */
             lh->error++;
-        } else {
-            lh->b = n;
+            return;
         }
         lh->num_alloc_nodes /= 2;
         lh->pmax /= 2;
         lh->p = lh->pmax - 1;
+        lh->b = n;
     } else
         lh->p--;
 
@@ -344,37 +344,18 @@ unsigned long OPENSSL_LH_strhash(const char *c)
     return (ret >> 16) ^ ret;
 }
 
-/*
- * Case insensitive string hashing.
- *
- * The lower/upper case bit is masked out (forcing all letters to be capitals).
- * The major side effect on non-alpha characters is mapping the symbols and
- * digits into the control character range (which should be harmless).
- * The duplication (with respect to the hash value) of printable characters
- * are that '`', '{', '|', '}' and '~' map to '@', '[', '\', ']' and '^'
- * respectively (which seems tolerable).
- *
- * For EBCDIC, the alpha mapping is to lower case, most symbols go to control
- * characters.  The only duplication is '0' mapping to '^', which is better
- * than for ASCII.
- */
 unsigned long ossl_lh_strcasehash(const char *c)
 {
     unsigned long ret = 0;
     long n;
     unsigned long v;
     int r;
-#if defined(CHARSET_EBCDIC) && !defined(CHARSET_EBCDIC_TEST)
-    const long int case_adjust = ~0x40;
-#else
-    const long int case_adjust = ~0x20;
-#endif
 
     if (c == NULL || *c == '\0')
         return ret;
 
     for (n = 0x100; *c != '\0'; n += 0x100) {
-        v = n | (case_adjust & *c);
+        v = n | ossl_tolower(*c);
         r = (int)((v >> 2) ^ v) & 0x0f;
         /* cast to uint64_t to avoid 32 bit shift of 32 bit value */
         ret = (ret << r) | (unsigned long)((uint64_t)ret >> (32 - r));

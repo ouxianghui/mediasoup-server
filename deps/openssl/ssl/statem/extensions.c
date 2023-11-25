@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -17,6 +17,7 @@
 #include "internal/cryptlib.h"
 #include "../ssl_local.h"
 #include "statem_local.h"
+#include "internal/cryptlib.h"
 
 static int final_renegotiate(SSL *s, unsigned int context, int sent);
 static int init_server_name(SSL *s, unsigned int context);
@@ -1391,11 +1392,7 @@ static int final_key_share(SSL *s, unsigned int context, int sent)
                     group_id = pgroups[i];
 
                     if (check_in_list(s, group_id, clntgroups, clnt_num_groups,
-                                      1)
-                            && tls_group_allowed(s, group_id,
-                                                 SSL_SECOP_CURVE_SUPPORTED)
-                            && tls_valid_group(s, group_id, TLS1_3_VERSION,
-                                               TLS1_3_VERSION, 0, NULL))
+                                      1))
                         break;
                 }
 
@@ -1468,10 +1465,13 @@ int tls_psk_do_binder(SSL *s, const EVP_MD *md, const unsigned char *msgstart,
     unsigned char hash[EVP_MAX_MD_SIZE], binderkey[EVP_MAX_MD_SIZE];
     unsigned char finishedkey[EVP_MAX_MD_SIZE], tmpbinder[EVP_MAX_MD_SIZE];
     unsigned char *early_secret;
-    /* ASCII: "res binder", in hex for EBCDIC compatibility */
-    static const unsigned char resumption_label[] = "\x72\x65\x73\x20\x62\x69\x6E\x64\x65\x72";
-    /* ASCII: "ext binder", in hex for EBCDIC compatibility */
-    static const unsigned char external_label[] = "\x65\x78\x74\x20\x62\x69\x6E\x64\x65\x72";
+#ifdef CHARSET_EBCDIC
+    static const unsigned char resumption_label[] = { 0x72, 0x65, 0x73, 0x20, 0x62, 0x69, 0x6E, 0x64, 0x65, 0x72, 0x00 };
+    static const unsigned char external_label[]   = { 0x65, 0x78, 0x74, 0x20, 0x62, 0x69, 0x6E, 0x64, 0x65, 0x72, 0x00 };
+#else
+    static const unsigned char resumption_label[] = "res binder";
+    static const unsigned char external_label[] = "ext binder";
+#endif
     const unsigned char *label;
     size_t bindersize, labelsize, hashsize;
     int hashsizei = EVP_MD_get_size(md);

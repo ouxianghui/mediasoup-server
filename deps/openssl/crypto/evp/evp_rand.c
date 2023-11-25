@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -47,8 +47,6 @@ struct evp_rand_st {
     OSSL_FUNC_rand_get_ctx_params_fn *get_ctx_params;
     OSSL_FUNC_rand_set_ctx_params_fn *set_ctx_params;
     OSSL_FUNC_rand_verify_zeroization_fn *verify_zeroization;
-    OSSL_FUNC_rand_get_seed_fn *get_seed;
-    OSSL_FUNC_rand_clear_seed_fn *clear_seed;
 } /* EVP_RAND */ ;
 
 static int evp_rand_up_ref(void *vrand)
@@ -238,16 +236,6 @@ static void *evp_rand_from_algorithm(int name_id,
             fnzeroizecnt++;
 #endif
             break;
-        case OSSL_FUNC_RAND_GET_SEED:
-            if (rand->get_seed != NULL)
-                break;
-            rand->get_seed = OSSL_FUNC_rand_get_seed(fns);
-            break;
-        case OSSL_FUNC_RAND_CLEAR_SEED:
-            if (rand->clear_seed != NULL)
-                break;
-            rand->clear_seed = OSSL_FUNC_rand_clear_seed(fns);
-            break;
         }
     }
     /*
@@ -332,7 +320,7 @@ int EVP_RAND_get_params(EVP_RAND *rand, OSSL_PARAM params[])
     return 1;
 }
 
-int EVP_RAND_CTX_up_ref(EVP_RAND_CTX *ctx)
+static int evp_rand_ctx_up_ref(EVP_RAND_CTX *ctx)
 {
     int ref = 0;
 
@@ -357,7 +345,7 @@ EVP_RAND_CTX *EVP_RAND_CTX_new(EVP_RAND *rand, EVP_RAND_CTX *parent)
         return NULL;
     }
     if (parent != NULL) {
-        if (!EVP_RAND_CTX_up_ref(parent)) {
+        if (!evp_rand_ctx_up_ref(parent)) {
             ERR_raise(ERR_LIB_EVP, ERR_R_INTERNAL_ERROR);
             CRYPTO_THREAD_lock_free(ctx->refcnt_lock);
             OPENSSL_free(ctx);
@@ -691,60 +679,4 @@ int EVP_RAND_verify_zeroization(EVP_RAND_CTX *ctx)
     res = evp_rand_verify_zeroization_locked(ctx);
     evp_rand_unlock(ctx);
     return res;
-}
-
-int evp_rand_can_seed(EVP_RAND_CTX *ctx)
-{
-    return ctx->meth->get_seed != NULL;
-}
-
-static size_t evp_rand_get_seed_locked(EVP_RAND_CTX *ctx,
-                                       unsigned char **buffer,
-                                       int entropy,
-                                       size_t min_len, size_t max_len,
-                                       int prediction_resistance,
-                                       const unsigned char *adin,
-                                       size_t adin_len)
-{
-    if (ctx->meth->get_seed != NULL)
-        return ctx->meth->get_seed(ctx->algctx, buffer,
-                                   entropy, min_len, max_len,
-                                   prediction_resistance,
-                                   adin, adin_len);
-    return 0;
-}
-
-size_t evp_rand_get_seed(EVP_RAND_CTX *ctx,
-                         unsigned char **buffer,
-                         int entropy, size_t min_len, size_t max_len,
-                         int prediction_resistance,
-                         const unsigned char *adin, size_t adin_len)
-{
-    int res;
-
-    if (!evp_rand_lock(ctx))
-        return 0;
-    res = evp_rand_get_seed_locked(ctx,
-                                   buffer,
-                                   entropy, min_len, max_len,
-                                   prediction_resistance,
-                                   adin, adin_len);
-    evp_rand_unlock(ctx);
-    return res;
-}
-
-static void evp_rand_clear_seed_locked(EVP_RAND_CTX *ctx,
-                                       unsigned char *buffer, size_t b_len)
-{
-    if (ctx->meth->clear_seed != NULL)
-        ctx->meth->clear_seed(ctx->algctx, buffer, b_len);
-}
-
-void evp_rand_clear_seed(EVP_RAND_CTX *ctx,
-                         unsigned char *buffer, size_t b_len)
-{
-    if (!evp_rand_lock(ctx))
-        return;
-    evp_rand_clear_seed_locked(ctx, buffer, b_len);
-    evp_rand_unlock(ctx);
 }

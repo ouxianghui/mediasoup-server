@@ -102,7 +102,7 @@ namespace srv {
         // Common to all Transports.
         std::string type;
         std::string transportId;
-        int64_t timestamp;
+        uint64_t timestamp;
         
         // Options: 'new' | 'connecting' | 'connected' | 'failed' | 'closed';
         std::string sctpState;

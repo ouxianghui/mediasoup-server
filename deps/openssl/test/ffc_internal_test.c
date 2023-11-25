@@ -455,20 +455,22 @@ static int ffc_public_validate_test(void)
     if (!TEST_true(BN_set_word(pub, 1)))
         goto err;
     BN_set_negative(pub, 1);
-    /* Check must succeed but set res if public key is negative */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, pub, &res)))
+    /* Fail if public key is negative */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, pub, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PUBKEY_TOO_SMALL, res))
         goto err;
     if (!TEST_true(BN_set_word(pub, 0)))
         goto err;
-    /* Check must succeed but set res if public key is zero */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, pub, &res)))
+    if (!TEST_int_eq(FFC_ERROR_PUBKEY_TOO_SMALL, res))
+        goto err;
+    /* Fail if public key is zero */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, pub, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PUBKEY_TOO_SMALL, res))
         goto err;
-    /* Check must succeed but set res if public key is 1 */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, BN_value_one(), &res)))
+    /* Fail if public key is 1 */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, BN_value_one(), &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PUBKEY_TOO_SMALL, res))
         goto err;
@@ -480,24 +482,24 @@ static int ffc_public_validate_test(void)
 
     if (!TEST_ptr(BN_copy(pub, params->p)))
         goto err;
-    /* Check must succeed but set res if public key = p */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, pub, &res)))
+    /* Fail if public key = p */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, pub, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PUBKEY_TOO_LARGE, res))
         goto err;
 
     if (!TEST_true(BN_sub_word(pub, 1)))
         goto err;
-    /* Check must succeed but set res if public key = p - 1 */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, pub, &res)))
+    /* Fail if public key = p - 1 */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, pub, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PUBKEY_TOO_LARGE, res))
         goto err;
 
     if (!TEST_true(BN_sub_word(pub, 1)))
         goto err;
-    /* Check must succeed but set res if public key is not related to p & q */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, pub, &res)))
+    /* Fail if public key is not related to p & q */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, pub, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PUBKEY_INVALID, res))
         goto err;
@@ -508,14 +510,14 @@ static int ffc_public_validate_test(void)
     if (!TEST_true(ossl_ffc_validate_public_key(params, pub, &res)))
         goto err;
 
-    /* Check must succeed but set res if params is NULL */
-    if (!TEST_true(ossl_ffc_validate_public_key(NULL, pub, &res)))
+    /* Fail if params is NULL */
+    if (!TEST_false(ossl_ffc_validate_public_key(NULL, pub, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PASSED_NULL_PARAM, res))
         goto err;
     res = -1;
-    /* Check must succeed but set res if pubkey is NULL */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, NULL, &res)))
+    /* Fail if pubkey is NULL */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, NULL, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PASSED_NULL_PARAM, res))
         goto err;
@@ -523,8 +525,8 @@ static int ffc_public_validate_test(void)
 
     BN_free(params->p);
     params->p = NULL;
-    /* Check must succeed but set res if params->p is NULL */
-    if (!TEST_true(ossl_ffc_validate_public_key(params, pub, &res)))
+    /* Fail if params->p is NULL */
+    if (!TEST_false(ossl_ffc_validate_public_key(params, pub, &res)))
         goto err;
     if (!TEST_int_eq(FFC_ERROR_PASSED_NULL_PARAM, res))
         goto err;

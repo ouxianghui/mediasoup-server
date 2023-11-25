@@ -39,3 +39,8 @@ install/bin/sfu
 install/logs/*.log
 
 worker/out
+
+subprojects
+!subprojects/*.wrap
+
+**/.DS_Store

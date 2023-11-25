@@ -17,20 +17,6 @@ message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(headers
-  # i_consumer_controller.h
-  # i_data_consumer_controller.h
-  # i_data_producer_controller.h
-  # i_direct_transport_controller.h
-  # i_pipe_transport_controller.h
-  # i_plain_transport_controller.h
-  # i_producer_controller.h
-  # i_router_controller.h
-  # i_webrtc_server_controller.h
-  # i_webrtc_transport_controller.h
-  # i_worker_controller.h
-  # i_rtp_observer_controller.h
-  # i_router_controller.h
-  # i_webrtc_server_controller.h
   config.h
   rtc_export.h
   common_types.h
@@ -42,8 +28,10 @@ set(headers
   engine.h
   srv_logger.h
   channel.h
-  payload_channel.h
   worker_controller.h
+  rtp_stream.h
+  parameters.h
+  rtp_dictionaries.h
   srtp_parameters.h
   sctp_parameters.h
   scalability_mode.h
@@ -72,8 +60,10 @@ set(sources
   ortc.cpp
   engine.cpp
   channel.cpp
-  payload_channel.cpp
   worker_controller.cpp
+  rtp_stream.cpp
+  parameters.cpp
+  rtp_dictionaries.cpp
   srtp_parameters.cpp
   sctp_parameters.cpp
   scalability_mode.cpp
@@ -109,8 +99,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   ${LIB_WEBRTC_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/json/single_include
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libwebrtc/deps/abseil-cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libsdptransform
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../release/include/fbs
   ${PROJECT_INCLUDE_DIR}
 )
 

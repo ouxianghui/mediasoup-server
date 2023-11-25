@@ -27,8 +27,14 @@
 
 namespace srv {
 
-    struct TransportListenIp
+
+    struct TransportListenInfo
     {
+        /**
+         * Network protocol.
+         */
+        std::string protocol;
+
         /**
          * Listening IPv4 or IPv6.
          */
@@ -39,10 +45,22 @@ namespace srv {
          * private IP).
          */
         std::string announcedIp;
-    };
 
-    void to_json(nlohmann::json& j, const TransportListenIp& st);
-    void from_json(const nlohmann::json& j, TransportListenIp& st);
+        /**
+         * Listening port.
+         */
+        uint16_t port;
+
+        /**
+         * Send buffer size (bytes).
+         */
+        uint32_t sendBufferSize;
+
+        /**
+         * Recv buffer size (bytes).
+         */
+        uint32_t recvBufferSize;
+    };
 
     /**
      * Transport protocol.

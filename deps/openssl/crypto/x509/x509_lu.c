@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -41,19 +41,14 @@ void X509_LOOKUP_free(X509_LOOKUP *ctx)
     OPENSSL_free(ctx);
 }
 
-int X509_STORE_lock(X509_STORE *xs)
+int X509_STORE_lock(X509_STORE *s)
 {
-    return CRYPTO_THREAD_write_lock(xs->lock);
+    return CRYPTO_THREAD_write_lock(s->lock);
 }
 
-static int x509_store_read_lock(X509_STORE *xs)
+int X509_STORE_unlock(X509_STORE *s)
 {
-    return CRYPTO_THREAD_read_lock(xs->lock);
-}
-
-int X509_STORE_unlock(X509_STORE *xs)
-{
-    return CRYPTO_THREAD_unlock(xs->lock);
+    return CRYPTO_THREAD_unlock(s->lock);
 }
 
 int X509_LOOKUP_init(X509_LOOKUP *ctx)
@@ -326,19 +321,9 @@ int X509_STORE_CTX_get_by_subject(const X509_STORE_CTX *vs,
     stmp.type = X509_LU_NONE;
     stmp.data.ptr = NULL;
 
-    if (!x509_store_read_lock(store))
+    if (!X509_STORE_lock(store))
         return 0;
-    /* Should already be sorted...but just in case */
-    if (!sk_X509_OBJECT_is_sorted(store->objs)) {
-        X509_STORE_unlock(store);
-        /* Take a write lock instead of a read lock */
-        X509_STORE_lock(store);
-        /*
-         * Another thread might have sorted it in the meantime. But if so,
-         * sk_X509_OBJECT_sort() exits early.
-         */
-        sk_X509_OBJECT_sort(store->objs);
-    }
+
     tmp = X509_OBJECT_retrieve_by_subject(store->objs, type, name);
     X509_STORE_unlock(store);
 
@@ -520,6 +505,7 @@ static int x509_object_idx_cnt(STACK_OF(X509_OBJECT) *h, X509_LOOKUP_TYPE type,
     X509_OBJECT stmp;
     X509 x509_s;
     X509_CRL crl_s;
+    int idx;
 
     stmp.type = type;
     switch (type) {
@@ -536,18 +522,16 @@ static int x509_object_idx_cnt(STACK_OF(X509_OBJECT) *h, X509_LOOKUP_TYPE type,
         return -1;
     }
 
-    /* Assumes h is locked for read if applicable */
-    return sk_X509_OBJECT_find_all(h, &stmp, pnmatch);
+    idx = sk_X509_OBJECT_find_all(h, &stmp, pnmatch);
+    return idx;
 }
 
-/* Assumes h is locked for read if applicable */
 int X509_OBJECT_idx_by_subject(STACK_OF(X509_OBJECT) *h, X509_LOOKUP_TYPE type,
                                const X509_NAME *name)
 {
     return x509_object_idx_cnt(h, type, name, NULL);
 }
 
-/* Assumes h is locked for read if applicable */
 X509_OBJECT *X509_OBJECT_retrieve_by_subject(STACK_OF(X509_OBJECT) *h,
                                              X509_LOOKUP_TYPE type,
                                              const X509_NAME *name)

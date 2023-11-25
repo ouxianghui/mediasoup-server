@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -68,14 +68,7 @@ int EVP_CIPHER_CTX_reset(EVP_CIPHER_CTX *ctx)
 
 EVP_CIPHER_CTX *EVP_CIPHER_CTX_new(void)
 {
-    EVP_CIPHER_CTX *ctx;
-
-    ctx = OPENSSL_zalloc(sizeof(EVP_CIPHER_CTX));
-    if (ctx == NULL)
-        return NULL;
-
-    ctx->iv_len = -1;
-    return ctx;
+    return OPENSSL_zalloc(sizeof(EVP_CIPHER_CTX));
 }
 
 void EVP_CIPHER_CTX_free(EVP_CIPHER_CTX *ctx)
@@ -96,6 +89,8 @@ static int evp_cipher_init_internal(EVP_CIPHER_CTX *ctx,
 #if !defined(OPENSSL_NO_ENGINE) && !defined(FIPS_MODULE)
     ENGINE *tmpimpl = NULL;
 #endif
+
+    ctx->iv_len = -1;
 
     /*
      * enc == 1 means we are encrypting.
@@ -197,12 +192,7 @@ static int evp_cipher_init_internal(EVP_CIPHER_CTX *ctx,
 #endif
     }
 
-    if (!ossl_assert(cipher->prov != NULL)) {
-        ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
-        return 0;
-    }
-
-    if (cipher != ctx->fetched_cipher) {
+    if (cipher->prov != NULL) {
         if (!EVP_CIPHER_up_ref((EVP_CIPHER *)cipher)) {
             ERR_raise(ERR_LIB_EVP, EVP_R_INITIALIZATION_ERROR);
             return 0;
@@ -227,42 +217,6 @@ static int evp_cipher_init_internal(EVP_CIPHER_CTX *ctx,
         if (!EVP_CIPHER_CTX_set_padding(ctx, 0))
             return 0;
     }
-
-#ifndef FIPS_MODULE
-    /*
-     * Fix for CVE-2023-5363
-     * Passing in a size as part of the init call takes effect late
-     * so, force such to occur before the initialisation.
-     *
-     * The FIPS provider's internal library context is used in a manner
-     * such that this is not an issue.
-     */
-    if (params != NULL) {
-        OSSL_PARAM param_lens[3] = { OSSL_PARAM_END, OSSL_PARAM_END,
-                                     OSSL_PARAM_END };
-        OSSL_PARAM *q = param_lens;
-        const OSSL_PARAM *p;
-
-        p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_KEYLEN); 
-        if (p != NULL)
-            memcpy(q++, p, sizeof(*q));
-
-        /*
-         * Note that OSSL_CIPHER_PARAM_AEAD_IVLEN is a synomym for
-         * OSSL_CIPHER_PARAM_IVLEN so both are covered here.
-         */
-        p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_IVLEN);
-        if (p != NULL)
-            memcpy(q++, p, sizeof(*q));
-
-        if (q != param_lens) {
-            if (!EVP_CIPHER_CTX_set_params(ctx, param_lens)) {
-                ERR_raise(ERR_LIB_EVP, EVP_R_INVALID_LENGTH);
-                return 0;
-            }
-        }
-    }
-#endif
 
     if (enc) {
         if (ctx->cipher->einit == NULL) {
@@ -1040,7 +994,7 @@ int EVP_CIPHER_CTX_set_key_length(EVP_CIPHER_CTX *c, int keylen)
     if (c->cipher->prov != NULL) {
         int ok;
         OSSL_PARAM params[2] = { OSSL_PARAM_END, OSSL_PARAM_END };
-        size_t len;
+        size_t len = keylen;
 
         if (EVP_CIPHER_CTX_get_key_length(c) == keylen)
             return 1;
@@ -1053,13 +1007,9 @@ int EVP_CIPHER_CTX_set_key_length(EVP_CIPHER_CTX *c, int keylen)
         }
 
         params[0] = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_KEYLEN, &len);
-        if (!OSSL_PARAM_set_int(params, keylen))
-            return 0;
         ok = evp_do_ciph_ctx_setparams(c->cipher, c->algctx, params);
-        if (ok <= 0)
-            return 0;
-        c->key_len = keylen;
-        return 1;
+
+        return ok > 0 ? 1 : 0;
     }
 
     /* Code below to be removed when legacy support is dropped. */
@@ -1119,13 +1069,7 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
 
     switch (type) {
     case EVP_CTRL_SET_KEY_LENGTH:
-        if (arg < 0)
-            return 0;
-        if (ctx->key_len == arg)
-            /* Skip calling into provider if unchanged. */
-            return 1;
         params[0] = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_KEYLEN, &sz);
-        ctx->key_len = -1;
         break;
     case EVP_CTRL_RAND_KEY:      /* Used by DES */
         set_params = 0;
@@ -1149,9 +1093,6 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
     case EVP_CTRL_AEAD_SET_IVLEN:
         if (arg < 0)
             return 0;
-        if (ctx->iv_len == arg)
-            /* Skip calling into provider if unchanged. */
-            return 1;
         params[0] = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_IVLEN, &sz);
         ctx->iv_len = -1;
         break;
@@ -1324,27 +1265,11 @@ int EVP_CIPHER_get_params(EVP_CIPHER *cipher, OSSL_PARAM params[])
 
 int EVP_CIPHER_CTX_set_params(EVP_CIPHER_CTX *ctx, const OSSL_PARAM params[])
 {
-    int r = 0;
-    const OSSL_PARAM *p;
-
     if (ctx->cipher != NULL && ctx->cipher->set_ctx_params != NULL) {
-        r = ctx->cipher->set_ctx_params(ctx->algctx, params);
-        if (r > 0) {
-            p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_KEYLEN);
-            if (p != NULL && !OSSL_PARAM_get_int(p, &ctx->key_len)) {
-                r = 0;
-                ctx->key_len = -1;
-            }
-        }
-        if (r > 0) {
-            p = OSSL_PARAM_locate_const(params, OSSL_CIPHER_PARAM_IVLEN);
-            if (p != NULL && !OSSL_PARAM_get_int(p, &ctx->iv_len)) {
-                r = 0;
-                ctx->iv_len = -1;
-            }
-        }
+        ctx->iv_len = -1;
+        return ctx->cipher->set_ctx_params(ctx->algctx, params);
     }
-    return r;
+    return 0;
 }
 
 int EVP_CIPHER_CTX_get_params(EVP_CIPHER_CTX *ctx, OSSL_PARAM params[])
@@ -1438,17 +1363,6 @@ int EVP_CIPHER_CTX_rand_key(EVP_CIPHER_CTX *ctx, unsigned char *key)
         return 1;
     }
 #endif /* FIPS_MODULE */
-}
-
-EVP_CIPHER_CTX *EVP_CIPHER_CTX_dup(const EVP_CIPHER_CTX *in)
-{
-    EVP_CIPHER_CTX *out = EVP_CIPHER_CTX_new();
-
-    if (out != NULL && !EVP_CIPHER_CTX_copy(out, in)) {
-        EVP_CIPHER_CTX_free(out);
-        out = NULL;
-    }
-    return out;
 }
 
 int EVP_CIPHER_CTX_copy(EVP_CIPHER_CTX *out, const EVP_CIPHER_CTX *in)

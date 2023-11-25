@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright 2005 Nokia. All rights reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
@@ -59,11 +59,9 @@ __owur static int timeoutcmp(SSL_SESSION *a, SSL_SESSION *b)
  */
 void ssl_session_calculate_timeout(SSL_SESSION *ss)
 {
-#ifndef __DJGPP__ /* time_t is unsigned on djgpp */
     /* Force positive timeout */
     if (ss->timeout < 0)
         ss->timeout = 0;
-#endif
     ss->calc_timeout = ss->time + ss->timeout;
     /*
      * |timeout| is always zero or positive, so the check for
@@ -72,7 +70,7 @@ void ssl_session_calculate_timeout(SSL_SESSION *ss)
     ss->timeout_ovf = ss->time > 0 && ss->calc_timeout < ss->time;
     /*
      * N.B. Realistic overflow can only occur in our lifetimes on a
-     *      32-bit machine with signed time_t, in January 2038.
+     *      32-bit machine in January 2038.
      *      However, There are no controls to limit the |timeout|
      *      value, except to keep it positive.
      */
@@ -192,19 +190,15 @@ SSL_SESSION *ssl_session_dup(const SSL_SESSION *src, int ticket)
     dest->ticket_appdata = NULL;
     memset(&dest->ex_data, 0, sizeof(dest->ex_data));
 
-    /* As the copy is not in the cache, we remove the associated pointers */
+    /* We deliberately don't copy the prev and next pointers */
     dest->prev = NULL;
     dest->next = NULL;
-    dest->owner = NULL;
 
     dest->references = 1;
 
     dest->lock = CRYPTO_THREAD_lock_new();
-    if (dest->lock == NULL) {
-        OPENSSL_free(dest);
-        dest = NULL;
+    if (dest->lock == NULL)
         goto err;
-    }
 
     if (!CRYPTO_new_ex_data(CRYPTO_EX_INDEX_SSL_SESSION, dest, &dest->ex_data))
         goto err;

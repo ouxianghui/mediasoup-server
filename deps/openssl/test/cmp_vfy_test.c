@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2007-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright Nokia 2007-2019
  * Copyright Siemens AG 2015-2019
  *
@@ -434,7 +434,7 @@ static int execute_msg_check_test(CMP_VFY_TEST_FIXTURE *fixture)
                                                fixture->additional_arg)))
         return 0;
 
-    if (fixture->expected == 0) /* error expected already during above check */
+    if (fixture->expected == 0) /* error expected aready during above check */
         return 1;
     return
         TEST_int_eq(0,
@@ -568,8 +568,6 @@ void cleanup_tests(void)
     X509_free(instaca_cert);
     OSSL_CMP_MSG_free(ir_unprotected);
     OSSL_CMP_MSG_free(ir_rmprotection);
-    OSSL_PROVIDER_unload(default_null_provider);
-    OSSL_PROVIDER_unload(provider);
     OSSL_LIB_CTX_free(libctx);
     return;
 }

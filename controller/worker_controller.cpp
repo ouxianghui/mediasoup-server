@@ -15,7 +15,6 @@
 #include "srv_logger.h"
 #include "lib.hpp"
 #include "channel.h"
-#include "payload_channel.h"
 #include "router_controller.h"
 #include "webrtc_server_controller.h"
 #include "uuid.h"
@@ -31,8 +30,6 @@ namespace srv {
     : _settings(settings)
     {
         _channel = std::make_shared<Channel>();
-        
-        _payloadChannel = std::make_shared<PayloadChannel>();
     }
 
     WorkerController::~WorkerController()
@@ -122,11 +119,7 @@ namespace srv {
                              &Channel::channelRead,
                              (void*)_channel.get(),
                              &Channel::channelWrite,
-                             (void*)_channel.get(),
-                             &PayloadChannel::payloadChannelRead,
-                             (void*)_payloadChannel.get(),
-                             &PayloadChannel::payloadChannelWrite,
-                             (void*)_payloadChannel.get()
+                             (void*)_channel.get()
                              );
         
         close();
@@ -149,8 +142,6 @@ namespace srv {
         
         _channel->close();
         
-        _payloadChannel->close();
-        
         {
             std::lock_guard<std::mutex> lock(_webRtcServersMutex);
             for (const auto& item: _webRtcServerControllers) {
@@ -170,22 +161,51 @@ namespace srv {
         this->closeSignal();
     }
 
-    nlohmann::json WorkerController::dump()
+    std::shared_ptr<WorkerDump> WorkerController::dump()
     {
         SRV_LOGD("dump()");
-        return _channel->request("worker.dump", "", "{}");
+        
+        auto data = _channel->request(FBS::Request::Method::WORKER_DUMP, "");
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto workerDumpResponse = response->body_as_Worker_DumpResponse();
+
+        return parseWorkerDumpResponse(workerDumpResponse);
     }
 
     std::shared_ptr<WorkerResourceUsage> WorkerController::getResourceUsage()
     {
         SRV_LOGD("getResourceUsage()");
         
-        auto jsUsage = _channel->request("worker.getResourceUsage", "", "{}");
+        auto data = _channel->request(FBS::Request::Method::WORKER_GET_RESOURCE_USAGE, "");
    
         auto usage = std::make_shared<WorkerResourceUsage>();
-        if (jsUsage.is_object()) {
-            *usage = jsUsage;
-        }
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto resourceUsage = response->body_as_Worker_ResourceUsageResponse();
+        
+        usage->ru_utime = resourceUsage->ruUtime();
+        usage->ru_stime = resourceUsage->ruStime();
+        usage->ru_maxrss = resourceUsage->ruMaxrss();
+        usage->ru_ixrss = resourceUsage->ruIxrss();
+        usage->ru_idrss = resourceUsage->ruIdrss();
+        usage->ru_isrss = resourceUsage->ruIsrss();
+        usage->ru_minflt = resourceUsage->ruMinflt();
+        usage->ru_majflt = resourceUsage->ruMajflt();
+        usage->ru_nswap = resourceUsage->ruNswap();
+        usage->ru_inblock = resourceUsage->ruInblock();
+        usage->ru_oublock = resourceUsage->ruOublock();
+        usage->ru_msgsnd = resourceUsage->ruMsgsnd();
+        usage->ru_msgrcv = resourceUsage->ruMsgrcv();
+        usage->ru_nsignals = resourceUsage->ruNsignals();
+        usage->ru_nvcsw = resourceUsage->ruNvcsw();
+        usage->ru_nivcsw = resourceUsage->ruNivcsw();
         
         return usage;
     }
@@ -193,16 +213,15 @@ namespace srv {
     void WorkerController::updateSettings(const std::string& logLevel, const std::vector<std::string>& logTags)
     {
         SRV_LOGD("updateSettings()");
-    
-        nlohmann::json tags = nlohmann::json::array();
-        for (const auto& tag : logTags) {
-            tags.emplace_back(tag);
-        }
-        nlohmann::json reqData;
-        reqData["logLevel"] = logLevel;
-        reqData["logTags"] = tags;
         
-        _channel->request("worker.updateSettings", "", reqData.dump());
+        std::vector<::flatbuffers::Offset<::flatbuffers::String>> logTags_;
+        for (const auto& item : logTags) {
+            logTags_.emplace_back(_channel->builder().CreateString(item));
+        }
+        
+        auto requestOffset = FBS::Worker::CreateUpdateSettingsRequestDirect(_channel->builder(), logLevel.c_str(), &logTags_);
+        
+        _channel->request(FBS::Request::Method::WORKER_UPDATE_SETTINGS, FBS::Request::Body::Worker_UpdateSettingsRequest, requestOffset, "");
     }
 
     std::shared_ptr<WebRtcServerController> WorkerController::createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData)
@@ -224,12 +243,25 @@ namespace srv {
         }
         
         std::string webRtcServerId = uuid::uuidv4();
+        auto webRtcServerId_ = _channel->builder().CreateString(webRtcServerId);
         
-        nlohmann::json reqData;
-        reqData["webRtcServerId"] = webRtcServerId;
-        reqData["listenInfos"] = listenInfos;
+        std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> infos;
         
-        _channel->request("worker.createWebRtcServer", "", reqData.dump());
+        for (auto& info : listenInfos) {
+            auto info_ = FBS::Transport::CreateListenInfoDirect(_channel->builder(),
+                                                                info.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                info.ip.c_str(),
+                                                                info.announcedIp.c_str(),
+                                                                info.port,
+                                                                info.sendBufferSize,
+                                                                info.recvBufferSize
+                                                                );
+            infos.emplace_back(info_);
+        }
+        
+        auto requestOffset = FBS::Worker::CreateCreateWebRtcServerRequestDirect(_channel->builder(), webRtcServerId.c_str(), &infos);
+        
+        _channel->request(FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER, FBS::Request::Body::Worker_CreateWebRtcServerRequest, requestOffset, "");
 
         std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         WebRtcServerInternal internal { webRtcServerId };
@@ -259,10 +291,9 @@ namespace srv {
         RouterInternal internal;
         internal.routerId = uuid::uuidv4();
         
-        nlohmann::json reqData;
-        reqData["routerId"] = internal.routerId;
+        auto requestOffset = FBS::Worker::CreateCreateRouterRequestDirect(_channel->builder(), internal.routerId.c_str());
 
-        _channel->request("worker.createRouter", "", reqData.dump());
+        _channel->request(FBS::Request::Method::WORKER_CREATE_ROUTER, FBS::Request::Body::Worker_CreateRouterRequest, requestOffset, "");
 
         RouterData data;
         data.rtpCapabilities = rtpCapabilities;
@@ -272,7 +303,6 @@ namespace srv {
             routerController = std::make_shared<RouterController>(internal,
                                                                   data,
                                                                   _channel,
-                                                                  _payloadChannel,
                                                                   appData);
             routerController->init();
             
@@ -314,22 +344,45 @@ namespace srv {
         if (event == "running") {
             this->startSignal();
             this->startSignal.disconnect_all();
-            //getDump();
         }
         else {
             SRV_LOGD("ignoring unknown event %s", event.c_str());
         }
     }
 
-    void WorkerController::getDump()
+    std::shared_ptr<WorkerDump> WorkerController::parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response)
     {
-        auto val1 = dump();
-        std::cout << "----> val1: " << val1.dump() << std::endl;
+        auto workerDump = std::make_shared<WorkerDump>();
         
-        auto usage = getResourceUsage();
-        nlohmann::json val2 = *usage;
-        std::cout << "----> val2: " << val2.dump() << std::endl;
+        auto serverIds = response->webRtcServerIds();
+        
+        for (const auto& item : *serverIds) {
+            workerDump->webRtcServerIds.emplace_back(item->str());
+        }
+        
+        auto routerIds = response->routerIds();
+        
+        for (const auto& item : *routerIds) {
+            workerDump->routerIds.emplace_back(item->str());
+        }
+        
+        auto messageHandlers = response->channelMessageHandlers();
+        
+        auto requestHandlers = messageHandlers->channelRequestHandlers();
+        
+        for (const auto& item : *requestHandlers) {
+            workerDump->channelMessageHandlers.channelRequestHandlers.emplace_back(item->str());
+        }
+        
+        auto notificationHandlers = messageHandlers->channelNotificationHandlers();
+        
+        for (const auto& item : *notificationHandlers) {
+            workerDump->channelMessageHandlers.channelNotificationHandlers.emplace_back(item->str());
+        }
+        
+        return workerDump;
     }
+
 }
 
 namespace srv
@@ -371,78 +424,6 @@ namespace srv
         }
         if (j.contains("appData")) {
             j.at("appData").get_to(st.appData);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const WorkerResourceUsage& st)
-    {
-        j["ru_utime"] = st.ru_utime;
-        j["ru_stime"] = st.ru_stime;
-        j["ru_maxrss"] = st.ru_maxrss;
-        j["ru_ixrss"] = st.ru_ixrss;
-        j["ru_idrss"] = st.ru_idrss;
-        j["ru_isrss"] = st.ru_isrss;
-        j["ru_minflt"] = st.ru_minflt;
-        j["ru_majflt"] = st.ru_majflt;
-        j["ru_nswap"] = st.ru_nswap;
-        j["ru_inblock"] = st.ru_inblock;
-        j["ru_oublock"] = st.ru_oublock;
-        j["ru_msgsnd"] = st.ru_msgsnd;
-        j["ru_msgrcv"] = st.ru_msgrcv;
-        j["ru_nsignals"] = st.ru_nsignals;
-        j["ru_nvcsw"] = st.ru_nvcsw;
-        j["ru_nivcsw"] = st.ru_nivcsw;
-    }
-
-    void from_json(const nlohmann::json& j, WorkerResourceUsage& st)
-    {
-        if (j.contains("ru_utime")) {
-            j.at("ru_utime").get_to(st.ru_utime);
-        }
-        if (j.contains("ru_stime")) {
-            j.at("ru_stime").get_to(st.ru_stime);
-        }
-        if (j.contains("ru_maxrss")) {
-            j.at("ru_maxrss").get_to(st.ru_maxrss);
-        }
-        if (j.contains("ru_ixrss")) {
-            j.at("ru_ixrss").get_to(st.ru_ixrss);
-        }
-        if (j.contains("ru_idrss")) {
-            j.at("ru_idrss").get_to(st.ru_idrss);
-        }
-        if (j.contains("ru_isrss")) {
-            j.at("ru_isrss").get_to(st.ru_isrss);
-        }
-        if (j.contains("ru_minflt")) {
-            j.at("ru_minflt").get_to(st.ru_minflt);
-        }
-        if (j.contains("ru_majflt")) {
-            j.at("ru_majflt").get_to(st.ru_majflt);
-        }
-        if (j.contains("ru_nswap")) {
-            j.at("ru_nswap").get_to(st.ru_nswap);
-        }
-        if (j.contains("ru_inblock")) {
-            j.at("ru_inblock").get_to(st.ru_inblock);
-        }
-        if (j.contains("ru_oublock")) {
-            j.at("ru_oublock").get_to(st.ru_oublock);
-        }
-        if (j.contains("ru_msgsnd")) {
-            j.at("ru_msgsnd").get_to(st.ru_msgsnd);
-        }
-        if (j.contains("ru_msgrcv")) {
-            j.at("ru_msgrcv").get_to(st.ru_msgrcv);
-        }
-        if (j.contains("ru_nsignals")) {
-            j.at("ru_nsignals").get_to(st.ru_nsignals);
-        }
-        if (j.contains("ru_nvcsw")) {
-            j.at("ru_nvcsw").get_to(st.ru_nvcsw);
-        }
-        if (j.contains("ru_nivcsw")) {
-            j.at("ru_nivcsw").get_to(st.ru_nivcsw);
         }
     }
 }

@@ -11,30 +11,10 @@ See the individual manual pages for details.
 =head1 DESCRIPTION
 
 This guide details the changes required to migrate to new versions of OpenSSL.
-Currently this covers OpenSSL 3.0 & 3.1. For earlier versions refer to
+Currently this covers OpenSSL 3.0. For earlier versions refer to
 L<https://github.com/openssl/openssl/blob/master/CHANGES.md>.
 For an overview of some of the key concepts introduced in OpenSSL 3.0 see
 L<crypto(7)>.
-
-=head1 OPENSSL 3.1
-
-=head2 Main Changes from OpenSSL 3.0
-
-The FIPS provider in OpenSSL 3.1 includes some non-FIPS validated algorithms,
-consequently the property query C<fips=yes> is mandatory for applications that
-want to operate in a FIPS approved manner.  The algorithms are:
-
-=over 4
-
-=item Triple DES ECB
-
-=item Triple DES CBC
-
-=item EdDSA
-
-=back
-
-There are no other changes requiring additional migration measures since OpenSSL 3.0.
 
 =head1 OPENSSL 3.0
 
@@ -150,7 +130,7 @@ New algorithms provided via engines will still work.
 
 Engine-backed keys can be loaded via custom B<OSSL_STORE> implementation.
 In this case the B<EVP_PKEY> objects created via L<ENGINE_load_private_key(3)>
-will be considered legacy and will continue to work.
+will be concidered legacy and will continue to work.
 
 To ensure the future compatibility, the engines should be turned to providers.
 To prefer the provider-based hardware offload, you can specify the default
@@ -208,15 +188,6 @@ L<EVP_DigestSign(3)> and L<EVP_DigestVerify(3)>.
 All new applications should use the new L<EVP_MAC(3)> interface.
 See also L<OSSL_PROVIDER-default(7)/Message Authentication Code (MAC)>
 and L<OSSL_PROVIDER-FIPS(7)/Message Authentication Code (MAC)>.
-
-=head4 Algorithm Fetching
-
-Using calls to convenience functions such as EVP_sha256() and EVP_aes_256_gcm() may
-incur a performance penalty when using providers.
-Retrieving algorithms from providers involves searching for an algorithm by name.
-This is much slower than directly accessing a method table.
-It is recommended to prefetch algorithms if an algorithm is used many times.
-See L<crypto(7)/Performance>, L<crypto(7)/Explicit fetching> and L<crypto(7)/Implicit fetching>.
 
 =head4 Support for Linux Kernel TLS
 
@@ -326,15 +297,6 @@ context and property query and will call an extended version of the key/IV
 derivation function which supports these parameters. This includes
 L<EVP_PBE_CipherInit_ex(3)>, L<EVP_PBE_find_ex(3)> and L<EVP_PBE_scrypt_ex(3)>.
 
-=head4 PKCS#12 KDF versus FIPS
-
-Unlike in 1.x.y, the PKCS12KDF algorithm used when a PKCS#12 structure
-is created with a MAC that does not work with the FIPS provider as the PKCS12KDF
-is not a FIPS approvable mechanism.
-
-See L<EVP_KDF-PKCS12KDF(7)>, L<PKCS12_create(3)>, L<openssl-pkcs12(1)>,
-L<OSSL_PROVIDER-FIPS(7)>.
-
 =head4 Windows thread synchronization changes
 
 Windows thread synchronization uses read/write primitives (SRWLock) when
@@ -367,7 +329,7 @@ This code is now always set to zero. Related functions are deprecated.
 =head4 STACK and HASH macros have been cleaned up
 
 The type-safe wrappers are declared everywhere and implemented once.
-See L<DEFINE_STACK_OF(3)> and L<DEFINE_LHASH_OF_EX(3)>.
+See L<DEFINE_STACK_OF(3)> and L<DECLARE_LHASH_OF(3)>.
 
 =head4 The RAND_DRBG subsystem has been removed
 
@@ -670,7 +632,7 @@ set up with the default library context. Use L<X509_new_ex(3)>,
 L<X509_CRL_new_ex(3)>, L<X509_REQ_new_ex(3)> and L<X509_PUBKEY_new_ex(3)> if a
 library context is required.
 
-All functions listed below with a I<NAME> have a replacement function I<NAME_ex>
+All functions listed below with a I<NAME> have a replacment function I<NAME_ex>
 that takes B<OSSL_LIB_CTX> as an additional argument. Functions that have other
 mappings are listed along with the respective name.
 
@@ -1028,7 +990,7 @@ that refer to these categories.
 Any accessor that uses an ENGINE is deprecated (such as EVP_PKEY_set1_engine()).
 Applications using engines should instead use providers.
 
-Before providers were added algorithms were overridden by changing the methods
+Before providers were added algorithms were overriden by changing the methods
 used by algorithms. All these methods such as RSA_new_method() and RSA_meth_new()
 are now deprecated and can be replaced by using providers instead.
 
@@ -1577,7 +1539,7 @@ See L</Deprecated low-level validation functions>
 
 EC_KEY_set_flags(), EC_KEY_get_flags(), EC_KEY_clear_flags()
 
-See L<EVP_PKEY-EC(7)/Common EC parameters> which handles flags as separate
+See L<EVP_PKEY-EC(7)/Common EC parameters> which handles flags as seperate
 parameters for B<OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT>,
 B<OSSL_PKEY_PARAM_EC_GROUP_CHECK_TYPE>, B<OSSL_PKEY_PARAM_EC_ENCODING>,
 B<OSSL_PKEY_PARAM_USE_COFACTOR_ECDH> and
@@ -2248,28 +2210,6 @@ and L<X509_get0_signature(3)> instead.
 X509_http_nbio(), X509_CRL_http_nbio()
 
 Use L<X509_load_http(3)> and L<X509_CRL_load_http(3)> instead.
-
-=back
-
-=head3 NID handling for provided keys and algorithms
-
-The following functions for NID (numeric id) handling have changed semantics.
-
-=over 4
-
-=item *
-
-EVP_PKEY_id(), EVP_PKEY_get_id()
-
-This function was previously used to reliably return the NID of
-an EVP_PKEY object, e.g., to look up the name of the algorithm of
-such EVP_PKEY by calling L<OBJ_nid2sn(3)>. With the introduction
-of L<provider(7)>s EVP_PKEY_id() or its new equivalent
-L<EVP_PKEY_get_id(3)> might now also return the value -1
-(B<EVP_PKEY_KEYMGMT>) indicating the use of a provider to
-implement the EVP_PKEY object. Therefore, the use of
-L<EVP_PKEY_get0_type_name(3)> is recommended for retrieving
-the name of the EVP_PKEY algorithm.
 
 =back
 

@@ -16,9 +16,6 @@ namespace srv {
     
     using namespace std::chrono_literals;
 
-    static const int32_t MESSAGE_MAX_LEN = 4194308;
-    static const int32_t PAYLOAD_MAX_LEN = 4194304; // 4MB
-
     void Channel::channelReadFree(uint8_t* message, uint32_t messageLen, size_t messageCtx)
     {
         if (message) {
@@ -49,7 +46,7 @@ namespace srv {
     {
         auto channel = static_cast<Channel*>(ctx);
         if (channel && message && messageLen > 0) {
-            std::string msg((char*)message, messageLen);
+            std::vector<uint8_t> msg(message, message + messageLen);
             channel->onMessage(msg);
         }
     }
@@ -72,101 +69,6 @@ namespace srv {
         _closed = true;
     }
 
-    nlohmann::json Channel::request(const std::string& method, const std::string& handlerId, const std::string& data)
-    {
-        if (_closed) {
-            SRV_LOGD("Channel closed");
-            return nlohmann::json();
-        }
-        
-        std::promise<nlohmann::json> promise;
-        auto result = promise.get_future();
-        
-        {
-            std::lock_guard<std::mutex> lock(_idMutex);
-            _nextId < std::numeric_limits<uint32_t>::max() ? ++_nextId : (_nextId = 1);
-        }
-                  
-        const uint32_t id = _nextId;
-        
-        auto callback = std::make_shared<Callback>(id, method,
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const nlohmann::json& data) {
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_value(data);
-            }
-        },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const IError& error) {
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_exception(std::make_exception_ptr(ChannelError(error.message().c_str())));
-            }
-        },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise]() {
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_exception(std::make_exception_ptr(ChannelError("callback was closed")));
-            }
-        },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](){
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_exception(std::make_exception_ptr(ChannelError("callback was timeout")));
-            }
-        });
-        
-        uint32_t duration = 1000 * (15 + (0.1 * _callbackMap.size()));
-        callback->setTimeout(_threadPool, duration);
-        
-        {
-            std::lock_guard<std::mutex> lock(_callbackMutex);
-            _callbackMap[id] = callback;
-        }
-        
-        SRV_LOGD("request() [method:%s, id:%u]", method.c_str(), id);
-        
-        // "${id}:${method}:${handlerId}:${JSON.stringify(data)}"
-        std::string req;
-        req += std::to_string(_nextId);
-        req += ":";
-        req += method;
-        req += ":";
-        req += handlerId;
-        req += ":";
-        req += data;
-
-        if (req.size() > MESSAGE_MAX_LEN) {
-            SRV_LOGD("Channel request too big");
-            return nlohmann::json();
-        }
-        
-        auto msg = std::make_shared<Message>();
-        msg->messageLen = (uint32_t)req.size();
-        msg->message = new uint8_t[msg->messageLen  + 1];
-        std::copy(req.begin(), req.end(), msg->message);
-        msg->message[msg->messageLen] = '\0';
-        
-        if (_requestQueue.try_enqueue(msg)) {
-            notifyRead();
-        } else {
-            SRV_LOGD("Channel request enqueue failed");
-        }
-        
-        return result.get();
-    }
-
     void Channel::notifyRead()
     {
         if (_handle) {
@@ -174,117 +76,45 @@ namespace srv {
         }
     }
 
-    void Channel::onMessage(const std::string& msg)
+    void Channel::onMessage(const  std::vector<uint8_t>& message)
     {
-        asio::post(_threadPool.get_executor(), [wself = std::weak_ptr<Channel>(shared_from_this()), msg]() {
+        asio::post(_threadPool.get_executor(), [wself = std::weak_ptr<Channel>(shared_from_this()), message]() {
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            self->onMessageImpl(msg);
+            self->processMessage(message);
         });
     }
 
-    void Channel::onMessageImpl(const std::string& msg)
+    void Channel::processMessage(const std::vector<uint8_t>& msg)
     {
         try {
+            const auto* message = FBS::Message::GetMessage(msg.data());
+            
             // We can receive JSON messages (Channel messages) or log strings.
-            switch (msg[0]) {
-                // 123 = '{' (a Channel JSON message).
-                case 123: {
-                    nlohmann::json jsonMessage = nlohmann::json::parse(msg);
-                    processMessage(jsonMessage);
+            switch (message->data_type()) {
+                case FBS::Message::Body::Response: {
+                    auto response = message->data_as<FBS::Response::Response>();
+                    processResponse(response, msg);
                     break;
                 }
-                // 68 = 'D' (a debug log).
-                case 68:
-                    SRV_LOGD("worker:%ull %s", 0, msg.c_str());
+                case FBS::Message::Body::Notification: {
+                    auto notification = message->data_as<FBS::Notification::Notification>();
+                    processNotification(notification, msg);
                     break;
-
-                // 87 = 'W' (a warn log).
-                case 87:
-                    SRV_LOGW("worker:%ull %s", 0, msg.c_str());
+                }
+                case FBS::Message::Body::Log: {
+                    auto log = message->data_as<FBS::Log::Log>();
+                    processLog(0, log);
                     break;
-
-                // 69 = 'E' (an error log).
-                case 69:
-                    SRV_LOGE("worker:%ull %s", 0, msg.c_str());
-                    break;
-
-                // 88 = 'X' (a dump log).
-                case 88:
-                    // eslint-disable-next-line no-console
-                    SRV_LOGD("worker:%ull %s", 0, msg.c_str());
-                    break;
-
+                }
                 default:
-                    // eslint-disable-next-line no-console
-                    SRV_LOGW("worker:%ull unexpected data:%s", 0, msg.c_str());
+                    break;
             }
         }
         catch (std::exception& ex) {
             SRV_LOGE("received invalid message from the worker process: %s", ex.what());
-        }
-    }
-
-    void Channel::processMessage(const nlohmann::json& msg)
-    {
-        if (msg.contains("id")) {
-            std::shared_ptr<Callback> callback;
-            {
-                std::lock_guard<std::mutex> lock(_callbackMutex);
-                auto it = _callbackMap.find(msg["id"]);
-                if (it == _callbackMap.end()) {
-                    SRV_LOGE("received response does not match any sent request [id:%s]", msg["id"].dump().c_str());
-                    return;
-                }
-                callback = it->second;
-            }
-
-            if (msg.contains("accepted")) {
-                SRV_LOGD("request succeeded [method:%s, id:%u]", callback->method().c_str(), callback->id());
-                
-                if (msg.contains("data")) {
-                    callback->resolve(msg["data"]);
-                }
-                else {
-                    callback->resolve(nlohmann::json::object());
-                }
-            }
-            else if (msg.contains("error")) {
-                SRV_LOGW("request failed [method:%s, id:%u]: %s", callback->method().c_str(), callback->id(), msg["reason"].get<std::string>().c_str());
-
-                if (msg["error"] == "TypeError") {
-                    callback->reject(Error("TypeError", msg["reason"]));
-                }
-                else {
-                    callback->reject(Error("Error", msg["reason"]));
-                }
-            }
-            else {
-                SRV_LOGE("received response is not accepted nor rejected [method:%s, id:%u]", callback->method().c_str(), callback->id());
-            }
-        }
-        else if (msg.contains("targetId") && msg.contains("event")) {
-            if (msg.contains("data")) {
-                if (msg["targetId"].is_string()) {
-                    this->notificationSignal(msg["targetId"], msg["event"], msg["data"].dump());
-                }
-                else if (msg["targetId"].is_number()) {
-                    this->notificationSignal(std::to_string(msg["targetId"].get<uint64_t>()), msg["event"], msg["data"]);
-                }
-            }
-            else{
-                if (msg["targetId"].is_string()) {
-                    this->notificationSignal(msg["targetId"], msg["event"], "");
-                }
-                else if (msg["targetId"].is_number()) {
-                    this->notificationSignal(std::to_string(msg["targetId"].get<uint64_t>()), msg["event"], "");
-                }
-            }
-        }
-        else {
-            SRV_LOGE("received message is not a response nor a notification");
         }
     }
 
@@ -311,6 +141,96 @@ namespace srv {
         while (_requestQueue.try_dequeue(msg)) {
             delete[] msg->message;
             msg->message = nullptr;
+        }
+    }
+
+    void Channel::notify(FBS::Notification::Event event, const std::string& handlerId)
+    {
+        flatbuffers::Offset<void> bodyOffset;
+        this->notify(event, FBS::Notification::Body::NONE, bodyOffset, handlerId);
+    }
+
+    std::vector<uint8_t> Channel::request(FBS::Request::Method method, const std::string& handlerId)
+    {
+        flatbuffers::Offset<void> bodyOffset;
+        return this->request(method, FBS::Request::Body::NONE, bodyOffset, handlerId);
+    }
+
+    void Channel::processResponse(const FBS::Response::Response* response, const std::vector<uint8_t>& data)
+    {
+        assert(response);
+        
+        std::shared_ptr<Callback> callback;
+        {
+            std::lock_guard<std::mutex> lock(_callbackMutex);
+            auto it = _callbackMap.find(response->id());
+            if (it == _callbackMap.end()) {
+                SRV_LOGE("received response does not match any sent request [id:%u]", response->id());
+                return;
+            }
+            callback = it->second;
+        }
+        
+        if (response->accepted()) {
+            SRV_LOGD("request succeeded [method:%u, id:%u]", (uint8_t)callback->method(), callback->id());
+            callback->resolve(data);
+        }
+        else if (response->error()) {
+            SRV_LOGW("request failed [method:%u, id:%u]: %s", (uint8_t)callback->method(), callback->id(), response->reason()->c_str());
+
+            if (response->error()->str() == "TypeError") {
+                callback->reject(Error("TypeError", response->reason()->str()));
+            }
+            else {
+                callback->reject(Error("Error", response->reason()->str()));
+            }
+        }
+        else {
+            SRV_LOGE("received response is not accepted nor rejected [method:%u, id:%u]", (uint8_t)callback->method(), callback->id());
+        }
+    }
+
+    void Channel::processNotification(const FBS::Notification::Notification* notification, const std::vector<uint8_t>& data)
+    {
+        // Due to how Promises work, it may happen that we receive a response
+        // from the worker followed by a notification from the worker. If we
+        // emit the notification immediately it may reach its target **before**
+        // the response, destroying the ordered delivery. So we must wait a bit
+        // here.
+        // See https://github.com/versatica/mediasoup/issues/510
+        
+        this->notificationSignal(notification->handlerId()->str(), notification->event(), data);
+    }
+
+    void Channel::processLog(int32_t pid, const FBS::Log::Log* log)
+    {
+        auto logData = log->data();
+        
+        switch(logData->data()[0]) {
+                // 68 = 'D' (a debug log).
+            case 68:
+                SRV_LOGD("worker:%ull %s", pid, logData->c_str());
+                break;
+                
+                // 87 = 'W' (a warn log).
+            case 87:
+                SRV_LOGW("worker:%ull %s", pid, logData->c_str());
+                break;
+                
+                // 69 = 'E' (an error log).
+            case 69:
+                SRV_LOGE("worker:%ull %s", pid, logData->c_str());
+                break;
+                
+                // 88 = 'X' (a dump log).
+            case 88:
+                // eslint-disable-next-line no-console
+                SRV_LOGD("worker:%ull %s", pid, logData->c_str());
+                break;
+                
+            default:
+                // eslint-disable-next-line no-console
+                SRV_LOGW("worker:%ull unexpected data:%s", pid, logData->c_str());
         }
     }
 }

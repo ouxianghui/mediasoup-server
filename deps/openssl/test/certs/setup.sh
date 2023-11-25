@@ -174,17 +174,6 @@ openssl x509 -in ee-client.pem -trustout \
 openssl x509 -in ee-client.pem -trustout \
     -addreject clientAuth -out ee-clientAuth.pem
 
-# time stamping certificates
-./mkcert.sh genee -p critical,timeStamping -k critical,digitalSignature server.example ee-key ee-timestampsign-CABforum ca-key ca-cert
-./mkcert.sh genee -p timeStamping -k critical,digitalSignature server.example ee-key ee-timestampsign-CABforum-noncritxku ca-key ca-cert
-./mkcert.sh genee -p critical,timeStamping,serverAuth -k critical,digitalSignature server.example ee-key ee-timestampsign-CABforum-serverauth ca-key ca-cert
-./mkcert.sh genee -p critical,timeStamping,2.5.29.37.0 -k critical,digitalSignature server.example ee-key ee-timestampsign-CABforum-anyextkeyusage ca-key ca-cert
-./mkcert.sh genee -p critical,timeStamping -k critical,digitalSignature,cRLSign server.example ee-key ee-timestampsign-CABforum-crlsign ca-key ca-cert
-./mkcert.sh genee -p critical,timeStamping -k critical,digitalSignature,keyCertSign server.example ee-key ee-timestampsign-CABforum-keycertsign ca-key ca-cert
-./mkcert.sh genee -p critical,timeStamping server.example ee-key ee-timestampsign-rfc3161 ca-key ca-cert
-./mkcert.sh genee -p timeStamping server.example ee-key ee-timestampsign-rfc3161-noncritxku ca-key ca-cert
-./mkcert.sh genee -p critical,timeStamping -k digitalSignature server.example ee-key ee-timestampsign-rfc3161-digsig ca-key ca-cert
-
 # Leaf cert security level variants
 # MD5 issuer signature
 OPENSSL_SIGALG=md5 \
@@ -451,9 +440,3 @@ OPENSSL_SIGALG=ED448 OPENSSL_KEYALG=ed448 ./mkcert.sh genee ed448 \
 
 # critical id-pkix-ocsp-no-check extension
 ./mkcert.sh geneeextra server.example ee-key ee-cert-ocsp-nocheck ca-key ca-cert "1.3.6.1.5.5.7.48.1.5=critical,DER:05:00"
-
-# certificatePolicies extension
-./mkcert.sh genca -c "1.3.6.1.4.1.16604.998855.1" "CA" ca-key ca-pol-cert root-key root-cert
-./mkcert.sh geneeextra server.example ee-key ee-cert-policies ca-key ca-cert "certificatePolicies=1.3.6.1.4.1.16604.998855.1"
-# We can create a cert with a duplicate policy oid - but its actually invalid!
-./mkcert.sh geneeextra server.example ee-key ee-cert-policies-bad ca-key ca-cert "certificatePolicies=1.3.6.1.4.1.16604.998855.1,1.3.6.1.4.1.16604.998855.1"

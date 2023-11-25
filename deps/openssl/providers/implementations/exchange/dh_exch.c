@@ -351,13 +351,12 @@ static int dh_set_ctx_params(void *vpdhctx, const OSSL_PARAM params[])
 
         EVP_MD_free(pdhctx->kdf_md);
         pdhctx->kdf_md = EVP_MD_fetch(pdhctx->libctx, name, mdprops);
-        if (pdhctx->kdf_md == NULL)
-            return 0;
         if (!ossl_digest_is_allowed(pdhctx->libctx, pdhctx->kdf_md)) {
             EVP_MD_free(pdhctx->kdf_md);
             pdhctx->kdf_md = NULL;
-            return 0;
         }
+        if (pdhctx->kdf_md == NULL)
+            return 0;
     }
 
     p = OSSL_PARAM_locate_const(params, OSSL_EXCHANGE_PARAM_KDF_OUTLEN);

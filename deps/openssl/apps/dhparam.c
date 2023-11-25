@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -222,8 +222,6 @@ int dhparam_main(int argc, char **argv)
         }
 
         tmppkey = app_paramgen(ctx, alg);
-        if (tmppkey == NULL)
-            goto end;
         EVP_PKEY_CTX_free(ctx);
         ctx = NULL;
         if (dsaparam) {
@@ -274,7 +272,7 @@ int dhparam_main(int argc, char **argv)
                 * because, unlike PEM, there is no header to declare what
                 * the contents of the DER file are. The decoders just try
                 * and guess. Unfortunately with DHX key types they may guess
-                * wrong and think we have a DSA keytype. Therefore, we try
+                * wrong and think we have a DSA keytype. Therefore we try
                 * both DH and DHX sequentially.
                 */
                 keytype = "DHX";
@@ -356,7 +354,7 @@ int dhparam_main(int argc, char **argv)
 }
 
 /*
- * Historically we had the low-level call DSA_dup_DH() to do this.
+ * Historically we had the low level call DSA_dup_DH() to do this.
  * That is now deprecated with no replacement. Since we still need to do this
  * for backwards compatibility reasons, we do it "manually".
  */

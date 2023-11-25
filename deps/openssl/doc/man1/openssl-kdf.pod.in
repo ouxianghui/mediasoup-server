@@ -66,7 +66,8 @@ cases.
 =item B<-kdfopt> I<nm>:I<v>
 
 Passes options to the KDF algorithm.
-A comprehensive list of parameters can be found in L<EVP_KDF(3)/PARAMETERS>.
+A comprehensive list of parameters can be found in the EVP_KDF_CTX
+implementation documentation.
 Common parameter names used by EVP_KDF_CTX_set_params() are:
 
 =over 4
@@ -80,8 +81,9 @@ A key must be specified for most KDF algorithms.
 
 =item B<hexkey:>I<string>
 
-Alternative to the B<key:> option where
-the secret key is specified in hexadecimal form (two hex digits per byte).
+Specifies the secret key in hexadecimal form (two hex digits per byte).
+The key length must conform to any restrictions of the KDF algorithm.
+A key must be specified for most KDF algorithms.
 
 =item B<pass:>I<string>
 
@@ -91,35 +93,8 @@ The password must be specified for PBKDF2 and scrypt.
 
 =item B<hexpass:>I<string>
 
-Alternative to the B<pass:> option where
-the password is specified in hexadecimal form (two hex digits per byte).
-
-=item B<salt:>I<string>
-
-Specifies a non-secret unique cryptographic salt as an alphanumeric string
-(use if it contains printable characters only).
-The length must conform to any restrictions of the KDF algorithm.
-A salt parameter is required for several KDF algorithms,
-such as L<EVP_KDF-PBKDF2(7)>.
-
-=item B<hexsalt:>I<string>
-
-Alternative to the B<salt:> option where
-the salt is specified in hexadecimal form (two hex digits per byte).
-
-=item B<info:>I<string>
-
-Some KDF implementations, such as L<EVP_KDF-HKDF(7)>, take an 'info' parameter
-for binding the derived key material
-to application- and context-specific information.
-Specifies the info, fixed info, other info or shared info argument
-as an alphanumeric string (use if it contains printable characters only).
-The length must conform to any restrictions of the KDF algorithm.
-
-=item B<hexinfo:>I<string>
-
-Alternative to the B<info:> option where
-the info is specified in hexadecimal form (two hex digits per byte).
+Specifies the password in hexadecimal form (two hex digits per byte).
+The password must be specified for PBKDF2 and scrypt.
 
 =item B<digest:>I<string>
 
@@ -220,7 +195,7 @@ Added in OpenSSL 3.0
 
 =head1 COPYRIGHT
 
-Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

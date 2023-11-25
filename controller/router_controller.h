@@ -108,6 +108,8 @@ namespace srv {
          * Enable SRTP.
          */
         bool enableSrtp;
+        
+        TransportListenInfo listenInfo;
     };
 
     struct PipeToRouterResult
@@ -133,6 +135,42 @@ namespace srv {
         std::shared_ptr<DataProducerController> pipeDataProducerController;
     };
 
+    struct RouterDump
+    {
+        /**
+         * The Router id.
+         */
+        std::string id;
+        /**
+         * Id of Transports.
+         */
+        std::vector<std::string> transportIds;
+        /**
+         * Id of RtpObservers.
+         */
+        std::vector<std::string> rtpObserverIds;
+        /**
+         * Array of Producer id and its respective Consumer ids.
+         */
+        std::vector<std::pair<std::string, std::vector<std::string>>> mapProducerIdConsumerIds;
+        /**
+         * Array of Consumer id and its Producer id.
+         */
+        std::vector<std::pair<std::string, std::string>> mapConsumerIdProducerId;
+        /**
+         * Array of Producer id and its respective Observer ids.
+         */
+        std::vector<std::pair<std::string, std::vector<std::string>>> mapProducerIdObserverIds;
+        /**
+         * Array of Producer id and its respective DataConsumer ids.
+         */
+        std::vector<std::pair<std::string, std::vector<std::string>>> mapDataProducerIdDataConsumerIds;
+        /**
+         * Array of DataConsumer id and its DataProducer id.
+         */
+        std::vector<std::pair<std::string, std::string>> mapDataConsumerIdDataProducerId;
+    };
+
     using PipeTransportControllerPair = std::unordered_map<std::string, std::shared_ptr<PipeTransportController>>;
 
     struct RouterInternal
@@ -145,7 +183,6 @@ namespace srv {
         RouterController(const RouterInternal& internal,
                          const RouterData& data,
                          const std::shared_ptr<Channel>& channel,
-                         std::shared_ptr<PayloadChannel> payloadChannel,
                          const nlohmann::json& appData);
         
         ~RouterController();
@@ -164,7 +201,7 @@ namespace srv {
         
         const nlohmann::json& appData() { return _appData; }
         
-        nlohmann::json dump();
+        std::shared_ptr<RouterDump> dump();
         
         void close();
         
@@ -217,9 +254,6 @@ namespace srv {
 
         // Channel instance.
         std::weak_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };

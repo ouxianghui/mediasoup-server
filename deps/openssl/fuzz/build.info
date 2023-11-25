@@ -9,8 +9,7 @@
 -}
 
 IF[{- !$disabled{"fuzz-afl"} || !$disabled{"fuzz-libfuzzer"} -}]
-  PROGRAMS{noinst}=asn1 asn1parse bignum bndiv client conf crl server
-  PROGRAMS{noinst}=punycode
+  PROGRAMS{noinst}=asn1 asn1parse bignum bndiv client conf crl server x509
 
   IF[{- !$disabled{"cmp"} -}]
     PROGRAMS{noinst}=cmp
@@ -22,10 +21,6 @@ IF[{- !$disabled{"fuzz-afl"} || !$disabled{"fuzz-libfuzzer"} -}]
 
   IF[{- !$disabled{"ct"} -}]
     PROGRAMS{noinst}=ct
-  ENDIF
-
-  IF[{- !$disabled{"ocsp"} -}]
-    PROGRAMS{noinst}=x509
   ENDIF
 
   SOURCE[asn1]=asn1.c driver.c fuzz_rand.c
@@ -68,10 +63,6 @@ IF[{- !$disabled{"fuzz-afl"} || !$disabled{"fuzz-libfuzzer"} -}]
   INCLUDE[ct]=../include {- $ex_inc -}
   DEPEND[ct]=../libcrypto {- $ex_lib -}
 
-  SOURCE[punycode]=punycode.c driver.c
-  INCLUDE[punycode]=../include {- $ex_inc -}
-  DEPEND[punycode]=../libcrypto.a {- $ex_lib -}
-
   SOURCE[server]=server.c driver.c fuzz_rand.c
   INCLUDE[server]=../include {- $ex_inc -}
   DEPEND[server]=../libcrypto ../libssl {- $ex_lib -}
@@ -82,8 +73,7 @@ IF[{- !$disabled{"fuzz-afl"} || !$disabled{"fuzz-libfuzzer"} -}]
 ENDIF
 
 IF[{- !$disabled{tests} -}]
-  PROGRAMS{noinst}=asn1-test asn1parse-test bignum-test bndiv-test client-test conf-test crl-test server-test
-  PROGRAMS{noinst}=punycode-test
+  PROGRAMS{noinst}=asn1-test asn1parse-test bignum-test bndiv-test client-test conf-test crl-test server-test x509-test
 
   IF[{- !$disabled{"cmp"} -}]
     PROGRAMS{noinst}=cmp-test
@@ -95,10 +85,6 @@ IF[{- !$disabled{tests} -}]
 
   IF[{- !$disabled{"ct"} -}]
     PROGRAMS{noinst}=ct-test
-  ENDIF
-
-  IF[{- !$disabled{"ocsp"} -}]
-    PROGRAMS{noinst}=x509-test
   ENDIF
 
   SOURCE[asn1-test]=asn1.c test-corpus.c fuzz_rand.c
@@ -141,10 +127,6 @@ IF[{- !$disabled{tests} -}]
   SOURCE[ct-test]=ct.c test-corpus.c
   INCLUDE[ct-test]=../include
   DEPEND[ct-test]=../libcrypto
-
-  SOURCE[punycode-test]=punycode.c test-corpus.c
-  INCLUDE[punycode-test]=../include
-  DEPEND[punycode-test]=../libcrypto.a
 
   SOURCE[server-test]=server.c test-corpus.c fuzz_rand.c
   INCLUDE[server-test]=../include

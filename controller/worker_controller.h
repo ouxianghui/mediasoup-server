@@ -20,6 +20,12 @@
 #include "transport_controller.h"
 #include "router_controller.h"
 #include "webrtc_server_controller.h"
+#include "FBS/request.h"
+#include "FBS/response.h"
+#include "FBS/message.h"
+#include "FBS/notification.h"
+#include "FBS/worker.h"
+#include "FBS/transport.h"
 
 namespace srv {
     
@@ -96,88 +102,98 @@ namespace srv {
         /**
         * User CPU time used (in ms).
         */
-        int64_t ru_utime = 0;
+        uint64_t ru_utime = 0;
         
         /**
         * System CPU time used (in ms).
         */
-        int64_t ru_stime = 0;
+        uint64_t ru_stime = 0;
         
         /**
         * Maximum resident set size.
         */
-        int64_t ru_maxrss = 0;
+        uint64_t ru_maxrss = 0;
         
         /**
         * Integral shared memory size.
         */
-        int64_t ru_ixrss = 0;
+        uint64_t ru_ixrss = 0;
         
         /**
         * Integral unshared data size.
         */
-        int64_t ru_idrss = 0;
+        uint64_t ru_idrss = 0;
         
         /**
         * Integral unshared stack size.
         */
-        int64_t ru_isrss = 0;
+        uint64_t ru_isrss = 0;
         
         /**
         * Page reclaims (soft page faults).
         */
-        int64_t ru_minflt = 0;
+        uint64_t ru_minflt = 0;
         
         /**
         * Page faults (hard page faults).
         */
-        int64_t ru_majflt = 0;
+        uint64_t ru_majflt = 0;
         
         /**
         * Swaps.
         */
-        int64_t ru_nswap = 0;
+        uint64_t ru_nswap = 0;
         
         /**
         * Block input operations.
         */
-        int64_t ru_inblock = 0;
+        uint64_t ru_inblock = 0;
         
         /**
         * Block output operations.
         */
-        int64_t ru_oublock = 0;
+        uint64_t ru_oublock = 0;
         
         /**
         * IPC messages sent.
         */
-        int64_t ru_msgsnd = 0;
+        uint64_t ru_msgsnd = 0;
         
         /**
         * IPC messages received.
         */
-        int64_t ru_msgrcv = 0;
+        uint64_t ru_msgrcv = 0;
         
         /**
         * Signals received.
         */
-        int64_t ru_nsignals = 0;
+        uint64_t ru_nsignals = 0;
         
         /**
         * Voluntary context switches.
         */
-        int64_t ru_nvcsw = 0;
+        uint64_t ru_nvcsw = 0;
         
         /**
         * Involuntary context switches.
         */
-        int64_t ru_nivcsw = 0;
+        uint64_t ru_nivcsw = 0;
         
         /* eslint-enable camelcase */
     };
 
-    void to_json(nlohmann::json& j, const WorkerResourceUsage& st);
-    void from_json(const nlohmann::json& j, WorkerResourceUsage& st);
+    struct WorkerDump
+    {
+        std::vector<std::string> webRtcServerIds;
+        std::vector<std::string> routerIds;
+        
+        struct ChannelMessageHandlers
+        {
+            std::vector<std::string> channelRequestHandlers;
+            std::vector<std::string> channelNotificationHandlers;
+        };
+        ChannelMessageHandlers channelMessageHandlers;
+    };
 
     class WorkerController : public std::enable_shared_from_this<WorkerController>
     {
@@ -200,7 +216,7 @@ namespace srv {
         
         const nlohmann::json& appData() { return _appData; }
         
-        nlohmann::json dump();
+        std::shared_ptr<WorkerDump> dump();
         
         std::shared_ptr<WorkerResourceUsage> getResourceUsage();
         
@@ -228,24 +244,18 @@ namespace srv {
         
         void onRouterClose(std::shared_ptr<RouterController> controller);
         
-        void getDump();
-        
     private:
         void handleWorkerNotifications();
         
         void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
         
-        void onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen);
-        
-        
+        std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response);
+    
     private:
         std::shared_ptr<WorkerSettings> _settings;
         
         // Channel instance.
         std::shared_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::shared_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };

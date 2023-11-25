@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright (c) 2002, Oracle and/or its affiliates. All rights reserved
  * Copyright 2005 Nokia. All rights reserved.
  *
@@ -11,7 +11,7 @@
 
 #include <stdio.h>
 #include "ssl_local.h"
-#include "internal/e_os.h"
+#include "e_os.h"
 #include <openssl/objects.h>
 #include <openssl/x509v3.h>
 #include <openssl/rand.h>
@@ -22,7 +22,6 @@
 #include <openssl/ct.h>
 #include <openssl/trace.h>
 #include "internal/cryptlib.h"
-#include "internal/nelem.h"
 #include "internal/refcount.h"
 #include "internal/ktls.h"
 
@@ -583,7 +582,7 @@ int SSL_clear(SSL *s)
     OPENSSL_free(s->psksession_id);
     s->psksession_id = NULL;
     s->psksession_id_len = 0;
-    s->hello_retry_request = SSL_HRR_NONE;
+    s->hello_retry_request = 0;
     s->sent_tickets = 0;
 
     s->error = 0;
@@ -1047,7 +1046,7 @@ int SSL_dane_enable(SSL *s, const char *basedomain)
 
     /*
      * Default SNI name.  This rejects empty names, while set1_host below
-     * accepts them and disables hostname checks.  To avoid side-effects with
+     * accepts them and disables host name checks.  To avoid side-effects with
      * invalid input, set the SNI name first.
      */
     if (s->ext.hostname == NULL) {
@@ -2810,14 +2809,14 @@ char *SSL_get_shared_ciphers(const SSL *s, char *buf, int size)
         if (sk_SSL_CIPHER_find(srvrsk, c) < 0)
             continue;
 
-        n = OPENSSL_strnlen(c->name, size);
-        if (n >= size) {
+        n = strlen(c->name);
+        if (n + 1 > size) {
             if (p != buf)
                 --p;
             *p = '\0';
             return buf;
         }
-        memcpy(p, c->name, n);
+        strcpy(p, c->name);
         p += n;
         *(p++) = ':';
         size -= n + 1;

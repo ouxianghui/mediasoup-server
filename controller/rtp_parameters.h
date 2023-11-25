@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 #include <map>
-#include "nlohmann/json.hpp"
+#include "parameters.h"
 
 namespace srv
 {
@@ -35,9 +35,6 @@ namespace srv
          */
         std::string parameter;
     };
-
-    void to_json(nlohmann::json& j, const RtcpFeedback& st);
-    void from_json(const nlohmann::json& j, RtcpFeedback& st);
 
     /**
      * Provides information on the capabilities of a codec within the RTP
@@ -89,16 +86,13 @@ namespace srv
          * and 'profile-level-id' in H264 or 'profile-id' in VP9) are critical for
          * codec matching.
          */
-        std::map<std::string, nlohmann::json> parameters;
+        Parameters parameters;
 
         /**
          * Transport layer and codec-specific feedback messages for this codec.
          */
         std::vector<RtcpFeedback> rtcpFeedback;
     };
-
-    void to_json(nlohmann::json& j, const RtpCodecCapability& st);
-    void from_json(const nlohmann::json& j, RtpCodecCapability& st);
 
     /**
      * Provides information relating to supported header extensions. The list of
@@ -143,9 +137,6 @@ namespace srv
         std::string direction;
     };
 
-    void to_json(nlohmann::json& j, const RtpHeaderExtension& st);
-    void from_json(const nlohmann::json& j, RtpHeaderExtension& st);
-
     /**
      * The RTP capabilities define what mediasoup or an endpoint can receive at
      * media level.
@@ -163,9 +154,6 @@ namespace srv
         std::vector<RtpHeaderExtension> headerExtensions;
     };
 
-    void to_json(nlohmann::json& j, const RtpCapabilities& st);
-    void from_json(const nlohmann::json& j, RtpCapabilities& st);
-
     /**
      * Provides information on codec settings within the RTP parameters. The list
      * of media codecs supported by mediasoup and their settings is defined in the
@@ -181,34 +169,31 @@ namespace srv
         /**
          * The value that goes in the RTP Payload Type Field. Must be unique.
          */
-        int payloadType = 0;
+        uint8_t payloadType = 0;
 
         /**
          * Codec clock rate expressed in Hertz.
          */
-        int clockRate = 0;
+        uint32_t clockRate = 0;
 
         /**
          * The number of channels supported (e.g. two for stereo). Just for audio.
          * Default 1.
          */
-        int channels = 0;
+        uint8_t channels = 0;
 
         /**
          * Codec-specific parameters available for signaling. Some parameters (such
          * as 'packetization-mode' and 'profile-level-id' in H264 or 'profile-id' in
          * VP9) are critical for codec matching.
          */
-        std::map<std::string, nlohmann::json> parameters;
+        Parameters parameters;
 
         /**
          * Transport layer and codec-specific feedback messages for this codec.
          */
         std::vector<RtcpFeedback> rtcpFeedback;
     };
-
-    void to_json(nlohmann::json& j, const RtpCodecParameters& st);
-    void from_json(const nlohmann::json& j, RtpCodecParameters& st);
 
     /**
      * Defines a RTP header extension within the RTP parameters. The list of RTP
@@ -238,18 +223,12 @@ namespace srv
         /**
          * Configuration parameters for the header extension.
          */
-        std::map<std::string, nlohmann::json> parameters;
+        Parameters parameters;
     };
 
-    void to_json(nlohmann::json& j, const RtpHeaderExtensionParameters& st);
-    void from_json(const nlohmann::json& j, RtpHeaderExtensionParameters& st);
-
-    struct _rtx{
+    struct RtpRtxParameters{
         uint32_t ssrc = 0;
     };
-
-    void to_json(nlohmann::json& j, const _rtx& st);
-    void from_json(const nlohmann::json& j, _rtx& st);
 
     /**
      * Provides information relating to an encoding, which represents a media RTP
@@ -277,7 +256,7 @@ namespace srv
          * RTX stream information. It must contain a numeric ssrc field indicating
          * the RTX SSRC.
          */
-        _rtx rtx;
+        RtpRtxParameters rtx;
 
         /**
          * It indicates whether discontinuous RTP transmission will be used. Useful
@@ -300,9 +279,6 @@ namespace srv
 
         int maxBitrate = 0;
     };
-
-    void to_json(nlohmann::json& j, const RtpEncodingParameters& st);
-    void from_json(const nlohmann::json& j, RtpEncodingParameters& st);
 
     /**
      * Provides information on RTCP settings within the RTP parameters.
@@ -331,9 +307,6 @@ namespace srv
          */
         bool mux = true;
     };
-
-    void to_json(nlohmann::json& j, const RtcpParameters& st);
-    void from_json(const nlohmann::json& j, RtcpParameters& st);
 
     /**
      * The RTP send parameters describe a media stream received by mediasoup from
@@ -393,7 +366,4 @@ namespace srv
          */
         RtcpParameters rtcp;
     };
-
-    void to_json(nlohmann::json& j, const RtpParameters& st);
-    void from_json(const nlohmann::json& j, RtpParameters& st) ;
 }

@@ -10,14 +10,61 @@
 #include "consumer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
-#include "payload_channel.h"
+
+#include "FBS/common.h"
+#include "FBS/request.h"
+#include "FBS/transport.h"
+#include "FBS/rtpStream.h"
+#include "FBS/rtxStream.h"
+#include "FBS/rtpParameters.h"
+
+namespace {
+    FBS::Consumer::TraceEventType consumerTraceEventTypeToFbs(const std::string& eventType)
+    {
+        if ("keyframe" == eventType) {
+            return FBS::Consumer::TraceEventType::KEYFRAME;
+        }
+        else if ("fir" == eventType) {
+            return FBS::Consumer::TraceEventType::FIR;
+        }
+        else if ("nack" == eventType) {
+            return FBS::Consumer::TraceEventType::NACK;
+        } else if ("pli" == eventType) {
+            return FBS::Consumer::TraceEventType::PLI;
+        } else if("rtp"== eventType) {
+            return FBS::Consumer::TraceEventType::RTP;
+        }
+        else {
+            assert(0);
+            return FBS::Consumer::TraceEventType::MAX;
+        }
+    }
+
+    std::string consumerTraceEventTypeFromFbs(FBS::Consumer::TraceEventType traceType)
+    {
+        switch (traceType) {
+            case FBS::Consumer::TraceEventType::KEYFRAME:
+                return "keyframe";
+            case FBS::Consumer::TraceEventType::FIR:
+                return "fir";
+            case FBS::Consumer::TraceEventType::NACK:
+                return "nack";
+            case FBS::Consumer::TraceEventType::PLI:
+                return "pli";
+            case FBS::Consumer::TraceEventType::RTP:
+                return "rtp";
+            default:
+                assert(0);
+                return "";
+        }
+    }
+}
 
 namespace srv {
 
 ConsumerController::ConsumerController(const ConsumerInternal& internal,
                                        const ConsumerData& data,
                                        const std::shared_ptr<Channel>& channel,
-                                       std::shared_ptr<PayloadChannel> payloadChannel,
                                        const nlohmann::json& appData,
                                        bool paused,
                                        bool producerPaused,
@@ -26,7 +73,6 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
     : _internal(internal)
     , _data(data)
     , _channel(channel)
-    , _payloadChannel(payloadChannel)
     , _appData(appData)
     , _paused(paused)
     , _producerPaused(producerPaused)
@@ -69,16 +115,9 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
-        nlohmann::json reqData;
-        reqData["consumerId"] = _internal.consumerId;
-        
-        channel->request("transport.closeConsumer", _internal.transportId, reqData.dump());
+        auto requestOffset = FBS::Transport::CreateCloseConsumerRequestDirect(channel->builder(), _internal.consumerId.c_str());
+
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_CONSUMER, FBS::Request::Body::Transport_CloseConsumerRequest, requestOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -100,39 +139,52 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
         this->transportCloseSignal();
         
         this->closeSignal();
     }
 
-    nlohmann::json ConsumerController::dump()
+    std::shared_ptr<ConsumerDump> ConsumerController::dump()
     {
         SRV_LOGD("dump()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("consumer.dump", _internal.consumerId, "{}");
+        flatbuffers::Offset<void> bodyOffset;
+        auto data = channel->request(FBS::Request::Method::CONSUMER_DUMP, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto dumpResponse = response->body_as_Consumer_DumpResponse();
+        
+        return parseConsumerDumpResponse(dumpResponse);
     }
 
-    nlohmann::json ConsumerController::getStats()
+    std::vector<std::shared_ptr<ConsumerStat>> ConsumerController::getStats()
     {
         SRV_LOGD("getStats()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return std::vector<ConsumerStat>();
+            return {};
         }
         
-        return channel->request("consumer.getStats", _internal.consumerId, "{}");
+        //auto data = channel->request("consumer.getStats", _internal.consumerId, "{}");
+        flatbuffers::Offset<void> bodyOffset;
+        auto data = channel->request(FBS::Request::Method::CONSUMER_GET_STATS, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto dumpResponse = response->body_as_Consumer_GetStatsResponse();
+        
+        return parseConsumerStats(dumpResponse);
     }
 
     void ConsumerController::pause()
@@ -144,7 +196,8 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
 
-        channel->request("consumer.pause", _internal.consumerId, "{}");
+        flatbuffers::Offset<void> bodyOffset;
+        channel->request(FBS::Request::Method::CONSUMER_PAUSE, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
         
         bool wasPaused = _paused;
 
@@ -165,8 +218,9 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
 
-        channel->request("consumer.resume", _internal.consumerId, "{}");
-
+        flatbuffers::Offset<void> bodyOffset;
+        channel->request(FBS::Request::Method::CONSUMER_RESUME, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        
         bool wasPaused = _paused;
 
         _paused = false;
@@ -190,10 +244,21 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         reqData["spatialLayer"] = layers.spatialLayer;
         reqData["temporalLayer"] = layers.temporalLayer;
         
-        nlohmann::json data = channel->request("consumer.setPreferredLayers", _internal.consumerId, reqData.dump());
+        auto preferredLayersOffset = FBS::Consumer::CreateConsumerLayers(channel->builder(), layers.spatialLayer, layers.temporalLayer);
         
-        if (data.is_object() && data.find("spatialLayer") != data.end() && data.find("temporalLayer") != data.end()) {
-            _preferredLayers = data;
+        auto bodyOffset = FBS::Consumer::CreateSetPreferredLayersRequest(channel->builder(), preferredLayersOffset);
+        
+        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PREFERRED_LAYERS, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto setPreferredLayersResponse = response->body_as_Consumer_SetPreferredLayersResponse();
+        auto preferredLayers = parseConsumerLayers(setPreferredLayersResponse->preferredLayers());
+        if (preferredLayers) {
+            _preferredLayers.spatialLayer = preferredLayers->spatialLayer;
+            _preferredLayers.temporalLayer = preferredLayers->temporalLayer;
         }
         else {
             _preferredLayers.spatialLayer = 0;
@@ -284,15 +349,9 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         channel->notificationSignal.connect(&ConsumerController::onChannel, shared_from_this());
-        
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.connect(&ConsumerController::onPayloadChannel, shared_from_this());
     }
 
-    void ConsumerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void ConsumerController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
         if (targetId != _internal.consumerId) {
             return;
@@ -309,12 +368,6 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
                 return;
             }
             channel->notificationSignal.disconnect(shared_from_this());
-            
-            auto payloadChannel = _payloadChannel.lock();
-            if (!payloadChannel) {
-                return;
-            }
-            payloadChannel->notificationSignal.disconnect(shared_from_this());
             
             this->producerCloseSignal();
             
@@ -373,179 +426,360 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         }
     }
 
-    void ConsumerController::onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen)
+    std::shared_ptr<ConsumerDump> ConsumerController::parseConsumerDumpResponse(const FBS::Consumer::DumpResponse* response)
     {
-        if (_closed) {
-            return;
+        std::shared_ptr<BaseConsumerDump> consumerDump;
+        
+        auto type = response->data()->base()->type();
+        switch(type) {
+            case FBS::RtpParameters::Type::SIMPLE:
+                consumerDump = parseSimpleConsumerDump(response->data());
+                break;
+            case FBS::RtpParameters::Type::SIMULCAST:
+                consumerDump = parseSimulcastConsumerDump(response->data());
+                break;
+            case FBS::RtpParameters::Type::SVC:
+                consumerDump = parseSvcConsumerDump(response->data());
+                break;
+            case FBS::RtpParameters::Type::PIPE:
+                consumerDump = parsePipeConsumerDump(response->data());
+                break;
+            default:
+                break;
         }
         
-        if (targetId != _internal.consumerId) {
-            return;
+        return consumerDump;
+    }
+
+    std::shared_ptr<BaseConsumerDump> ConsumerController::parseBaseConsumerDump(const FBS::Consumer::BaseConsumerDump* baseConsumerDump)
+    {
+        auto dump = std::make_shared<BaseConsumerDump>();
+        dump->id = baseConsumerDump->id()->str();
+        dump->producerId = baseConsumerDump->producerId()->str();
+        dump->kind = baseConsumerDump->kind() == FBS::RtpParameters::MediaKind::VIDEO ? "video" : "audio";
+        
+        // RtpParameters rtpParameters;
+        {
+            dump->rtpParameters.mid = baseConsumerDump->rtpParameters()->mid()->str();
+
+            const auto* codecsFBS = baseConsumerDump->rtpParameters()->codecs();
+            for (const auto& codec : *codecsFBS) {
+                RtpCodecParameters parameters;
+                parameters.mimeType = codec->mimeType()->str();
+
+                parameters.payloadType = codec->payloadType();
+
+                parameters.clockRate = codec->clockRate();
+
+                parameters.channels = codec->channels();
+
+                parameters.parameters.Set(codec->parameters());
+
+                for (const auto& feedback : *codec->rtcpFeedback()) {
+                    RtcpFeedback rtcpFeedback;
+                    rtcpFeedback.type = feedback->type();
+                    rtcpFeedback.parameter = feedback->parameter()->str();
+                    parameters.rtcpFeedback.emplace_back(feedback);
+                }
+                
+                dump->rtpParameters->codecs.emplace_back(parameters);
+            }
+
+            for (const auto& headExtension : *baseConsumerDump->rtpParameters()->headerExtensions()) {
+                RtpHeaderExtensionParameters parameters;
+                parameters.uri = headExtension->uri()->str();
+                parameters.id = headExtension->id()->str();
+                parameters.encrypt = headExtension->encrypt();
+                parameters.parameters.Set(headExtension->parameters());
+                dump->rtpParameters.headerExtensions.emplace_back(parameters);
+            }
+            
+            for (const auto& encoding : *baseConsumerDump->rtpParameters()->encodings()) {
+                RtpEncodingParameters parameters;
+                parameters.ssrc = encoding->ssrc();
+                parameters.rid = encoding->rid()->str();
+                parameters.codecPayloadType = encoding->codecPayloadType().value_or(0);
+                parameters.rtx.ssrc = encoding->rtx()->ssrc();
+                parameters.dtx = encoding->dtx();
+                parameters.scalabilityMode = encoding->scalabilityMode()->str();
+                parameters.maxBitrate = encoding->maxBitrate().value_or(0);
+                dump->rtpParameters.encodings.emplace_back(parameters);
+            }
+
+            dump->rtpParameters.rtcp.cname = baseConsumerDump->rtpParameters()->rtcp()->cname()->str();
+            dump->rtpParameters.rtcp.reducedSize = baseConsumerDump->rtpParameters()->rtcp()->reducedSize();
+        }
+
+        // std::vector<RtpEncodingParameters> consumableRtpEncodings;
+        {
+            for (const auto& encoding : *baseConsumerDump->consumableRtpEncodings())) {
+                RtpEncodingParameters parameters;
+                parameters.ssrc = encoding->ssrc();
+                parameters.rid = encoding->rid()->str();
+                parameters.codecPayloadType = encoding->codecPayloadType().value_or(0);
+                parameters.rtx.ssrc = encoding->rtx()->ssrc();
+                parameters.dtx = encoding->dtx();
+                parameters.scalabilityMode = encoding->scalabilityMode()->str();
+                parameters.maxBitrate = encoding->maxBitrate().value_or(0);
+                dump->consumableRtpEncodings.emplace_back(parameters);
+            }
         }
         
-        if (event == "rtp") {
-            this->rtpSignal(payload, payloadLen);
-        }
-        else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
-        }
-    }
-}
-
-
-namespace srv
-{
-    void to_json(nlohmann::json& j, const ConsumerLayers& st)
-    {
-        j["spatialLayer"] = st.spatialLayer;
-        j["temporalLayer"] = st.temporalLayer;
-    }
-
-    void from_json(const nlohmann::json& j, ConsumerLayers& st)
-    {
-        if (j.contains("spatialLayer")) {
-            j.at("spatialLayer").get_to(st.spatialLayer);
-        }
-        if (j.contains("temporalLayer")) {
-            j.at("temporalLayer").get_to(st.temporalLayer);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const ConsumerScore& st)
-    {
-        j["score"] = st.score;
-        j["producerScore"] = st.producerScore;
-        j["producerScores"] = st.producerScores;
-    }
-
-    void from_json(const nlohmann::json& j, ConsumerScore& st)
-    {
-        if (j.contains("score")) {
-            j.at("score").get_to(st.score);
-        }
-        if (j.contains("producerScore")) {
-            j.at("producerScore").get_to(st.producerScore);
-        }
-        if (j.contains("producerScores")) {
-            j.at("producerScores").get_to(st.producerScores);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const ConsumerTraceEventData& st)
-    {
-        j["type"] = st.type;
-        j["timestamp"] = st.timestamp;
-        j["direction"] = st.direction;
-        j["info"] = st.info;
-    }
-
-    void from_json(const nlohmann::json& j, ConsumerTraceEventData& st)
-    {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
-        }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
-        }
-        if (j.contains("direction")) {
-            j.at("direction").get_to(st.direction);
-        }
-        if (j.contains("info")) {
-            j.at("info").get_to(st.info);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const ConsumerStat& st)
-    {
-        j["type"] = st.type;
-        j["timestamp"] = st.timestamp;
-        j["ssrc"] = st.ssrc;
-        j["rtxSsrc"] = st.rtxSsrc;
-        j["kind"] = st.kind;
-
-        j["mimeType"] = st.mimeType;
-        j["packetsLost"] = st.packetsLost;
-        j["fractionLost"] = st.fractionLost;
-        j["packetsDiscarded"] = st.packetsDiscarded;
-        j["packetsRetransmitted"] = st.packetsRetransmitted;
-
-        j["packetsRepaired"] = st.packetsRepaired;
-        j["nackCount"] = st.nackCount;
-        j["nackPacketCount"] = st.nackPacketCount;
-        j["pliCount"] = st.pliCount;
-        j["firCount"] = st.firCount;
-
-        j["score"] = st.score;
-        j["packetCount"] = st.packetCount;
-        j["byteCount"] = st.byteCount;
-        j["bitrate"] = st.bitrate;
-        j["roundTripTime"] = st.roundTripTime;
-    }
-
-    void from_json(const nlohmann::json& j, ConsumerStat& st)
-    {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
-        }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
-        }
-        if (j.contains("ssrc")) {
-            j.at("ssrc").get_to(st.ssrc);
-        }
-        if (j.contains("rtxSsrc")) {
-            j.at("rtxSsrc").get_to(st.rtxSsrc);
-        }
-        if (j.contains("kind")) {
-            j.at("kind").get_to(st.kind);
+        // std::vector<uint8_t> supportedCodecPayloadTypes;
+        {
+            for (const auto& type : *baseConsumerDump->supportedCodecPayloadTypes())) {
+                dump->supportedCodecPayloadTypes.emplace_back(type);
+            }
         }
         
-        if (j.contains("mimeType")) {
-            j.at("mimeType").get_to(st.mimeType);
-        }
-        if (j.contains("packetsLost")) {
-            j.at("packetsLost").get_to(st.packetsLost);
-        }
-        if (j.contains("fractionLost")) {
-            j.at("fractionLost").get_to(st.fractionLost);
-        }
-        if (j.contains("packetsDiscarded")) {
-            j.at("packetsDiscarded").get_to(st.packetsDiscarded);
-        }
-        if (j.contains("packetsRetransmitted")) {
-            j.at("packetsRetransmitted").get_to(st.packetsRetransmitted);
+        // std::vector<std::string> traceEventTypes;
+        {
+            for (const auto& type : *baseConsumerDump->traceEventTypes())) {
+                auto eventType = consumerTraceEventTypeFromFbs(*type);
+                dump->traceEventTypes.emplace_back(eventType);
+            }
         }
         
-        if (j.contains("packetsRepaired")) {
-            j.at("packetsRepaired").get_to(st.packetsRepaired);
+        // bool paused;
+        dump->paused = baseConsumerDump->paused();
+        dump->producerPaused = baseConsumerDump->producerPaused();
+        dump->priority = baseConsumerDump->priority();
+    }
+
+    std::shared_ptr<SimpleConsumerDump> ConsumerController::parseSimpleConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    {
+        auto base = parseBaseConsumerDump(consumerDump->base());
+        
+        auto dump = std::make_shared<SimpleConsumerDump>();
+        dump->type = "simple";
+    
+        dump->id = base->id;
+        dump->producerId = base->producerId;
+        dump->kind = base->kind;
+        dump->rtpParameters = base->rtpParameters;
+        dump->consumableRtpEncodings = base->consumableRtpEncodings;
+        dump->supportedCodecPayloadTypes = base->supportedCodecPayloadTypes;
+        dump->traceEventTypes = base->traceEventTypes;
+        dump->paused = base->paused;
+        dump->producerPaused = base->producerPaused;
+        dump->priority = base->priority;
+        
+        dump->rtpStream = parseRtpStream(consumerDump->rtpStreams());
+        
+        return dump;
+    }
+
+    std::shared_ptr<SimulcastConsumerDump> ConsumerController::parseSimulcastConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    {
+        auto base = parseBaseConsumerDump(consumerDump->base());
+        
+        auto dump = std::make_shared<SimulcastConsumerDump>();
+        dump->type = "simulcast";
+        dump->id = base->id;
+        dump->producerId = base->producerId;
+        dump->kind = base->kind;
+        dump->rtpParameters = base->rtpParameters;
+        dump->consumableRtpEncodings = base->consumableRtpEncodings;
+        dump->supportedCodecPayloadTypes = base->supportedCodecPayloadTypes;
+        dump->traceEventTypes = base->traceEventTypes;
+        dump->paused = base->paused;
+        dump->producerPaused = base->producerPaused;
+        dump->priority = base->priority;
+        
+        dump->rtpStream = parseRtpStream(consumerDump->rtpStreams());
+        
+        dump->preferredSpatialLayer = consumerDump->preferredSpatialLayer().value_or(0);
+        dump->targetSpatialLayer = consumerDump->targetSpatialLayer().value_or(0);
+        dump->currentSpatialLayer = consumerDump->currentSpatialLayer().value_or(0);
+        dump->preferredTemporalLayer = consumerDump->preferredTemporalLayer().value_or(0);
+        dump->targetTemporalLayer = consumerDump->targetTemporalLayer().value_or(0);
+        dump->currentTemporalLayer = consumerDump->currentTemporalLayer().value_or(0);
+        
+        return dump;
+    }
+
+    std::shared_ptr<SvcConsumerDump> ConsumerController::parseSvcConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    {
+        auto dump = parseSvcConsumerDump(consumerDump);
+        
+        dump->type = "svc";
+        
+        return dump;
+    }
+
+    std::shared_ptr<PipeConsumerDump> ConsumerController::parsePipeConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    {
+        auto base = parseBaseConsumerDump(consumerDump->base());
+        
+        auto dump = std::make_shared<SimpleConsumerDump>();
+        dump->type = "pipe";
+    
+        dump->id = base->id;
+        dump->producerId = base->producerId;
+        dump->kind = base->kind;
+        dump->rtpParameters = base->rtpParameters;
+        dump->consumableRtpEncodings = base->consumableRtpEncodings;
+        dump->supportedCodecPayloadTypes = base->supportedCodecPayloadTypes;
+        dump->traceEventTypes = base->traceEventTypes;
+        dump->paused = base->paused;
+        dump->producerPaused = base->producerPaused;
+        dump->priority = base->priority;
+        
+        dump->rtpStream = parseRtpStream(consumerDump->rtpStreams());
+        
+        return dump;
+    }
+
+    std::shared_ptr<ConsumerTraceEventData> ConsumerController::parseTraceEventData(const FBS::Consumer::TraceNotification* trace)
+    {
+        auto eventData = std::make_shared<ConsumerTraceEventData>();
+        eventData->type = consumerTraceEventTypeFromFbs(trace->type());
+        eventData->direction = trace->direction() == FBS::Common::TraceDirection::DIRECTION_IN ? "in" : "out";
+        eventData->timestamp = trace->timestamp();
+
+        if (trace->info_type() == FBS::Consumer::TraceInfo::KeyFrameTraceInfo) {
+            auto traceInfo = std::make_shared<KeyFrameTraceInfo>();
+            auto traceInfoFBS = trace->info_as_KeyFrameTraceInfo();
+            traceInfo->isRtx = traceInfoFBS->isRtx();
+            traceInfo->rtpPacket = traceInfoFBS->rtpPacket();
+            eventData->info = traceInfo;
         }
-        if (j.contains("nackCount")) {
-            j.at("nackCount").get_to(st.nackCount);
+        else if (trace->info_type() == FBS::Consumer::TraceInfo::FirTraceInfo) {
+            auto traceInfo = std::make_shared<FirTraceInfo>();
+            auto traceInfoFBS = trace->info_as_FirTraceInfo();
+            traceInfo->ssrc = traceInfoFBS->ssrc();
+            eventData->info = traceInfo;
         }
-        if (j.contains("nackPacketCount")) {
-            j.at("nackPacketCount").get_to(st.nackPacketCount);
+        else if (trace->info_type() == FBS::Consumer::TraceInfo::PliTraceInfo) {
+            auto traceInfo = std::make_shared<PliTraceInfo>();
+            auto traceInfoFBS = trace->info_as_PliTraceInfo();
+            traceInfo->ssrc = traceInfoFBS->ssrc();
+            eventData->info = traceInfo;
         }
-        if (j.contains("pliCount")) {
-            j.at("pliCount").get_to(st.pliCount);
-        }
-        if (j.contains("firCount")) {
-            j.at("firCount").get_to(st.firCount);
+        else if ()trace->info_type() == FBS::Consumer::TraceInfo::RtpTraceInfo {
+            auto traceInfo = std::make_shared<KeyFrameTraceInfo>();
+            auto traceInfoFBS = trace->info_as_KeyFrameTraceInfo();
+            traceInfo->isRtx = traceInfoFBS->isRtx();
+            traceInfo->rtpPacket = traceInfoFBS->rtpPacket();
+            eventData->info = traceInfo;
         }
         
-        if (j.contains("score")) {
-            j.at("score").get_to(st.score);
+        return eventData;
+    }
+
+    std::shared_ptr<ConsumerLayers> ConsumerController::parseConsumerLayers(const FBS::Consumer::ConsumerLayers* data)
+    {
+        auto layers = std::make_shared<ConsumerLayers>();
+        
+        layers->spatialLayer = data->spatialLayer();
+        layers->temporalLayer = data->temporalLayer();
+        
+        return layers;
+    }
+
+    std::shared_ptr<RtpStreamParameters> ConsumerController::parseRtpStreamParameters(const FBS::RtpStream::Params* data)
+    {
+        auto parameters = std::make_shared<RtpStreamParameters>();
+        
+        parameters->encodingIdx = data->encodingIdx();
+        parameters->ssrc = data->ssrc();
+        parameters->payloadType = data->payloadType();
+        parameters->mimeType = data->mimeType()->str();
+        parameters->clockRate = data->clockRate();
+        parameters->rid = data->rid()->str();
+        parameters->cname = data->cname()->str();
+        parameters->rtxSsrc = data->rtxSsrc();
+        parameters->rtxPayloadType = data->rtxPayloadType();
+        parameters->useNack = data->useNack();
+        parameters->usePli = data->usePli();
+        parameters->useFir = data->useFir();
+        parameters->useInBandFec = data->useInBandFec();
+        parameters->useDtx = data->useDtx();
+        parameters->spatialLayers = data->spatialLayers();
+        parameters->temporalLayers = data->temporalLayers();
+        
+        return parameters;
+    }
+
+    std::shared_ptr<RtxStreamParameters> ConsumerController::parseRtxStreamParameters(const FBS::RtxStream::Params* data)
+    {
+        auto parameters = std::make_shared<RtxStreamParameters>();
+        
+        parameters->ssrc = data->ssrc();
+        parameters->payloadType = data->payloadType();
+        parameters->mimeType = data->mimeType()->str();
+        parameters->clockRate = data->clockRate();
+        parameters->rrid = data->rrid()->str();
+        parameters->cname = data->cname()->str();
+        
+        return parameters;
+    }
+
+    std::shared_ptr<RtxStreamDump> ConsumerController::parseRtxStream(const FBS::RtxStream::RtxDump* data)
+    {
+        auto dump = std::make_shared<RtxStreamDump>();
+        
+        dump->params = parseRtxStreamParameters(data->params());
+                                                
+        return dump;
+    }
+
+    std::shared_ptr<RtpStreamDump> ConsumerController::parseRtpStream(const FBS::RtpStream::Dump* data)
+    {
+        auto dump = std::make_shared<RtpStreamDump>();
+            
+        dump->params = parseRtxStreamParameters(data->params());
+        
+        std::shared_ptr<RtxStreamDump> rtxStream;
+        if (data->rtxStream()) {
+            rtxStream = parseRtxStream(data->rtxStream());
         }
-        if (j.contains("packetCount")) {
-            j.at("packetCount").get_to(st.packetCount);
-        }
-        if (j.contains("byteCount")) {
-            j.at("byteCount").get_to(st.byteCount);
-        }
-        if (j.contains("bitrate")) {
-            j.at("bitrate").get_to(st.bitrate);
-        }
-        if (j.contains("roundTripTime")) {
-            j.at("roundTripTime").get_to(st.roundTripTime);
+        
+        dump->rtxStream = rtxStream;
+        
+        dump->score = data->score();
+        
+        return dump;
+    }
+
+    std::vector<std::shared_ptr<ConsumerStat>> ConsumerController::parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary)
+    {
+        std::vector<std::shared_ptr<ConsumerStat>> result;
+        
+        auto stats = binary->stats();
+        
+        for (const auto& st : *stats) {
+            auto consumerStat = std::make_shared<ConsumerStat>();
+            
+            auto sendStats = st->data_as_SendStats();
+            // TODO:
+            consumerStat->type = "";
+            consumerStat->packetCount = sendStats->packetCount();
+            consumerStat->byteCount = sendStats->byteCount();
+            consumerStat->bitrate = = sendStats->bitrate();
+            
+            auto baseStats = st->data_as_BaseStats();
+            // base
+            consumerStat->timestamp = baseStats->timestamp();;
+            consumerStat->ssrc = baseStats->ssrc();
+            consumerStat->rtxSsrc = baseStats->rtxSsrc().value_or(0);
+            consumerStat->rid = baseStats->rid()->str();
+            consumerStat->kind = baseStats->kind() == FBS::RtpParameters::MediaKind::AUDIO ? "audio" : "video";
+            consumerStat->mimeType = baseStats->mimeType()->str();
+            consumerStat->packetsLost = baseStats->packetsLost();
+            consumerStat->fractionLost = baseStats->fractionLost();
+            consumerStat->packetsDiscarded = baseStats->packetsDiscarded();
+            consumerStat->packetsRetransmitted = baseStats->packetsRetransmitted();
+            consumerStat->packetsRepaired = baseStats->packetsRepaired();
+            consumerStat->nackCount = baseStats->nackCount();
+            consumerStat->nackPacketCount = baseStats->nackPacketCount();
+            consumerStat->pliCount = baseStats->pliCount();
+            consumerStat->firCount = baseStats->firCount();
+            consumerStat->score = baseStats->score();
+            consumerStat->roundTripTime =baseStats->roundTripTime();
+            consumerStat->rtxPacketsDiscarded = baseStats->rtxPacketsDiscarded();
+            
+            result->emplace_back(consumerStat);
         }
     }
 

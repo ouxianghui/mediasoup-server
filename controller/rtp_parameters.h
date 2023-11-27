@@ -13,10 +13,11 @@
 #include <vector>
 #include <map>
 #include "parameters.h"
+#include "FBS/rtpParameters.h"
+#include "FBS/rtpPacket.h"
 
 namespace srv
 {
-
     /**
      * Provides information on RTCP feedback messages for a specific codec. Those
      * messages can be transport layer feedback messages or codec-specific feedback
@@ -366,4 +367,68 @@ namespace srv
          */
         RtcpParameters rtcp;
     };
+
+    std::string rtpHeaderExtensionUriFromFbs(FBS::RtpParameters::RtpHeaderExtensionUri uri);
+
+    FBS::RtpParameters::RtpHeaderExtensionUri rtpHeaderExtensionUriToFbs(const std::string& uri);
+
+    struct RtpPacketDump {
+        uint8_t payloadType;
+        uint16_t sequenceNumber;
+        uint64_t timestamp;
+        bool marker;
+        uint32_t ssrc;
+        bool isKeyFrame;
+        uint64_t size;
+        uint64_t payloadSize;
+        uint8_t spatialLayer;
+        uint8_t temporalLayer;
+        std::string mid;
+        std::string rid;
+        std::string rrid;
+        uint16_t wideSequenceNumber;
+        
+        srv::RtpPacketDump& operator=(const FBS::RtpPacket::Dump* dump) {
+            this->payloadType = dump->payloadType();
+            this->sequenceNumber = dump->sequenceNumber();
+            this->timestamp = dump->timestamp();
+            this->marker = dump->marker();
+            this->ssrc = dump->ssrc();
+            this->isKeyFrame = dump->isKeyFrame();
+            this->size = dump->size();
+            this->payloadSize = dump->payloadSize();
+            this->spatialLayer = dump->spatialLayer();
+            this->temporalLayer = dump->temporalLayer();
+            this->mid = dump->mid()->str();
+            this->rid = dump->rid()->str();
+            this->rrid = dump->rrid()->str();
+            this->wideSequenceNumber = dump->wideSequenceNumber().value_or(0);
+            return *this;
+        }
+    };
+
+    struct TraceInfo {};
+
+    struct KeyFrameTraceInfo : TraceInfo {
+        RtpPacketDump rtpPacket;
+        bool isRtx;
+    };
+
+    struct FirTraceInfo : TraceInfo {
+        uint32_t ssrc;
+    };
+
+    struct PliTraceInfo : TraceInfo {
+        uint32_t ssrc;
+    };
+
+    struct RtpTraceInfo : TraceInfo {
+        RtpPacketDump rtpPacket;
+        bool isRtx;
+    };
+
+    std::shared_ptr<RtpEncodingParameters> parseRtpEncodingParameters(const FBS::RtpParameters::RtpEncodingParameters* data);
+
+    std::shared_ptr<RtpParameters> parseRtpParameters(const FBS::RtpParameters::RtpParameters* data);
+
 }

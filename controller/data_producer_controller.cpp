@@ -10,19 +10,18 @@
 #include "data_producer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
-#include "payload_channel.h"
 
 namespace srv {
 
     DataProducerController::DataProducerController(const DataProducerInternal& internal,
                                                    const DataProducerData& data,
                                                    const std::shared_ptr<Channel>& channel,
-                                                   std::shared_ptr<PayloadChannel> payloadChannel,
+                                                   bool paused,
                                                    const nlohmann::json& appData)
     : _internal(internal)
     , _data(data)
     , _channel(channel)
-    , _payloadChannel(payloadChannel)
+    , _paused(paused)
     , _appData(appData)
     {
         SRV_LOGD("DataProducerController()");
@@ -44,6 +43,48 @@ namespace srv {
         SRV_LOGD("destroy()");
     }
 
+    void DataProducerController::pause()
+    {
+        SRV_LOGD("pause()");
+        
+        auto channel = _channel.lock();
+        if (!channel) {
+            return;
+        }
+        
+        channel->request(FBS::Request::Method::DATAPRODUCER_PAUSE, _internal.dataProducerId);
+        
+        bool wasPaused = _paused;
+
+        _paused = true;
+
+        // Emit observer event.
+        if (!wasPaused) {
+            this->pauseSignal();
+        }
+    }
+
+    void DataProducerController::resume()
+    {
+        SRV_LOGD("resume()");
+        
+        auto channel = _channel.lock();
+        if (!channel) {
+            return;
+        }
+        
+        channel->request(FBS::Request::Method::DATAPRODUCER_RESUME, _internal.dataProducerId);
+        
+        bool wasPaused = _paused;
+
+        _paused = false;
+
+        // Emit observer event.
+        if (wasPaused) {
+            this->resumeSignal();
+        }
+    }
+
     void DataProducerController::close()
     {
         if (_closed) {
@@ -60,17 +101,10 @@ namespace srv {
             return;
         }
         channel->notificationSignal.disconnect(shared_from_this());
+     
+        auto requestOffset = FBS::Transport::CreateCloseDataProducerRequestDirect(channel->builder(), _internal.dataProducerId.c_str());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
-        nlohmann::json reqData;
-        reqData["dataProducerId"] = _internal.dataProducerId;
-        
-        channel->request("transport.closeDataProducer", _internal.transportId, reqData.dump());
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATAPRODUCER, FBS::Request::Body::Transport_CloseDataProducerRequest, requestOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -92,51 +126,60 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
         this->transportCloseSignal();
         
         this->closeSignal();
     }
 
-    nlohmann::json DataProducerController::dump()
+    std::shared_ptr<DataProducerDump> DataProducerController::dump()
     {
         SRV_LOGD("dump()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("dataProducer.dump", _internal.dataProducerId, "{}");
+        auto data = channel->request(FBS::Request::Method::DATAPRODUCER_DUMP, _internal.dataProducerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        return parseDataProducerDumpResponse(response->body_as_DataProducer_DumpResponse());
     }
 
-nlohmann::json DataProducerController::getStats()
+    std::vector<std::shared_ptr<DataProducerStat>> DataProducerController::getStats()
     {
         SRV_LOGD("getStats()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return std::vector<DataProducerStat>();
+            return {};
         }
         
-        return channel->request("dataProducer.getStats", _internal.dataProducerId, "{}");
+        //return channel->request("dataProducer.getStats", _internal.dataProducerId, "{}");
+        
+        std::vector<std::shared_ptr<DataProducerStat>> result;
+        
+        auto data = channel->request(FBS::Request::Method::DATAPRODUCER_GET_STATS, _internal.dataProducerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        return std::vector<std::shared_ptr<DataProducerStat>> { parseDataProducerStats(response->body_as_DataProducer_GetStatsResponse()) };
     }
 
-    void DataProducerController::send(const uint8_t* payload, size_t payloadLen, bool isBinary)
+    void DataProducerController::send(const std::vector<uint8_t>& data, const std::vector<uint16_t>& subchannels, uint16_t requiredSubchannel, bool isBinary)
     {
-        if (payloadLen <= 0)
-        {
+        if (data.size() <= 0) {
             SRV_LOGD("message must be a string or a Buffer");
             return;
         }
 
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
+        auto channel = _channel.lock();
+        if (!channel) {
             return;
         }
         
@@ -156,74 +199,71 @@ nlohmann::json DataProducerController::getStats()
          * +-------------------------------+----------+
          */
 
-        uint32_t ppid = !isBinary ? (payloadLen > 0 ? 51 : 56) : (payloadLen > 0 ? 53 : 57);
+        uint32_t ppid = !isBinary ? (data.size() > 0 ? 51 : 56) : (data.size() > 0 ? 53 : 57);
 
-        std::string nfData = std::to_string(ppid);
+        auto notificationOffset = FBS::DataProducer::CreateSendNotificationDirect(channel->builder(), ppid, &data, &subchannels, requiredSubchannel);
 
-        payloadChannel->notify("dataProducer.send", _internal.dataProducerId, nfData, payload, payloadLen);
+        channel->notify(FBS::Notification::Event::DATAPRODUCER_SEND, FBS::Notification::Body::DataProducer_SendNotification, notificationOffset, _internal.dataProducerId);
     }
 
     void DataProducerController::handleWorkerNotifications()
     {
         SRV_LOGD("handleWorkerNotifications()");
+    }
+
+    FBS::DataProducer::Type DataProducerController::dataProducerTypeToFbs(const std::string& type)
+    {
+        if ("sctp") {
+            return FBS::DataProducer::Type::SCTP;
+        }
+        else if ("direct") {
+            return FBS::DataProducer::Type::DIRECT;
+        }
+
+        SRV_LOGE("invalid DataConsumerType: %s", type.c_str());
+        return  FBS::DataProducer::Type::MIN;
+    }
+
+    std::string DataProducerController::dataProducerTypeFromFbs(FBS::DataProducer::Type type)
+    {
+        switch (type)
+        {
+            case FBS::DataProducer::Type::SCTP:
+                return "sctp";
+            case FBS::DataProducer::Type::DIRECT:
+                return "direct";
+            default:
+                SRV_LOGE("invalid DataConsumerType: %u", (uint8_t)type);
+                return "";
+        }
+    }
+
+    std::shared_ptr<DataProducerDump> DataProducerController::parseDataProducerDumpResponse(const FBS::DataProducer::DumpResponse* data)
+    {
+        auto dump = std::make_shared<DataProducerDump>();
         
-        // auto channel = _channel.lock();
-        // if (!channel) {
-        //     return;
-        // }
-        // channel->notificationSignal.connect(&DataProducerController::onChannel, shared_from_this());
-        //
-        // auto payloadChannel = _payloadChannel.lock();
-        // if (!payloadChannel) {
-        //     return;
-        // }
-        // payloadChannel->notificationSignal.connect(&DataProducerController::onPayloadChannel, shared_from_this());
+        dump->type = dataProducerTypeFromFbs(data->type());
+        dump->sctpStreamParameters = *parseSctpStreamParameters(data->sctpStreamParameters());
+        dump->label = data->label()->str();
+        dump->protocol = data->protocol()->str();
+        dump->id = data->id()->str();
+        dump->paused = data->paused();
+        
+        return dump;
     }
 
-    void DataProducerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    std::shared_ptr<DataProducerStat> DataProducerController::parseDataProducerStats(const FBS::DataProducer::GetStatsResponse* binary)
     {
- 
+        auto stat = std::make_shared<DataProducerStat>();
+        
+        stat->type = "data-producer";
+        stat->timestamp = binary->timestamp();
+        stat->label = binary->label()->str();
+        stat->protocol = binary->protocol()->str();
+        stat->messagesReceived = binary->messagesReceived();
+        stat->bytesReceived = binary->bytesReceived();
+        
+        return stat;
     }
 
-    void DataProducerController::onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen)
-    {
-
-    }
-
-}
-
-
-namespace srv
-{
-    void to_json(nlohmann::json& j, const DataProducerStat& st)
-    {
-        j["type"] = st.type;
-        j["timestamp"] = st.timestamp;
-        j["label"] = st.label;
-        j["protocol"] = st.protocol;
-        j["messagesReceived"] = st.messagesReceived;
-        j["bytesReceived"] = st.bytesReceived;
-    }
-
-    void from_json(const nlohmann::json& j, DataProducerStat& st)
-    {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
-        }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
-        }
-        if (j.contains("label")) {
-            j.at("label").get_to(st.label);
-        }
-        if (j.contains("protocol")) {
-            j.at("protocol").get_to(st.protocol);
-        }
-        if (j.contains("messagesReceived")) {
-            j.at("messagesReceived").get_to(st.messagesReceived);
-        }
-        if (j.contains("bytesReceived")) {
-            j.at("bytesReceived").get_to(st.bytesReceived);
-        }
-    }
 }

@@ -18,6 +18,8 @@
 #include "sigslot/signal.hpp"
 #include "types.h"
 #include "sctp_parameters.h"
+#include "FBS/notification.h"
+#include "FBS/dataConsumer.h"
 
 namespace srv {
 
@@ -51,6 +53,18 @@ namespace srv {
          * 'sctp' or unset if it has type 'direct'.
          */
         int32_t maxRetransmits;
+        
+        /**
+         * Whether the data consumer must start in paused mode. Default false.
+         */
+        bool paused = false;
+
+        /**
+         * Subchannels this data consumer initially subscribes to.
+         * Only used in case this data consumer receives messages from a local data
+         * producer that specifies subchannel(s) when calling send().
+         */
+        std::vector<uint16_t> subchannels;
 
         /**
          * Custom application data.
@@ -61,16 +75,13 @@ namespace srv {
     struct DataConsumerStat
     {
         std::string type;
-        int64_t timestamp;
+        uint64_t timestamp;
         std::string label;
         std::string protocol;
-        int32_t messagesSent;
-        int32_t bytesSent;
+        int64_t messagesSent;
+        int64_t bytesSent;
         int32_t bufferedAmount;
     };
-
-    void to_json(nlohmann::json& j, const DataConsumerStat& st);
-    void from_json(const nlohmann::json& j, DataConsumerStat& st);
 
     struct DataConsumerInternal
     {
@@ -84,16 +95,25 @@ namespace srv {
         
         // Options: 'sctp' | 'direct'
         std::string type;
+        
         SctpStreamParameters sctpStreamParameters;
+        
         std::string label;
+        
         std::string protocol;
+        
+        uint32_t bufferedAmountLowThreshold;
     };
 
-    void to_json(nlohmann::json& j, const DataConsumerData& st);
-    void from_json(const nlohmann::json& j, DataConsumerData& st);
+    struct DataConsumerDump : DataConsumerData
+    {
+        std::string id;
+        bool paused;
+        bool dataProducerPaused;
+        std::vector<uint16_t> subchannels;
+    };
 
     class Channel;
-    class PayloadChannel;
 
     class DataConsumerController : public std::enable_shared_from_this<DataConsumerController>
     {
@@ -101,7 +121,9 @@ namespace srv {
         DataConsumerController(const DataConsumerInternal& internal,
                                const DataConsumerData& data,
                                const std::shared_ptr<Channel>& channel,
-                               std::shared_ptr<PayloadChannel> payloadChannel,
+                               bool paused,
+                               bool dataProducerPaused,
+                               const std::vector<uint16_t>& subchannels,
                                const nlohmann::json& appData);
 
         virtual ~DataConsumerController();
@@ -123,6 +145,12 @@ namespace srv {
         const std::string& label() { return _data.label; }
 
         const std::string& protocol() { return _data.protocol; }
+        
+        bool paused() { return _paused; }
+        
+        bool dataProducerPaused() { return _dataProducerPaused; }
+        
+        const std::vector<uint16_t>& subchannels() { return _subchannels; }
 
         void setAppData(const nlohmann::json& data) { _appData = data; }
         
@@ -132,35 +160,56 @@ namespace srv {
         
         void onTransportClosed();
         
-        nlohmann::json dump();
+        std::shared_ptr<DataConsumerDump> dump();
         
-        nlohmann::json getStats();
+        std::vector<std::shared_ptr<DataConsumerStat>> getStats();
         
-        void setBufferedAmountLowThreshold(int32_t threshold);
+        void pause();
+        
+        void resume();
+        
+        void setBufferedAmountLowThreshold(uint32_t threshold);
+        
+        void setSubchannels(const std::vector<uint16_t>& subchannels);
 
-        void send(const uint8_t* payload, size_t payloadLen, bool isBinary = false);
+        void send(const std::vector<uint8_t>& data, bool isBinary = false);
         
-        int32_t getBufferedAmount();
+        uint32_t getBufferedAmount();
+        
+        FBS::DataProducer::Type dataConsumerTypeToFbs(const std::string& type);
+
+        std::string dataConsumerTypeFromFbs(FBS::DataProducer::Type type);
         
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
         
-        void onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen);
+        std::shared_ptr<DataConsumerDump> parseDataConsumerDumpResponse(const FBS::DataConsumer::DumpResponse* data);
+
+        std::shared_ptr<DataConsumerStat> parseDataConsumerStats(const FBS::DataConsumer::GetStatsResponse* binary);
         
     public:
         sigslot::signal<> transportCloseSignal;
         
         sigslot::signal<> dataProducerCloseSignal;
         
-        sigslot::signal<const uint8_t*, size_t, int32_t> messageSignal;
+        sigslot::signal<> dataProducerPauseSignal;
+        
+        sigslot::signal<> dataProducerResumeSignal;
+        
+        // data, ppid
+        sigslot::signal<const std::vector<uint8_t>&, int32_t> messageSignal;
         
         sigslot::signal<> sctpSendBufferFullSignal;
         
         sigslot::signal<int32_t> bufferedAmountLowSignal;
         
         sigslot::signal<> closeSignal;
+        
+        sigslot::signal<> pauseSignal;
+        
+        sigslot::signal<> resumeSignal;
         
     private:
         // Internal data.
@@ -172,11 +221,17 @@ namespace srv {
         // Channel instance.
         std::weak_ptr<Channel> _channel;
 
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
-
         // Closed flag.
         std::atomic_bool _closed { false };
+        
+        // Paused flag.
+        bool _paused = false;
+
+        // Associated DataProducer paused flag.
+        bool _dataProducerPaused = false;
+
+        // Subchannels subscribed to.
+        std::vector<uint16_t> _subchannels;
 
         // Custom app data.
         nlohmann::json _appData;

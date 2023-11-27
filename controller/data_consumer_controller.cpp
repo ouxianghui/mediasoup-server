@@ -10,19 +10,23 @@
 #include "data_consumer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
-#include "payload_channel.h"
+#include "FBS/transport.h"
 
 namespace srv {
 
     DataConsumerController::DataConsumerController(const DataConsumerInternal& internal,
                                                    const DataConsumerData& data,
                                                    const std::shared_ptr<Channel>& channel,
-                                                   std::shared_ptr<PayloadChannel> payloadChannel,
+                                                   bool paused,
+                                                   bool dataProducerPaused,
+                                                   const std::vector<uint16_t>& subchannels,
                                                    const nlohmann::json& appData)
     : _internal(internal)
     , _data(data)
     , _channel(channel)
-    , _payloadChannel(payloadChannel)
+    , _paused(paused)
+    , _dataProducerPaused(dataProducerPaused)
+    , _subchannels(subchannels)
     , _appData(appData)
     {
         SRV_LOGD("DataConsumerController()");
@@ -60,17 +64,10 @@ namespace srv {
             return;
         }
         channel->notificationSignal.disconnect(shared_from_this());
+
+        auto requestOffset = FBS::Transport::CreateCloseDataConsumerRequestDirect(channel->builder(), _internal.dataConsumerId.c_str());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
-        nlohmann::json reqData;
-        reqData["dataConsumerId"] = _internal.dataConsumerId;
-        
-        channel->request("transport.closeDataConsumer", _internal.transportId, reqData.dump());
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATACONSUMER, FBS::Request::Body::Transport_CloseDataConsumerRequest, requestOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -92,66 +89,143 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
         this->transportCloseSignal();
         
         this->closeSignal();
     }
 
-    nlohmann::json DataConsumerController::dump()
+    std::shared_ptr<DataConsumerDump> DataConsumerController::dump()
     {
         SRV_LOGD("dump()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("dataConsumer.dump", _internal.dataConsumerId, "{}");
+        auto data = channel->request(FBS::Request::Method::DATACONSUMER_DUMP, _internal.dataConsumerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto dumpFBS = response->body_as_DataConsumer_DumpResponse();
+        
+        return parseDataConsumerDumpResponse(dumpFBS);
+        
     }
 
-    nlohmann::json DataConsumerController::getStats()
+    std::vector<std::shared_ptr<DataConsumerStat>> DataConsumerController::getStats()
     {
         SRV_LOGD("getStats()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return std::vector<DataConsumerStat>();
+            return {};
         }
         
-        return channel->request("dataConsumer.getStats", _internal.dataConsumerId, "{}");
+        auto data = channel->request(FBS::Request::Method::DATACONSUMER_GET_STATS, _internal.dataConsumerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto statsFBS = response->body_as_DataConsumer_GetStatsResponse();
+
+        return std::vector<std::shared_ptr<DataConsumerStat>> { parseDataConsumerStats(statsFBS) };
     }
 
-    void DataConsumerController::setBufferedAmountLowThreshold(int32_t threshold)
+    void DataConsumerController::pause()
     {
-        SRV_LOGD("setBufferedAmountLowThreshold() [threshold:%d]", threshold);
-
-        nlohmann::json reqData;
-        reqData["threshold"] = threshold;
+        SRV_LOGD("pause()");
         
         auto channel = _channel.lock();
         if (!channel) {
             return;
         }
         
-        channel->request("dataConsumer.setBufferedAmountLowThreshold", _internal.dataConsumerId, reqData.dump());
+        channel->request(FBS::Request::Method::DATACONSUMER_PAUSE, _internal.dataConsumerId);
+        
+        bool wasPaused = _paused;
+
+        _paused = true;
+
+        // Emit observer event.
+        if (!wasPaused && !_dataProducerPaused) {
+            this->pauseSignal();
+        }
     }
 
-    void DataConsumerController::send(const uint8_t* payload, size_t payloadLen, bool isBinary)
+    void DataConsumerController::resume()
     {
-        if (payloadLen <= 0)
-        {
+        SRV_LOGD("resume()");
+        
+        auto channel = _channel.lock();
+        if (!channel) {
+            return;
+        }
+        
+        channel->request(FBS::Request::Method::DATACONSUMER_RESUME, _internal.dataConsumerId);
+        
+        bool wasPaused = _paused;
+
+        _paused = false;
+
+        // Emit observer event.
+        if (wasPaused && !_dataProducerPaused) {
+            this->resumeSignal();
+        }
+    }
+
+    void DataConsumerController::setBufferedAmountLowThreshold(uint32_t threshold)
+    {
+        SRV_LOGD("setBufferedAmountLowThreshold() [threshold:%d]", threshold);
+
+        auto channel = _channel.lock();
+        if (!channel) {
+            return;
+        }
+        
+        auto requestOffset = FBS::DataConsumer::CreateSetBufferedAmountLowThresholdRequest(channel->builder(), threshold);
+        
+        channel->request(FBS::Request::Method::DATACONSUMER_SET_BUFFERED_AMOUNT_LOW_THRESHOLD, FBS::Request::Body::DataConsumer_SetBufferedAmountLowThresholdRequest, requestOffset, _internal.dataConsumerId);
+    }
+
+    void DataConsumerController::setSubchannels(const std::vector<uint16_t>& subchannels)
+    {
+        SRV_LOGD("setSubchannels");
+
+        auto channel = _channel.lock();
+        if (!channel) {
+            return;
+        }
+        
+        auto requestOffset = FBS::DataConsumer::CreateSetSubchannelsRequestDirect(channel->builder(), &subchannels);
+        
+        auto data = channel->request(FBS::Request::Method::DATACONSUMER_SET_SUBCHANNELS, FBS::Request::Body::DataConsumer_SetSubchannelsRequest, requestOffset, _internal.dataConsumerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto subchannelsResponse = response->body_as_DataConsumer_SetSubchannelsResponse();
+        
+        _subchannels.clear();
+        
+        for (const auto& channel : *subchannelsResponse->subchannels()) {
+            _subchannels.emplace_back(channel);
+        }
+    }
+
+    void DataConsumerController::send(const std::vector<uint8_t>& data, bool isBinary)
+    {
+        if (data.size() <= 0) {
             SRV_LOGD("message must be a string or a Buffer");
             return;
         }
 
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
+        auto channel = _channel.lock();
+        if (!channel) {
             return;
         }
         
@@ -171,14 +245,14 @@ namespace srv {
          * +-------------------------------+----------+
          */
 
-        uint32_t ppid = !isBinary ? (payloadLen > 0 ? 51 : 56) : (payloadLen > 0 ? 53 : 57);
+        uint32_t ppid = !isBinary ? (data.size() > 0 ? 51 : 56) : (data.size() > 0 ? 53 : 57);
+        
+        auto requestOffset = FBS::DataConsumer::CreateSendRequestDirect(channel->builder(), ppid, &data);
 
-        std::string requestData = std::to_string(ppid);
-
-        payloadChannel->request("dataConsumer.send", _internal.dataConsumerId, requestData, payload, payloadLen);
+        channel->request(FBS::Request::Method::DATACONSUMER_SEND, FBS::Request::Body::DataConsumer_SendRequest, requestOffset, _internal.dataConsumerId);
     }
 
-    int32_t DataConsumerController::getBufferedAmount()
+    uint32_t DataConsumerController::getBufferedAmount()
     {
         SRV_LOGD("getBufferedAmount()");
 
@@ -186,14 +260,16 @@ namespace srv {
         if (!channel) {
             return 0;
         }
+           
+        auto data = channel->request(FBS::Request::Method::DATACONSUMER_GET_BUFFERED_AMOUNT, _internal.dataConsumerId);
         
-        auto jsBufferedAmount = channel->request("dataConsumer.getBufferedAmount", _internal.dataConsumerId, "{}");
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto bufferedAmountResponse = response->body_as_DataConsumer_GetBufferedAmountResponse();
 
-        int32_t bufferedAmount = 0;
-        if (jsBufferedAmount.is_object() && jsBufferedAmount.find("bufferedAmount") != jsBufferedAmount.end()) {
-            bufferedAmount = jsBufferedAmount["bufferedAmount"];
-        }
-        return bufferedAmount;
+        return bufferedAmountResponse->bufferedAmount();
     }
 
     void DataConsumerController::handleWorkerNotifications()
@@ -205,21 +281,15 @@ namespace srv {
             return;
         }
         channel->notificationSignal.connect(&DataConsumerController::onChannel, shared_from_this());
-        
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.connect(&DataConsumerController::onPayloadChannel, shared_from_this());
     }
 
-    void DataConsumerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void DataConsumerController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
         if (targetId != _internal.dataConsumerId) {
             return;
         }
         
-        if (event == "dataproducerclose") {
+        if (event == FBS::Notification::Event::DATACONSUMER_DATAPRODUCER_CLOSE) {
             if (_closed) {
                 return;
             }
@@ -231,89 +301,124 @@ namespace srv {
             }
             channel->notificationSignal.disconnect(shared_from_this());
             
-            auto payloadChannel = _payloadChannel.lock();
-            if (!payloadChannel) {
-                return;
-            }
-            payloadChannel->notificationSignal.disconnect(shared_from_this());
-            
             this->dataProducerCloseSignal();
             
             this->closeSignal();
         }
-        else if (event == "sctpsendbufferfull") {
+        else if (event == FBS::Notification::Event::DATACONSUMER_SCTP_SENDBUFFER_FULL) {
             sctpSendBufferFullSignal();
         }
-        else if (event == "bufferedamountlow") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object() && js.find("score") != js.end()) {
-                int32_t bufferedAmount = js["bufferedAmount"];
+        else if (event == FBS::Notification::Event::DATACONSUMER_DATAPRODUCER_PAUSE) {
+            if (_dataProducerPaused) {
+                return;
+            }
+            
+            _dataProducerPaused = true;
+            
+            this->dataProducerPauseSignal();
+            
+            if (!_paused) {
+                this->pauseSignal();
+            }
+        }
+        else if (event == FBS::Notification::Event::DATACONSUMER_DATAPRODUCER_RESUME) {
+            if (!_dataProducerPaused) {
+                return;
+            }
+            
+            _dataProducerPaused = false;
+            
+            this->dataProducerResumeSignal();
+            
+            if (!_paused) {
+                this->resumeSignal();
+            }
+        }
+        else if (event == FBS::Notification::Event::DATACONSUMER_BUFFERED_AMOUNT_LOW) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto bufferedAmountLow = notification->body_as_DataConsumer_BufferedAmountLowNotification()) {
+                auto bufferedAmount = bufferedAmountLow->bufferedAmount();
                 this->bufferedAmountLowSignal(bufferedAmount);
             }
         }
-        else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
-        }        
-    }
-
-    void DataConsumerController::onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen)
-    {
-        if (_closed) {
-            return;
-        }
-        
-        if (targetId != _internal.dataConsumerId) {
-            return;
-        }
-        
-        if (event == "message") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object() && js.find("ppid") != js.end()) {
-                int32_t ppid = js["ppid"];
-                this->messageSignal(payload, payloadLen, ppid);
+        else if (event == FBS::Notification::Event::DATACONSUMER_MESSAGE) {
+            if (_closed) {
+                return;
+            }
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_DataConsumer_MessageNotification()) {
+                std::vector<uint8_t> data(nf->data()->begin(), nf->data()->end());
+                this->messageSignal(data, nf->ppid());
             }
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
-        }
-    }
-}
-
-namespace srv
-{
-    void to_json(nlohmann::json& j, const DataConsumerStat& st)
-    {
-        j["type"] = st.type;
-        j["timestamp"] = st.timestamp;
-        j["label"] = st.label;
-        j["protocol"] = st.protocol;
-        j["messagesSent"] = st.messagesSent;
-        j["bytesSent"] = st.bytesSent;
-        j["bufferedAmount"] = st.bufferedAmount;
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
+        }        
     }
 
-    void from_json(const nlohmann::json& j, DataConsumerStat& st)
+    FBS::DataProducer::Type DataConsumerController::dataConsumerTypeToFbs(const std::string& type)
     {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
+        if ("sctp") {
+            return FBS::DataProducer::Type::SCTP;
         }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
+        else if ("direct") {
+            return FBS::DataProducer::Type::DIRECT;
         }
-        if (j.contains("label")) {
-            j.at("label").get_to(st.label);
-        }
-        if (j.contains("protocol")) {
-            j.at("protocol").get_to(st.protocol);
-        }
-        if (j.contains("messagesSent")) {
-            j.at("messagesSent").get_to(st.messagesSent);
-        }
-        if (j.contains("bytesSent")) {
-            j.at("bytesSent").get_to(st.bytesSent);
-        }
-        if (j.contains("bufferedAmount")) {
-            j.at("bufferedAmount").get_to(st.bufferedAmount);
+        
+        SRV_LOGE("invalid DataConsumerType: %s", type.c_str());
+        
+        return FBS::DataProducer::Type::MIN;
+    }
+
+    std::string DataConsumerController::dataConsumerTypeFromFbs(FBS::DataProducer::Type type)
+    {
+        switch (type)
+        {
+            case FBS::DataProducer::Type::SCTP:
+                return "sctp";
+            case FBS::DataProducer::Type::DIRECT:
+                return "direct";
+            default:
+                return "";
         }
     }
+
+    std::shared_ptr<DataConsumerDump> DataConsumerController::parseDataConsumerDumpResponse(const FBS::DataConsumer::DumpResponse* data)
+    {
+        auto dump = std::make_shared<DataConsumerDump>();
+        
+        dump->dataProducerId = data->dataProducerId()->str();
+        dump->type = dataConsumerTypeFromFbs(data->type());
+        dump->sctpStreamParameters = *parseSctpStreamParameters(data->sctpStreamParameters());
+        dump->label = data->label()->str();
+        dump->protocol = data->protocol()->str();
+        dump->bufferedAmountLowThreshold = data->bufferedAmountLowThreshold();
+        dump->id = data->id()->str();
+        dump->paused = data->paused();
+        dump->dataProducerPaused = data->dataProducerPaused();
+        
+        for (const auto& channel : *data->subchannels()) {
+            dump->subchannels.emplace_back(channel);
+        }
+        
+        return dump;
+    }
+
+    std::shared_ptr<DataConsumerStat> DataConsumerController::parseDataConsumerStats(const FBS::DataConsumer::GetStatsResponse* binary)
+    {
+        auto stat = std::make_shared<DataConsumerStat>();
+        
+        stat->type = "data-consumer";
+        stat->timestamp = binary->timestamp();
+        stat->label = binary->label()->str();
+        stat->protocol = binary->protocol()->str();
+        stat->messagesSent = binary->messagesSent();
+        stat->bytesSent = binary->bytesSent();
+        stat->bufferedAmount = binary->bufferedAmount();
+        
+        return stat;
+    }
+
 }

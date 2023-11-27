@@ -86,5 +86,17 @@ namespace srv {
             j.at("numStreams").get_to(st.numStreams);
         }
     }
+
+    std::shared_ptr<SctpStreamParameters> parseSctpStreamParameters(const FBS::SctpParameters::SctpStreamParameters* data)
+    {
+        auto parameters = std::make_shared<SctpStreamParameters>();
+        
+        parameters->streamId = data->streamId();
+        parameters->ordered = data->ordered().value_or(false);
+        parameters->maxPacketLifeTime = data->maxPacketLifeTime().value_or(0);
+        parameters->maxRetransmits = data->maxRetransmits().value_or(0);
+        
+        return parameters;
+    }
     
 }

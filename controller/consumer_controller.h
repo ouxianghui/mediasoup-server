@@ -105,63 +105,6 @@ namespace srv {
         nlohmann::json appData;
     };
 
-    struct RtpPacketDump {
-        uint8_t payloadType;
-        uint16_t sequenceNumber;
-        uint64_t timestamp;
-        bool marker;
-        uint32_t ssrc;
-        bool isKeyFrame;
-        uint64_t size;
-        uint64_t payloadSize;
-        uint8_t spatialLayer;
-        uint8_t temporalLayer;
-        std::string mid;
-        std::string rid;
-        std::string rrid;
-        uint16_t wideSequenceNumber;
-        
-        
-        srv::RtpPacketDump& operator=(const FBS::RtpPacket::Dump* dump) {
-            this->payloadType = dump->payloadType();
-            this->sequenceNumber = dump->sequenceNumber();
-            this->timestamp = dump->timestamp();
-            this->marker = dump->marker();
-            this->ssrc = dump->ssrc();
-            this->isKeyFrame = dump->isKeyFrame();
-            this->size = dump->size();
-            this->payloadSize = dump->payloadSize();
-            this->spatialLayer = dump->spatialLayer();
-            this->temporalLayer = dump->temporalLayer();
-            this->mid = dump->mid()->str();
-            this->rid = dump->rid()->str();
-            this->rrid = dump->rrid()->str();
-            this->wideSequenceNumber = dump->wideSequenceNumber().value_or(0);
-            return *this;
-        }
-    };
-
-    struct TraceInfo {};
-
-    struct KeyFrameTraceInfo : TraceInfo {
-        RtpPacketDump rtpPacket;
-        bool isRtx;
-    };
-
-    struct FirTraceInfo : TraceInfo {
-        uint32_t ssrc;
-    };
-
-    struct PliTraceInfo : TraceInfo {
-        uint32_t ssrc;
-    };
-
-    struct RtpTraceInfo : TraceInfo {
-        RtpPacketDump rtpPacket;
-        bool isRtx;
-    };
-
-
     /**
      * Valid types for 'trace' event.
      */
@@ -234,48 +177,6 @@ namespace srv {
         
         // options: 'simple' | 'simulcast' | 'svc' | 'pipe'
         std::string type;
-    };
-
-    struct RtxStreamParameters
-    {
-        uint32_t ssrc;
-        uint8_t payloadType;
-        std::string mimeType;
-        uint32_t clockRate;
-        std::string rrid;
-        std::string cname;
-    };
-
-    struct RtxStreamDump
-    {
-        RtxStreamParameters params;
-    };
-
-    struct RtpStreamParameters
-    {
-        size_t encodingIdx;
-        uint32_t ssrc;
-        uint8_t payloadType;
-        std::string mimeType;
-        uint32_t clockRate;
-        std::string rid;
-        std::string cname;
-        uint32_t rtxSsrc;
-        uint8_t rtxPayloadType;
-        bool useNack;
-        bool usePli;
-        bool useFir;
-        bool useInBandFec;
-        bool useDtx;
-        uint8_t spatialLayers;
-        uint8_t temporalLayers;
-    };
-
-    struct RtpStreamDump
-    {
-        RtpStreamParameters params;
-        uint8_t score;
-        RtxStreamDump rtxStream;
     };
 
     struct BaseConsumerDump
@@ -413,14 +314,6 @@ namespace srv {
         
         std::shared_ptr<ConsumerLayers>  parseConsumerLayers(const FBS::Consumer::ConsumerLayers* data);
 
-        std::shared_ptr<RtpStreamParameters> parseRtpStreamParameters(const FBS::RtpStream::Params* data);
-        
-        std::shared_ptr<RtxStreamParameters> parseRtxStreamParameters(const FBS::RtxStream::Params* data);
-
-        std::shared_ptr<RtxStreamDump> parseRtxStream(const FBS::RtxStream::RtxDump* data);
-
-        std::shared_ptr<RtpStreamDump> parseRtpStream(const FBS::RtpStream::Dump* data);
-
         std::vector<std::shared_ptr<ConsumerStat>> parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary);
         
     public:
@@ -439,7 +332,7 @@ namespace srv {
         
         sigslot::signal<const ConsumerTraceEventData&> traceSignal;
         
-        sigslot::signal<const uint8_t*, size_t> rtpSignal;
+        sigslot::signal<const std::vector<uint8_t>&> rtpSignal;
         
         sigslot::signal<> closeSignal;
         

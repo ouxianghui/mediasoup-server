@@ -29,9 +29,11 @@ namespace {
         }
         else if ("nack" == eventType) {
             return FBS::Consumer::TraceEventType::NACK;
-        } else if ("pli" == eventType) {
+        }
+        else if ("pli" == eventType) {
             return FBS::Consumer::TraceEventType::PLI;
-        } else if("rtp"== eventType) {
+        }
+        else if("rtp"== eventType) {
             return FBS::Consumer::TraceEventType::RTP;
         }
         else {
@@ -153,8 +155,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return nullptr;
         }
         
-        flatbuffers::Offset<void> bodyOffset;
-        auto data = channel->request(FBS::Request::Method::CONSUMER_DUMP, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        auto data = channel->request(FBS::Request::Method::CONSUMER_DUMP, _internal.consumerId);
         
         auto message = FBS::Message::GetMessage(data.data());
         
@@ -174,9 +175,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return {};
         }
         
-        //auto data = channel->request("consumer.getStats", _internal.consumerId, "{}");
-        flatbuffers::Offset<void> bodyOffset;
-        auto data = channel->request(FBS::Request::Method::CONSUMER_GET_STATS, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        auto data = channel->request(FBS::Request::Method::CONSUMER_GET_STATS, _internal.consumerId);
         
         auto message = FBS::Message::GetMessage(data.data());
         
@@ -196,8 +195,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
 
-        flatbuffers::Offset<void> bodyOffset;
-        channel->request(FBS::Request::Method::CONSUMER_PAUSE, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        channel->request(FBS::Request::Method::CONSUMER_PAUSE, _internal.consumerId);
         
         bool wasPaused = _paused;
 
@@ -218,8 +216,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
 
-        flatbuffers::Offset<void> bodyOffset;
-        channel->request(FBS::Request::Method::CONSUMER_RESUME, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        channel->request(FBS::Request::Method::CONSUMER_RESUME, _internal.consumerId);
         
         bool wasPaused = _paused;
 
@@ -239,10 +236,6 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
-        
-        nlohmann::json reqData;
-        reqData["spatialLayer"] = layers.spatialLayer;
-        reqData["temporalLayer"] = layers.temporalLayer;
         
         auto preferredLayersOffset = FBS::Consumer::CreateConsumerLayers(channel->builder(), layers.spatialLayer, layers.temporalLayer);
         
@@ -278,10 +271,18 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         nlohmann::json reqData;
         reqData["priority"] = priority;
         
-        nlohmann::json data = channel->request("consumer.setPriority", _internal.consumerId, reqData.dump());
+        auto requestOffset = FBS::Consumer::CreateSetPriorityRequest(channel->builder(), priority);
         
-        if (data.is_object() && data.find("priority") != data.end()) {
-            _priority = data["priority"];
+        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PRIORITY, FBS::Request::Body::Consumer_SetPriorityRequest, requestOffset, _internal.consumerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto setPriorityResponse = response->body_as_Consumer_SetPriorityResponse();
+        
+        if (setPriorityResponse) {
+            _priority = setPriorityResponse->priority();
         }
         else {
             _priority = 1;
@@ -292,22 +293,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
     {
         SRV_LOGD("unsetPriority()");
         
-        auto channel = _channel.lock();
-        if (!channel) {
-            return;
-        }
-        
-        nlohmann::json reqData;
-        reqData["priority"] = 1;
-        
-        nlohmann::json data = channel->request("consumer.setPriority", _internal.consumerId, reqData.dump());
-        
-        if (data.is_object() && data.find("priority") != data.end()) {
-            _priority = data["priority"];
-        }
-        else {
-            _priority = 1;
-        }
+        setPriority(1);
     }
 
     void ConsumerController::requestKeyFrame()
@@ -319,7 +305,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         
-        channel->request("consumer.requestKeyFrame", _internal.consumerId, "{}");
+        channel->request(FBS::Request::Method::CONSUMER_REQUEST_KEY_FRAME, _internal.consumerId);
     }
 
     // types = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir';
@@ -332,12 +318,14 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         
-        nlohmann::json reqData = nlohmann::json::array();
+        std::vector<FBS::Consumer::TraceEventType> events;
         for (const auto& type : types) {
-            reqData.emplace_back(type);
+            events.emplace_back(consumerTraceEventTypeToFbs(type));
         }
         
-        nlohmann::json data = channel->request("consumer.enableTraceEvent", _internal.consumerId, reqData.dump());
+        auto requestOffset = FBS::Consumer::CreateEnableTraceEventRequestDirect(channel->builder(), &events);
+        
+        channel->request(FBS::Request::Method::CONSUMER_ENABLE_TRACE_EVENT, FBS::Request::Body::Consumer_EnableTraceEventRequest, requestOffset, _internal.consumerId);
     }
 
     void ConsumerController::handleWorkerNotifications()
@@ -357,7 +345,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         
-        if (event == "producerclose") {
+        if (event == FBS::Notification::Event::CONSUMER_PRODUCER_CLOSE) {
             if (_closed) {
                 return;
             }
@@ -373,7 +361,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             
             this->closeSignal();
         }
-        else if (event == "producerpause") {
+        else if (event == FBS::Notification::Event::CONSUMER_PRODUCER_PAUSE) {
             if (_producerPaused) {
                 return;
             }
@@ -386,7 +374,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
                 this->pauseSignal();
             }
         }
-        else if (event == "producerresume") {
+        else if (event == FBS::Notification::Event::CONSUMER_PRODUCER_RESUME) {
             if (!_producerPaused) {
                 return;
             }
@@ -399,30 +387,49 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
                 this->resumeSignal();
             }
         }
-        else if (event == "score") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                ConsumerScore score = js;
+        else if (event == FBS::Notification::Event::CONSUMER_SCORE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto scoreNotification = notification->body_as_Consumer_ScoreNotification()) {
+                ConsumerScore score;
+                score.score = scoreNotification->score()->score();
+                score.producerScore = scoreNotification->score()->producerScore();
+                for (const auto& s : *scoreNotification->score()->producerScores()) {
+                    score.producerScores.emplace_back(s);
+                }
                 this->scoreSignal(score);
             }
         }
-        else if (event == "layerschange") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                ConsumerLayers layers = js;
-                _currentLayers = layers;
-                this->layersChangeSignal(layers);
+        else if (event == FBS::Notification::Event::CONSUMER_LAYERS_CHANGE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto layersChangeNf = notification->body_as_Consumer_LayersChangeNotification()) {
+                ConsumerLayers layers;
+                layers.spatialLayer = layersChangeNf->layers()->spatialLayer();
+                layers.temporalLayer = layersChangeNf->layers()->temporalLayer().value_or(0);
+                 _currentLayers = layers;
+                 this->layersChangeSignal(layers);
             }
         }
-        else if (event == "trace") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                ConsumerTraceEventData eventData = js;
+        else if (event == FBS::Notification::Event::CONSUMER_TRACE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto traceNotification = notification->body_as_Consumer_TraceNotification()) {
+                ConsumerTraceEventData eventData = *parseTraceEventData(traceNotification);
                 this->traceSignal(eventData);
             }
         }
+        else if (event == FBS::Notification::Event::CONSUMER_RTP) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto rtpNotification = notification->body_as_Consumer_RtpNotification()) {
+                auto rtpData = rtpNotification->data();
+                std::vector<uint8_t> vec(rtpData->begin(), rtpData->end());
+                this->rtpSignal(vec);
+            }
+        }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
     }
 
@@ -460,82 +467,28 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         // RtpParameters rtpParameters;
         {
-            dump->rtpParameters.mid = baseConsumerDump->rtpParameters()->mid()->str();
-
-            const auto* codecsFBS = baseConsumerDump->rtpParameters()->codecs();
-            for (const auto& codec : *codecsFBS) {
-                RtpCodecParameters parameters;
-                parameters.mimeType = codec->mimeType()->str();
-
-                parameters.payloadType = codec->payloadType();
-
-                parameters.clockRate = codec->clockRate();
-
-                parameters.channels = codec->channels();
-
-                parameters.parameters.Set(codec->parameters());
-
-                for (const auto& feedback : *codec->rtcpFeedback()) {
-                    RtcpFeedback rtcpFeedback;
-                    rtcpFeedback.type = feedback->type();
-                    rtcpFeedback.parameter = feedback->parameter()->str();
-                    parameters.rtcpFeedback.emplace_back(feedback);
-                }
-                
-                dump->rtpParameters->codecs.emplace_back(parameters);
-            }
-
-            for (const auto& headExtension : *baseConsumerDump->rtpParameters()->headerExtensions()) {
-                RtpHeaderExtensionParameters parameters;
-                parameters.uri = headExtension->uri()->str();
-                parameters.id = headExtension->id()->str();
-                parameters.encrypt = headExtension->encrypt();
-                parameters.parameters.Set(headExtension->parameters());
-                dump->rtpParameters.headerExtensions.emplace_back(parameters);
-            }
-            
-            for (const auto& encoding : *baseConsumerDump->rtpParameters()->encodings()) {
-                RtpEncodingParameters parameters;
-                parameters.ssrc = encoding->ssrc();
-                parameters.rid = encoding->rid()->str();
-                parameters.codecPayloadType = encoding->codecPayloadType().value_or(0);
-                parameters.rtx.ssrc = encoding->rtx()->ssrc();
-                parameters.dtx = encoding->dtx();
-                parameters.scalabilityMode = encoding->scalabilityMode()->str();
-                parameters.maxBitrate = encoding->maxBitrate().value_or(0);
-                dump->rtpParameters.encodings.emplace_back(parameters);
-            }
-
-            dump->rtpParameters.rtcp.cname = baseConsumerDump->rtpParameters()->rtcp()->cname()->str();
-            dump->rtpParameters.rtcp.reducedSize = baseConsumerDump->rtpParameters()->rtcp()->reducedSize();
+            dump->rtpParameters = *parseRtpParameters(baseConsumerDump->rtpParameters());
         }
 
         // std::vector<RtpEncodingParameters> consumableRtpEncodings;
         {
-            for (const auto& encoding : *baseConsumerDump->consumableRtpEncodings())) {
-                RtpEncodingParameters parameters;
-                parameters.ssrc = encoding->ssrc();
-                parameters.rid = encoding->rid()->str();
-                parameters.codecPayloadType = encoding->codecPayloadType().value_or(0);
-                parameters.rtx.ssrc = encoding->rtx()->ssrc();
-                parameters.dtx = encoding->dtx();
-                parameters.scalabilityMode = encoding->scalabilityMode()->str();
-                parameters.maxBitrate = encoding->maxBitrate().value_or(0);
+            for (const auto& encoding : *baseConsumerDump->consumableRtpEncodings()) {
+                RtpEncodingParameters parameters = *parseRtpEncodingParameters(encoding);
                 dump->consumableRtpEncodings.emplace_back(parameters);
             }
         }
         
         // std::vector<uint8_t> supportedCodecPayloadTypes;
         {
-            for (const auto& type : *baseConsumerDump->supportedCodecPayloadTypes())) {
+            for (const auto& type : *baseConsumerDump->supportedCodecPayloadTypes()) {
                 dump->supportedCodecPayloadTypes.emplace_back(type);
             }
         }
         
         // std::vector<std::string> traceEventTypes;
         {
-            for (const auto& type : *baseConsumerDump->traceEventTypes())) {
-                auto eventType = consumerTraceEventTypeFromFbs(*type);
+            for (const auto& type : *baseConsumerDump->traceEventTypes()) {
+                auto eventType = consumerTraceEventTypeFromFbs(type);
                 dump->traceEventTypes.emplace_back(eventType);
             }
         }
@@ -544,6 +497,8 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         dump->paused = baseConsumerDump->paused();
         dump->producerPaused = baseConsumerDump->producerPaused();
         dump->priority = baseConsumerDump->priority();
+        
+        return dump;
     }
 
     std::shared_ptr<SimpleConsumerDump> ConsumerController::parseSimpleConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
@@ -552,7 +507,6 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         auto dump = std::make_shared<SimpleConsumerDump>();
         dump->type = "simple";
-    
         dump->id = base->id;
         dump->producerId = base->producerId;
         dump->kind = base->kind;
@@ -563,8 +517,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         dump->paused = base->paused;
         dump->producerPaused = base->producerPaused;
         dump->priority = base->priority;
-        
-        dump->rtpStream = parseRtpStream(consumerDump->rtpStreams());
+        dump->rtpStream = *parseRtpStream(*consumerDump->rtpStreams()->begin());
         
         return dump;
     }
@@ -585,9 +538,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         dump->paused = base->paused;
         dump->producerPaused = base->producerPaused;
         dump->priority = base->priority;
-        
-        dump->rtpStream = parseRtpStream(consumerDump->rtpStreams());
-        
+        dump->rtpStream = *parseRtpStream(*consumerDump->rtpStreams()->begin());
         dump->preferredSpatialLayer = consumerDump->preferredSpatialLayer().value_or(0);
         dump->targetSpatialLayer = consumerDump->targetSpatialLayer().value_or(0);
         dump->currentSpatialLayer = consumerDump->currentSpatialLayer().value_or(0);
@@ -600,7 +551,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
 
     std::shared_ptr<SvcConsumerDump> ConsumerController::parseSvcConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
     {
-        auto dump = parseSvcConsumerDump(consumerDump);
+        auto dump = parseSimulcastConsumerDump(consumerDump);
         
         dump->type = "svc";
         
@@ -611,7 +562,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
     {
         auto base = parseBaseConsumerDump(consumerDump->base());
         
-        auto dump = std::make_shared<SimpleConsumerDump>();
+        auto dump = std::make_shared<PipeConsumerDump>();
         dump->type = "pipe";
     
         dump->id = base->id;
@@ -625,7 +576,10 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         dump->producerPaused = base->producerPaused;
         dump->priority = base->priority;
         
-        dump->rtpStream = parseRtpStream(consumerDump->rtpStreams());
+        for (const auto& stream : *consumerDump->rtpStreams()) {
+            auto s = parseRtpStream(stream);
+            dump->rtpStreams.emplace_back(*s);
+        }
         
         return dump;
     }
@@ -656,7 +610,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             traceInfo->ssrc = traceInfoFBS->ssrc();
             eventData->info = traceInfo;
         }
-        else if ()trace->info_type() == FBS::Consumer::TraceInfo::RtpTraceInfo {
+        else if (trace->info_type() == FBS::Consumer::TraceInfo::RtpTraceInfo) {
             auto traceInfo = std::make_shared<KeyFrameTraceInfo>();
             auto traceInfoFBS = trace->info_as_KeyFrameTraceInfo();
             traceInfo->isRtx = traceInfoFBS->isRtx();
@@ -672,74 +626,9 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         auto layers = std::make_shared<ConsumerLayers>();
         
         layers->spatialLayer = data->spatialLayer();
-        layers->temporalLayer = data->temporalLayer();
+        layers->temporalLayer = data->temporalLayer().value_or(0);
         
         return layers;
-    }
-
-    std::shared_ptr<RtpStreamParameters> ConsumerController::parseRtpStreamParameters(const FBS::RtpStream::Params* data)
-    {
-        auto parameters = std::make_shared<RtpStreamParameters>();
-        
-        parameters->encodingIdx = data->encodingIdx();
-        parameters->ssrc = data->ssrc();
-        parameters->payloadType = data->payloadType();
-        parameters->mimeType = data->mimeType()->str();
-        parameters->clockRate = data->clockRate();
-        parameters->rid = data->rid()->str();
-        parameters->cname = data->cname()->str();
-        parameters->rtxSsrc = data->rtxSsrc();
-        parameters->rtxPayloadType = data->rtxPayloadType();
-        parameters->useNack = data->useNack();
-        parameters->usePli = data->usePli();
-        parameters->useFir = data->useFir();
-        parameters->useInBandFec = data->useInBandFec();
-        parameters->useDtx = data->useDtx();
-        parameters->spatialLayers = data->spatialLayers();
-        parameters->temporalLayers = data->temporalLayers();
-        
-        return parameters;
-    }
-
-    std::shared_ptr<RtxStreamParameters> ConsumerController::parseRtxStreamParameters(const FBS::RtxStream::Params* data)
-    {
-        auto parameters = std::make_shared<RtxStreamParameters>();
-        
-        parameters->ssrc = data->ssrc();
-        parameters->payloadType = data->payloadType();
-        parameters->mimeType = data->mimeType()->str();
-        parameters->clockRate = data->clockRate();
-        parameters->rrid = data->rrid()->str();
-        parameters->cname = data->cname()->str();
-        
-        return parameters;
-    }
-
-    std::shared_ptr<RtxStreamDump> ConsumerController::parseRtxStream(const FBS::RtxStream::RtxDump* data)
-    {
-        auto dump = std::make_shared<RtxStreamDump>();
-        
-        dump->params = parseRtxStreamParameters(data->params());
-                                                
-        return dump;
-    }
-
-    std::shared_ptr<RtpStreamDump> ConsumerController::parseRtpStream(const FBS::RtpStream::Dump* data)
-    {
-        auto dump = std::make_shared<RtpStreamDump>();
-            
-        dump->params = parseRtxStreamParameters(data->params());
-        
-        std::shared_ptr<RtxStreamDump> rtxStream;
-        if (data->rtxStream()) {
-            rtxStream = parseRtxStream(data->rtxStream());
-        }
-        
-        dump->rtxStream = rtxStream;
-        
-        dump->score = data->score();
-        
-        return dump;
     }
 
     std::vector<std::shared_ptr<ConsumerStat>> ConsumerController::parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary)
@@ -756,7 +645,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             consumerStat->type = "";
             consumerStat->packetCount = sendStats->packetCount();
             consumerStat->byteCount = sendStats->byteCount();
-            consumerStat->bitrate = = sendStats->bitrate();
+            consumerStat->bitrate = sendStats->bitrate();
             
             auto baseStats = st->data_as_BaseStats();
             // base
@@ -776,11 +665,13 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             consumerStat->pliCount = baseStats->pliCount();
             consumerStat->firCount = baseStats->firCount();
             consumerStat->score = baseStats->score();
-            consumerStat->roundTripTime =baseStats->roundTripTime();
+            consumerStat->roundTripTime = baseStats->roundTripTime();
             consumerStat->rtxPacketsDiscarded = baseStats->rtxPacketsDiscarded();
             
-            result->emplace_back(consumerStat);
+            result.emplace_back(consumerStat);
         }
+        
+        return result;
     }
 
 }

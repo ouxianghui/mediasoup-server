@@ -10,7 +10,6 @@
 #include "producer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
-#include "payload_channel.h"
 
 namespace srv {
 
@@ -63,16 +62,9 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
+        auto requestOffset = FBS::Transport::CreateCloseProducerRequestDirect(channel->builder(), _internal.producerId.c_str());
         
-        nlohmann::json reqData;
-        reqData["producerId"] = _internal.producerId;
-        
-        channel->request("transport.closeProducer", _internal.transportId, reqData.dump());
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_PRODUCER, FBS::Request::Body::Transport_CloseProducerRequest, requestOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -94,39 +86,45 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
         this->transportCloseSignal();
         
         this->closeSignal();
     }
 
-    nlohmann::json ProducerController::dump()
+    std::shared_ptr<ProducerDump> ProducerController::dump()
     {
         SRV_LOGD("dump()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("producer.dump", _internal.producerId, "{}");
+        auto data = channel->request(FBS::Request::Method::PRODUCER_DUMP, _internal.producerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        return parseProducerDump(response->body_as_Producer_DumpResponse());
     }
 
-    nlohmann::json ProducerController::getStats()
+    std::vector<std::shared_ptr<ProducerStat>> ProducerController::getStats()
     {
         SRV_LOGD("getStats()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return std::vector<ProducerStat>();
+            return {};
         }
         
-        return channel->request("producer.getStats", _internal.producerId, "{}");
+        auto data = channel->request(FBS::Request::Method::PRODUCER_GET_STATS, _internal.producerId);
+        
+        auto message = FBS::Message::GetMessage(data.data());
+        
+        auto response = message->data_as_Response();
+        
+        return parseProducerStats(response->body_as_Producer_GetStatsResponse());
     }
 
     void ProducerController::pause()
@@ -138,7 +136,7 @@ namespace srv {
             return;
         }
 
-        channel->request("producer.pause", _internal.producerId, "{}");
+        channel->request(FBS::Request::Method::PRODUCER_PAUSE, _internal.producerId);
         
         bool wasPaused = _paused;
         
@@ -159,7 +157,7 @@ namespace srv {
             return;
         }
 
-        channel->request("producer.resume", _internal.producerId, "{}");
+        channel->request(FBS::Request::Method::PRODUCER_RESUME, _internal.producerId);
         
         bool wasPaused = _paused;
         
@@ -180,27 +178,31 @@ namespace srv {
         if (!channel) {
             return;
         }
-        
-        nlohmann::json reqData = nlohmann::json::array();
+
+        std::vector<FBS::Producer::TraceEventType> eventTypes;
         for (const auto& type : types) {
-            reqData.emplace_back(type);
+            eventTypes.emplace_back(producerTraceEventTypeToFbs(type));
         }
         
-        nlohmann::json data = channel->request("producer.enableTraceEvent", _internal.producerId, reqData.dump());
+        auto requestOffset = FBS::Producer::CreateEnableTraceEventRequestDirect(channel->builder(), &eventTypes);
+        
+        channel->request(FBS::Request::Method::PRODUCER_ENABLE_TRACE_EVENT, FBS::Request::Body::Producer_EnableTraceEventRequest, requestOffset, _internal.producerId);
     }
 
-    void ProducerController::send(const uint8_t* payload, size_t payloadLen)
+    void ProducerController::send(const std::vector<uint8_t>& data)
     {
-        if (payloadLen <= 0) {
+        if (data.size() <= 0) {
             return;
         }
 
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
+        auto channel = _channel.lock();
+        if (!channel) {
             return;
         }
         
-        payloadChannel->notify("roducer.send", _internal.producerId, "", payload, payloadLen);
+        auto notificationOffset = FBS::Producer::CreateSendNotificationDirect(channel->builder(), &data);
+        
+        channel->notify(FBS::Notification::Event::PRODUCER_SEND, FBS::Notification::Body::Producer_SendNotification, notificationOffset, _internal.producerId);
     }
 
     void ProducerController::handleWorkerNotifications()
@@ -214,19 +216,23 @@ namespace srv {
         channel->notificationSignal.connect(&ProducerController::onChannel, shared_from_this());
     }
 
-    void ProducerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void ProducerController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
         if (targetId != _internal.producerId) {
             return;
         }
         
-        if (event == "score") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_array()) {
+        if (event == FBS::Notification::Event::PRODUCER_SCORE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_Producer_ScoreNotification()) {
                 std::vector<ProducerScore> scores;
-                for (const auto& item : js["score"]) {
-                    ProducerScore score = item;
-                    scores.emplace_back(score);
+                for (const auto& item : *nf->scores()) {
+                    ProducerScore producerScore;
+                    producerScore.score = item->score();
+                    producerScore.ssrc = item->ssrc();
+                    producerScore.rid = item->rid()->str();
+                    scores.emplace_back(producerScore);
                 }
                 {
                     std::lock_guard<std::mutex> lock(_scoreMutex);
@@ -235,185 +241,229 @@ namespace srv {
                 this->scoreSignal(scores);
             }
         }
-        else if (event == "videoorientationchange") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                ProducerVideoOrientation orientation = js;
+        else if (event == FBS::Notification::Event::PRODUCER_VIDEO_ORIENTATION_CHANGE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_Producer_VideoOrientationChangeNotification()) {
+                ProducerVideoOrientation orientation;
+                orientation.camera = nf->camera();
+                orientation.flip = nf->flip();
+                orientation.rotation = nf->rotation();
                 this->videoOrientationChangeSignal(orientation);
             }
         }
-        else if (event == "trace") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                ProducerTraceEventData eventData = js;
+        else if (event == FBS::Notification::Event::PRODUCER_TRACE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_Producer_TraceNotification()) {
+                ProducerTraceEventData eventData = *parseTraceEventData(nf);
                 this->traceSignal(eventData);
             }
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
     }
 
-}
-
-namespace srv
-{
-    void to_json(nlohmann::json& j, const ProducerTraceEventData& st)
+    std::string ProducerController::producerTypeFromFbs(FBS::RtpParameters::Type type)
     {
-        j["type"] = st.type;
-        j["timestamp"] = st.timestamp;
-        j["direction"] = st.direction;
-        j["info"] = st.info;
-    }
-
-    void from_json(const nlohmann::json& j, ProducerTraceEventData& st)
-    {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
-        }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
-        }
-        if (j.contains("direction")) {
-            j.at("direction").get_to(st.direction);
-        }
-        if (j.contains("info")) {
-            j.at("info").get_to(st.info);
+        switch (type)
+        {
+            case FBS::RtpParameters::Type::SIMPLE:
+                return "simple";
+            case FBS::RtpParameters::Type::SIMULCAST:
+                return "simulcast";
+            case FBS::RtpParameters::Type::SVC:
+                return "svc";
+            default:
+                SRV_LOGE("invalid FbsRtpParameters.Type: %u", (uint8_t)type);
+                return "";
         }
     }
 
-    void to_json(nlohmann::json& j, const ProducerScore& st)
+    FBS::RtpParameters::Type ProducerController::producerTypeToFbs(const std::string& type)
     {
-        j["ssrc"] = st.ssrc;
-        j["rid"] = st.rid;
-        j["score"] = st.score;
-    }
-
-    void from_json(const nlohmann::json& j, ProducerScore& st)
-    {
-        if (j.contains("ssrc")) {
-            j.at("ssrc").get_to(st.ssrc);
+        if (type == "simple") {
+            return FBS::RtpParameters::Type::SIMPLE;
         }
-        if (j.contains("rid")) {
-            j.at("rid").get_to(st.rid);
+        else if (type == "simulcast") {
+            return FBS::RtpParameters::Type::SIMULCAST;
         }
-        if (j.contains("score")) {
-            j.at("score").get_to(st.score);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const ProducerVideoOrientation& st)
-    {
-        j["camera"] = st.camera;
-        j["flip"] = st.flip;
-        j["rotation"] = st.rotation;
-    }
-
-    void from_json(const nlohmann::json& j, ProducerVideoOrientation& st)
-    {
-        if (j.contains("camera")) {
-            j.at("camera").get_to(st.camera);
-        }
-        if (j.contains("flip")) {
-            j.at("flip").get_to(st.flip);
-        }
-        if (j.contains("rotation")) {
-            j.at("rotation").get_to(st.rotation);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const ProducerStat& st)
-    {
-        j["type"] = st.type;
-        j["timestamp"] = st.timestamp;
-        j["ssrc"] = st.ssrc;
-        j["rtxSsrc"] = st.rtxSsrc;
-        j["kind"] = st.kind;
-
-        j["mimeType"] = st.mimeType;
-        j["packetsLost"] = st.packetsLost;
-        j["fractionLost"] = st.fractionLost;
-        j["packetsDiscarded"] = st.packetsDiscarded;
-        j["packetsRetransmitted"] = st.packetsRetransmitted;
-
-        j["packetsRepaired"] = st.packetsRepaired;
-        j["nackCount"] = st.nackCount;
-        j["nackPacketCount"] = st.nackPacketCount;
-        j["pliCount"] = st.pliCount;
-        j["firCount"] = st.firCount;
-
-        j["score"] = st.score;
-        j["packetCount"] = st.packetCount;
-        j["byteCount"] = st.byteCount;
-        j["bitrate"] = st.bitrate;
-        j["roundTripTime"] = st.roundTripTime;
-    }
-
-    void from_json(const nlohmann::json& j, ProducerStat& st)
-    {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
-        }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
-        }
-        if (j.contains("ssrc")) {
-            j.at("ssrc").get_to(st.ssrc);
-        }
-        if (j.contains("rtxSsrc")) {
-            j.at("rtxSsrc").get_to(st.rtxSsrc);
-        }
-        if (j.contains("kind")) {
-            j.at("kind").get_to(st.kind);
+        else if (type == "svc") {
+            return FBS::RtpParameters::Type::SVC;
         }
         
-        if (j.contains("mimeType")) {
-            j.at("mimeType").get_to(st.mimeType);
+        return FBS::RtpParameters::Type::MIN;
+    }
+
+    FBS::Producer::TraceEventType ProducerController::producerTraceEventTypeToFbs(const std::string& eventType)
+    {
+        if (eventType == "keyframe") {
+            return FBS::Producer::TraceEventType::KEYFRAME;
         }
-        if (j.contains("packetsLost")) {
-            j.at("packetsLost").get_to(st.packetsLost);
+        else if (eventType == "fir") {
+            return FBS::Producer::TraceEventType::FIR;
         }
-        if (j.contains("fractionLost")) {
-            j.at("fractionLost").get_to(st.fractionLost);
+        else if (eventType == "nack") {
+            return FBS::Producer::TraceEventType::NACK;
         }
-        if (j.contains("packetsDiscarded")) {
-            j.at("packetsDiscarded").get_to(st.packetsDiscarded);
+        else if (eventType == "pli") {
+            return FBS::Producer::TraceEventType::PLI;
         }
-        if (j.contains("packetsRetransmitted")) {
-            j.at("packetsRetransmitted").get_to(st.packetsRetransmitted);
+        else if (eventType == "rtp") {
+            return FBS::Producer::TraceEventType::RTP;
+        }
+        else {
+            SRV_LOGE("invalid ProducerTraceEventType: %s", eventType.c_str());
+            return FBS::Producer::TraceEventType::MIN;
+        }
+    }
+
+    std::string ProducerController::producerTraceEventTypeFromFbs(FBS::Producer::TraceEventType eventType)
+    {
+        switch (eventType)
+        {
+            case FBS::Producer::TraceEventType::KEYFRAME:
+                return "keyframe";
+            case FBS::Producer::TraceEventType::FIR:
+                return "fir";
+            case FBS::Producer::TraceEventType::NACK:
+                return "nack";
+            case FBS::Producer::TraceEventType::PLI:
+                return "pli";
+            case FBS::Producer::TraceEventType::RTP:
+                return "rtp";
+            default:
+                SRV_LOGE("invalid FBS::Producer::TraceEventType: %u", (uint8_t)eventType);
+                return "";
+        }
+    }
+
+    std::shared_ptr<ProducerDump> ProducerController::parseProducerDump(const FBS::Producer::DumpResponse* data)
+    {
+        auto dump = std::make_shared<ProducerDump>();
+
+        dump->id = data->id()->str();
+        dump->kind = data->kind() == FBS::RtpParameters::MediaKind::AUDIO ? "audio" : "video";
+        dump->type = producerTypeFromFbs(data->type());
+        dump->rtpParameters = *parseRtpParameters(data->rtpParameters());
+
+        for (const auto& codec : *data->rtpMapping()->codecs()) {
+            dump->rtpMapping.codecs.emplace(std::pair<uint8_t, uint8_t>(codec->payloadType(), codec->mappedPayloadType()));
         }
         
-        if (j.contains("packetsRepaired")) {
-            j.at("packetsRepaired").get_to(st.packetsRepaired);
-        }
-        if (j.contains("nackCount")) {
-            j.at("nackCount").get_to(st.nackCount);
-        }
-        if (j.contains("nackPacketCount")) {
-            j.at("nackPacketCount").get_to(st.nackPacketCount);
-        }
-        if (j.contains("pliCount")) {
-            j.at("pliCount").get_to(st.pliCount);
-        }
-        if (j.contains("firCount")) {
-            j.at("firCount").get_to(st.firCount);
+        for (const auto& encoding : *data->rtpMapping()->encodings()) {
+            RtpEncodingMapping rtpEncodingMapping;
+            rtpEncodingMapping.ssrc = encoding->ssrc().value_or(0);
+            rtpEncodingMapping.rid = encoding->rid()->str();
+            rtpEncodingMapping.mappedSsrc = encoding->mappedSsrc();
+            dump->rtpMapping.encodings.emplace_back(rtpEncodingMapping);
         }
         
-        if (j.contains("score")) {
-            j.at("score").get_to(st.score);
+        for (const auto& rtpStream : *data->rtpStreams()) {
+            dump->rtpStreams.emplace_back(*parseRtpStream(rtpStream));
         }
-        if (j.contains("packetCount")) {
-            j.at("packetCount").get_to(st.packetCount);
+        
+        for (const auto& eventType : *data->traceEventTypes()) {
+            dump->traceEventTypes.emplace_back(producerTraceEventTypeFromFbs(eventType));
         }
-        if (j.contains("byteCount")) {
-            j.at("byteCount").get_to(st.byteCount);
+        
+        dump->paused = data->paused();
+        
+        return dump;
+    }
+
+    std::vector<std::shared_ptr<ProducerStat>> ProducerController::parseProducerStats(const FBS::Producer::GetStatsResponse* binary)
+    {
+        std::vector<std::shared_ptr<ProducerStat>> result;
+        
+        auto stats = binary->stats();
+        
+        for (const auto& st : *stats) {
+            auto producerStat = std::make_shared<ProducerStat>();
+            
+            auto recvStats = st->data_as_RecvStats();
+            // TODO:
+            producerStat->type = "";
+            producerStat->packetCount = recvStats->packetCount();
+            producerStat->byteCount = recvStats->byteCount();
+            producerStat->bitrate = recvStats->bitrate();
+            producerStat->jitter = recvStats->jitter();
+            producerStat->bitrateByLayer = parseBitrateByLayer(recvStats);
+            
+            auto baseStats = st->data_as_BaseStats();
+            // base
+            producerStat->timestamp = baseStats->timestamp();;
+            producerStat->ssrc = baseStats->ssrc();
+            producerStat->rtxSsrc = baseStats->rtxSsrc().value_or(0);
+            producerStat->rid = baseStats->rid()->str();
+            producerStat->kind = baseStats->kind() == FBS::RtpParameters::MediaKind::AUDIO ? "audio" : "video";
+            producerStat->mimeType = baseStats->mimeType()->str();
+            producerStat->packetsLost = baseStats->packetsLost();
+            producerStat->fractionLost = baseStats->fractionLost();
+            producerStat->packetsDiscarded = baseStats->packetsDiscarded();
+            producerStat->packetsRetransmitted = baseStats->packetsRetransmitted();
+            producerStat->packetsRepaired = baseStats->packetsRepaired();
+            producerStat->nackCount = baseStats->nackCount();
+            producerStat->nackPacketCount = baseStats->nackPacketCount();
+            producerStat->pliCount = baseStats->pliCount();
+            producerStat->firCount = baseStats->firCount();
+            producerStat->score = baseStats->score();
+            producerStat->roundTripTime = baseStats->roundTripTime();
+            producerStat->rtxPacketsDiscarded = baseStats->rtxPacketsDiscarded();
+            
+            result.emplace_back(producerStat);
         }
-        if (j.contains("bitrate")) {
-            j.at("bitrate").get_to(st.bitrate);
+    
+        return result;
+    }
+
+    std::shared_ptr<ProducerScore> ProducerController::parseProducerScore(const FBS::Producer::Score* binary)
+    {
+        auto producerScore = std::make_shared<ProducerScore>();
+        
+        producerScore->ssrc = binary->ssrc();
+        producerScore->rid = binary->rid()->str();
+        producerScore->score = binary->ssrc();
+        
+        return producerScore;
+    }
+
+    std::shared_ptr<ProducerTraceEventData> ProducerController::parseTraceEventData(const FBS::Producer::TraceNotification* trace)
+    {
+        auto eventData = std::make_shared<ProducerTraceEventData>();
+        eventData->type = producerTraceEventTypeFromFbs(trace->type());
+        eventData->direction = trace->direction() == FBS::Common::TraceDirection::DIRECTION_IN ? "in" : "out";
+        eventData->timestamp = trace->timestamp();
+
+        if (trace->info_type() == FBS::Producer::TraceInfo::KeyFrameTraceInfo) {
+            auto traceInfo = std::make_shared<KeyFrameTraceInfo>();
+            auto traceInfoFBS = trace->info_as_KeyFrameTraceInfo();
+            traceInfo->isRtx = traceInfoFBS->isRtx();
+            traceInfo->rtpPacket = traceInfoFBS->rtpPacket();
+            eventData->info = traceInfo;
         }
-        if (j.contains("roundTripTime")) {
-            j.at("roundTripTime").get_to(st.roundTripTime);
+        else if (trace->info_type() == FBS::Producer::TraceInfo::FirTraceInfo) {
+            auto traceInfo = std::make_shared<FirTraceInfo>();
+            auto traceInfoFBS = trace->info_as_FirTraceInfo();
+            traceInfo->ssrc = traceInfoFBS->ssrc();
+            eventData->info = traceInfo;
         }
+        else if (trace->info_type() == FBS::Producer::TraceInfo::PliTraceInfo) {
+            auto traceInfo = std::make_shared<PliTraceInfo>();
+            auto traceInfoFBS = trace->info_as_PliTraceInfo();
+            traceInfo->ssrc = traceInfoFBS->ssrc();
+            eventData->info = traceInfo;
+        }
+        else if (trace->info_type() == FBS::Producer::TraceInfo::RtpTraceInfo) {
+            auto traceInfo = std::make_shared<KeyFrameTraceInfo>();
+            auto traceInfoFBS = trace->info_as_KeyFrameTraceInfo();
+            traceInfo->isRtx = traceInfoFBS->isRtx();
+            traceInfo->rtpPacket = traceInfoFBS->rtpPacket();
+            eventData->info = traceInfo;
+        }
+        
+        return eventData;
     }
 
 }

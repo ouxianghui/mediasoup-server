@@ -16,7 +16,7 @@
 #include "h264_profile_level_id.h"
 #include "utils.h"
 
-#define MSC_CLASS "ortc"
+#define SRV_CLASS "ortc"
 
 namespace srv {
     

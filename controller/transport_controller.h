@@ -78,9 +78,6 @@ namespace srv {
         std::string protocol;
     };
 
-    void to_json(nlohmann::json& j, const TransportTuple& st);
-    void from_json(const nlohmann::json& j, TransportTuple& st);
-
     /**
      * Valid types for 'trace' event.
      */
@@ -114,8 +111,73 @@ namespace srv {
         nlohmann::json info;
     };
 
-    void to_json(nlohmann::json& j, const TransportTraceEventData& st);
-    void from_json(const nlohmann::json& j, TransportTraceEventData& st);
+    struct RtpListenerDump
+    {
+        // Table of SSRC / Producer pairs.
+        std::unordered_map<uint32_t, std::string> ssrcTable;
+        //  Table of MID / Producer pairs.
+        std::unordered_map<std::string, std::string> midTable;
+        //  Table of RID / Producer pairs.
+        std::unordered_map<std::string, std::string> ridTable;
+        
+    };
+
+    struct SctpListenerDump
+    {
+        std::unordered_map<uint16_t, std::string> streamIdTable;
+    };
+
+    struct RecvRtpHeaderExtensions
+    {
+        uint8_t mid;
+        uint8_t rid;
+        uint8_t rrid;
+        uint32_t absSendTime;
+        uint8_t transportWideCc01;
+    };
+
+    struct BaseTransportDump
+    {
+        std::string id;
+        bool direct;
+        std::vector<std::string> producerIds;
+        std::vector<std::string> consumerIds;
+        std::vector<std::pair<uint32_t, std::string>> mapSsrcConsumerId;
+        std::vector<std::pair<uint32_t, std::string>> mapRtxSsrcConsumerId;
+        RecvRtpHeaderExtensions recvRtpHeaderExtensions;
+        RtpListenerDump rtpListener;
+        std::size_t maxMessageSize;
+        std::vector<std::string> dataProducerIds;
+        std::vector<std::string> dataConsumerIds;
+        SctpParameters sctpParameters;
+        std::string sctpState;
+        SctpListenerDump sctpListener;
+        std::vector<std::string> traceEventTypes;
+    };
+
+    struct BaseTransportStats
+    {
+        std::string transportId;
+        uint64_t timestamp;
+        std::string sctpState;
+        std::size_t bytesReceived;
+        uint32_t recvBitrate;
+        std::size_t bytesSent;
+        uint32_t sendBitrate;
+        std::size_t rtpBytesReceived;
+        uint32_t rtpRecvBitrate;
+        std::size_t rtpBytesSent;
+        uint32_t rtpSendBitrate;
+        std::size_t rtxBytesReceived;
+        uint32_t rtxRecvBitrate;
+        std::size_t rtxBytesSent;
+        uint32_t rtxSendBitrate;
+        std::size_t probationBytesSent;
+        uint32_t probationSendBitrate;
+        uint32_t availableOutgoingBitrate;
+        uint32_t availableIncomingBitrate;
+        uint32_t maxIncomingBitrate;
+    };
 
     // export type SctpState = 'new' | 'connecting' | 'connected' | 'failed' | 'closed';
 

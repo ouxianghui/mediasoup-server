@@ -45,10 +45,11 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.connect(&ActiveSpeakerObserverController::onChannel, self);
     }
 
-    void ActiveSpeakerObserverController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void ActiveSpeakerObserverController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
         SRV_LOGD("onChannel()");
      
@@ -56,18 +57,18 @@ namespace srv {
             return;
         }
         
-        if (event == "dominantspeaker") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                auto producerId = js["producerId"];
-                assert(_getProducerController);
+        if (event == FBS::Notification::Event::ACTIVESPEAKEROBSERVER_DOMINANT_SPEAKER) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_ActiveSpeakerObserver_DominantSpeakerNotification()) {
+                auto producerId = nf->producerId()->str();
                 auto producer = _getProducerController(producerId);
                 ActiveSpeakerObserverDominantSpeaker speaker { producer };
                 this->dominantSpeakerSignal(speaker);
             }
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
     }
 

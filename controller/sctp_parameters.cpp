@@ -11,6 +11,46 @@
 
 namespace srv {
     
+    flatbuffers::Offset<FBS::SctpParameters::SctpStreamParameters> SctpStreamParameters::serialize(flatbuffers::FlatBufferBuilder& builder) const
+    {
+        return FBS::SctpParameters::CreateSctpStreamParameters(builder,
+                                                               this->streamId,
+                                                               this->ordered,
+                                                               this->maxPacketLifeTime ? flatbuffers::Optional<uint16_t>(this->maxPacketLifeTime) : flatbuffers::nullopt,
+                                                               this->maxRetransmits ? flatbuffers::Optional<uint16_t>(this->maxRetransmits) : flatbuffers::nullopt);
+    }
+
+    std::shared_ptr<SctpParametersDump> parseSctpParametersDump(const FBS::SctpParameters::SctpParameters* binary)
+    {
+        auto dump = std::make_shared<SctpParametersDump>();
+        
+        dump->port = binary->port();
+        dump->OS = binary->os();
+        dump->MIS = binary->mis();
+        dump->maxMessageSize = binary->maxMessageSize();
+        dump->sendBufferSize = binary->sendBufferSize();
+        dump->sctpBufferedAmount = binary->sctpBufferedAmount();
+        dump->isDataChannel = binary->isDataChannel();
+        
+        return dump;
+    }
+
+    std::shared_ptr<SctpStreamParameters> parseSctpStreamParameters(const FBS::SctpParameters::SctpStreamParameters* data)
+    {
+        auto parameters = std::make_shared<SctpStreamParameters>();
+        
+        parameters->streamId = data->streamId();
+        parameters->ordered = data->ordered().value_or(false);
+        parameters->maxPacketLifeTime = data->maxPacketLifeTime().value_or(0);
+        parameters->maxRetransmits = data->maxRetransmits().value_or(0);
+        
+        return parameters;
+    }
+    
+}
+
+namespace srv {
+    
     void to_json(nlohmann::json& j, const SctpStreamParameters& st)
     {
         j["streamId"] = st.streamId;
@@ -85,18 +125,6 @@ namespace srv {
         if (j.contains("numStreams")) {
             j.at("numStreams").get_to(st.numStreams);
         }
-    }
-
-    std::shared_ptr<SctpStreamParameters> parseSctpStreamParameters(const FBS::SctpParameters::SctpStreamParameters* data)
-    {
-        auto parameters = std::make_shared<SctpStreamParameters>();
-        
-        parameters->streamId = data->streamId();
-        parameters->ordered = data->ordered().value_or(false);
-        parameters->maxPacketLifeTime = data->maxPacketLifeTime().value_or(0);
-        parameters->maxRetransmits = data->maxRetransmits().value_or(0);
-        
-        return parameters;
     }
     
 }

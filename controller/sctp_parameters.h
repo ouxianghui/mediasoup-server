@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include "nlohmann/json.hpp"
+#include "flatbuffers/flexbuffers.h"
 #include "FBS/sctpParameters.h"
 
 namespace srv
@@ -67,22 +68,22 @@ namespace srv
         /**
          * Must always equal 5000.
          */
-        int port = 0;
+        uint16_t port = 0;
 
         /**
          * Initially requested number of outgoing SCTP streams.
          */
-        int OS = 0;
+        uint16_t OS = 0;
 
         /**
          * Maximum number of incoming SCTP streams.
          */
-        int MIS = 0;
+        uint16_t MIS = 0;
 
         /**
          * Maximum allowed size for SCTP messages.
          */
-        int maxMessageSize = 0;
+        uint32_t maxMessageSize = 0;
     };
 
     void to_json(nlohmann::json& j, const SctpParameters& st);
@@ -119,11 +120,25 @@ namespace srv
          * be retransmitted.
          */
         uint16_t maxRetransmits = 0;
+        
+        flatbuffers::Offset<FBS::SctpParameters::SctpStreamParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
-
 
     void to_json(nlohmann::json& j, const SctpStreamParameters& st);
     void from_json(const nlohmann::json& j, SctpStreamParameters& st);
+
+    struct SctpParametersDump
+    {
+        uint16_t port;
+        uint16_t OS;
+        uint16_t MIS;
+        uint32_t maxMessageSize;
+        uint32_t sendBufferSize;
+        uint32_t sctpBufferedAmount;
+        bool isDataChannel;
+    };
+
+    std::shared_ptr<SctpParametersDump> parseSctpParametersDump(const FBS::SctpParameters::SctpParameters* binary);
 
     std::shared_ptr<SctpStreamParameters> parseSctpStreamParameters(const FBS::SctpParameters::SctpStreamParameters* data);
 }

@@ -36,34 +36,17 @@ namespace srv {
         nlohmann::json appData;
     };
 
-    struct DirectTransportStat
+    struct DirectTransportDump : BaseTransportDump {};
+
+    struct DirectTransportStat : BaseTransportStats
     {
-        // Common to all Transports.
         std::string type;
-        std::string transportId;
-        int64_t timestamp;
-        
-        int32_t bytesReceived;
-        int32_t recvBitrate;
-        int32_t bytesSent;
-        int32_t sendBitrate;
-        int32_t rtpBytesReceived;
-        int32_t rtpRecvBitrate;
-        int32_t rtpBytesSent;
-        int32_t rtpSendBitrate;
-        int32_t rtxBytesReceived;
-        int32_t rtxRecvBitrate;
-        int32_t rtxBytesSent;
-        int32_t rtxSendBitrate;
-        int32_t probationBytesSent;
-        int32_t probationSendBitrate;
-        int32_t availableOutgoingBitrate;
-        int32_t availableIncomingBitrate;
-        int32_t maxIncomingBitrate;
     };
 
-    void to_json(nlohmann::json& j, const DirectTransportStat& st);
-    void from_json(const nlohmann::json& j, DirectTransportStat& st);
+    struct DirectTransportData : TransportData
+    {
+        //sctpParameters?: SctpParameters;
+    };
 
     struct DirectTransportConstructorOptions : TransportConstructorOptions {};
 
@@ -82,9 +65,11 @@ namespace srv {
 
         void onRouterClosed();
 
-        nlohmann::json getStats() override;
+        std::shared_ptr<BaseTransportDump> dump() override;
         
-        void connect(const nlohmann::json& data) override;
+        std::shared_ptr<BaseTransportStats> getStats() override;
+        
+        void connect(const std::shared_ptr<ConnectData>& data) override;
 
         void setMaxIncomingBitrate(int32_t bitrate) override;
         
@@ -92,17 +77,18 @@ namespace srv {
         
         void setMinOutgoingBitrate(int32_t bitrate) override;
         
-        void sendRtcp(const uint8_t* payload, size_t payloadLen);
+        void sendRtcp(const std::vector<uint8_t>& data);
         
     public:
-        sigslot::signal<const uint8_t*, size_t> rtcpSignal;
+        sigslot::signal<const std::vector<uint8_t>&> rtcpSignal;
         
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
-        
-        void onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
     };
 
+    std::shared_ptr<DirectTransportDump> parseDirectTransportDumpResponse(const FBS::DirectTransport::DumpResponse* binary);
+
+    std::shared_ptr<DirectTransportStat> parseGetStatsResponse(const FBS::DirectTransport::GetStatsResponse* binary);
 }

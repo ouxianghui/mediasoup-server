@@ -22,8 +22,49 @@
 #include "sctp_parameters.h"
 #include "rtp_parameters.h"
 #include "srv_logger.h"
+#include "FBS/webRtcTransport.h"
 
 namespace srv {
+
+    struct WebRtcTransportListenIndividualListenInfo
+    {
+        /**
+         * Listening info.
+         */
+        std::vector<TransportListenInfo> listenInfos;
+    };
+
+    struct WebRtcTransportListenIndividualListenIp
+    {
+        /**
+         * Listening IP address or addresses in order of preference (first one is the
+         * preferred one).
+         */
+        std::vector<std::string> listenIps;
+
+        /**
+         * Fixed port to listen on instead of selecting automatically from Worker's port
+         * range.
+         */
+        uint16_t port;
+    };
+
+    class WebRtcServerController;
+
+    struct WebRtcTransportListenServer
+    {
+        /**
+         * Instance of WebRtcServer.
+         */
+        std::shared_ptr<WebRtcServerController> webRtcServer;
+    };
+
+    struct WebRtcTransportListen
+    {
+        std::shared_ptr<WebRtcTransportListenIndividualListenInfo> webRtcTransportListenIndividualListenInfo;
+        std::shared_ptr<WebRtcTransportListenIndividualListenIp> webRtcTransportListenIndividualListenIp;
+        std::shared_ptr<WebRtcTransportListenServer> webRtcTransportListenServer;
+    };
 
     struct WebRtcTransportOptions
     {
@@ -48,7 +89,7 @@ namespace srv {
         bool enableUdp = true;
 
         /**
-         * Listen in TCP. Default false.
+         * Listen in TCP. Default true if webrtcServer is given, false otherwise.
          */
         bool enableTcp = false;
 
@@ -98,18 +139,12 @@ namespace srv {
         nlohmann::json appData;
     };
 
-    void to_json(nlohmann::json& j, const WebRtcTransportOptions& st);
-    void from_json(const nlohmann::json& j, WebRtcTransportOptions& st);
-
     struct IceParameters
     {
         std::string usernameFragment;
         std::string password;
         bool iceLite;
     };
-
-    void to_json(nlohmann::json& j, const IceParameters& st);
-    void from_json(const nlohmann::json& j, IceParameters& st);
 
     struct IceCandidate
     {
@@ -124,64 +159,10 @@ namespace srv {
         std::string tcpType = "passive";
     };
 
-    void to_json(nlohmann::json& j, const IceCandidate& st);
-    void from_json(const nlohmann::json& j, IceCandidate& st);
-
-    /**
-     * The hash function algorithm (as defined in the "Hash function Textual Names"
-     * registry initially specified in RFC 4572 Section 8) and its corresponding
-     * certificate fingerprint value (in lowercase hex string as expressed utilizing
-     * the syntax of "fingerprint" in RFC 4572 Section 5).
-     */
-    struct DtlsFingerprint
+    struct WebRtcTransportStat : BaseTransportStats
     {
-        std::string algorithm;
-        std::string value;
-    };
-
-    void to_json(nlohmann::json& j, const DtlsFingerprint& st);
-    void from_json(const nlohmann::json& j, DtlsFingerprint& st);
-
-    struct DtlsParameters
-    {
-        // DtlsRole, Options: 'auto' | 'client' | 'server'
-        std::string role;
-        
-        std::vector<DtlsFingerprint> fingerprints;
-    };
-
-    void to_json(nlohmann::json& j, const DtlsParameters& st);
-    void from_json(const nlohmann::json& j, DtlsParameters& st);
-
-    struct WebRtcTransportStat
-    {
-        // Common to all Transports.
         std::string type;
-        std::string transportId;
-        uint64_t timestamp;
         
-        // Options: 'new' | 'connecting' | 'connected' | 'failed' | 'closed';
-        std::string sctpState;
-        
-        int32_t bytesReceived;
-        int32_t recvBitrate;
-        int32_t bytesSent;
-        int32_t sendBitrate;
-        int32_t rtpBytesReceived;
-        int32_t rtpRecvBitrate;
-        int32_t rtpBytesSent;
-        int32_t rtpSendBitrate;
-        int32_t rtxBytesReceived;
-        int32_t rtxRecvBitrate;
-        int32_t rtxBytesSent;
-        int32_t rtxSendBitrate;
-        int32_t probationBytesSent;
-        int32_t probationSendBitrate;
-        int32_t availableOutgoingBitrate;
-        int32_t availableIncomingBitrate;
-        int32_t maxIncomingBitrate;
-        
-        // WebRtcTransport specific.
         std::string iceRole;
         
         // Options: 'new' | 'connected' | 'completed' | 'disconnected' | 'closed'
@@ -193,8 +174,32 @@ namespace srv {
         std::string dtlsState;
     };
 
-    void to_json(nlohmann::json& j, const WebRtcTransportStat& st);
-    void from_json(const nlohmann::json& j, WebRtcTransportStat& st);
+    struct WebRtcTransportDump : BaseTransportDump
+    {
+        std::string iceRole = "controlled";
+        IceParameters iceParameters;
+        std::vector<IceCandidate> iceCandidates;
+        std::string iceState;
+        TransportTuple iceSelectedTuple;
+        DtlsParameters dtlsParameters;
+        std::string dtlsState;
+        std::string dtlsRemoteCert;
+    };
+
+    struct WebRtcTransportData : TransportData
+    {
+        std::string iceRole = "controlled";
+        IceParameters iceParameters;
+        std::vector<IceCandidate> iceCandidates;
+        std::string iceState;
+        TransportTuple iceSelectedTuple;
+        DtlsParameters dtlsParameters;
+        std::string dtlsState;
+        std::string dtlsRemoteCert;
+        
+        //SctpParameters sctpParameters;
+        std::string sctpState;
+    };
 
     struct WebRtcTransportConstructorOptions : TransportConstructorOptions {};
 
@@ -209,25 +214,25 @@ namespace srv {
         
         void destroy();
         
-        std::string iceRole() { return _data["iceRole"]; }
+        std::string iceRole() { return transportData()->iceRole; }
 
-        IceParameters iceParameters() { return _data["iceParameters"]; }
+        IceParameters iceParameters() { return transportData()->iceParameters; }
 
-        std::vector<IceCandidate> iceCandidates() { return _data["iceCandidates"]; }
+        std::vector<IceCandidate> iceCandidates() { return transportData()->iceCandidates; }
 
-        std::string iceState() { return _data["iceState"]; }
+        std::string iceState() { return transportData()->iceState; }
 
-        TransportTuple iceSelectedTuple() { return _data["iceSelectedTuple"]; }
+        TransportTuple iceSelectedTuple() { return transportData()->iceSelectedTuple; }
 
-        DtlsParameters dtlsParameters() { return _data["dtlsParameters"]; }
+        DtlsParameters dtlsParameters() { return transportData()->dtlsParameters; }
 
-        std::string dtlsState() { return _data["dtlsState"]; }
+        std::string dtlsState() { return transportData()->dtlsState; }
 
-        std::string dtlsRemoteCert() { return _data["dtlsRemoteCert"]; }
+        std::string dtlsRemoteCert() { return transportData()->dtlsRemoteCert; }
 
-        SctpParameters sctpParameters() { return _data["sctpParameters"]; }
+        SctpParameters sctpParameters() { return transportData()->sctpParameters; }
 
-        std::string sctpState() { return _data["sctpState"]; }
+        std::string sctpState() { return transportData()->sctpState; }
 
         void close();
         
@@ -235,11 +240,13 @@ namespace srv {
         
         void onRouterClosed();
         
-        nlohmann::json getStats() override;
+        std::shared_ptr<BaseTransportDump> dump() override;
         
-        void connect(const nlohmann::json& data) override;
+        std::shared_ptr<BaseTransportStats> getStats() override;
         
-        IceParameters restartIce();
+        void connect(const std::shared_ptr<ConnectData>& data) override;
+        
+        std::shared_ptr<IceParameters> restartIce();
 
     public:
         // transport controller id
@@ -254,9 +261,43 @@ namespace srv {
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
         
         void cleanData();
+        
+        std::shared_ptr<WebRtcTransportData> transportData() { return std::dynamic_pointer_cast<WebRtcTransportData>(this->_data); }
     };
+
+    std::string iceStateFromFbs(FBS::WebRtcTransport::IceState iceState);
+
+    std::string iceRoleFromFbs(FBS::WebRtcTransport::IceRole role);
+
+    std::string iceCandidateTypeFromFbs(FBS::WebRtcTransport::IceCandidateType type);
+
+    std::string iceCandidateTcpTypeFromFbs(FBS::WebRtcTransport::IceCandidateTcpType type);
+
+    std::string dtlsStateFromFbs(FBS::WebRtcTransport::DtlsState fbsDtlsState);
+
+    std::string dtlsRoleFromFbs(FBS::WebRtcTransport::DtlsRole role);
+
+    std::string fingerprintAlgorithmsFromFbs(FBS::WebRtcTransport::FingerprintAlgorithm algorithm);
+
+    FBS::WebRtcTransport::FingerprintAlgorithm fingerprintAlgorithmToFbs(const std::string& algorithm);
+
+    FBS::WebRtcTransport::DtlsRole dtlsRoleToFbs(const std::string& role);
+
+    std::shared_ptr<WebRtcTransportDump> parseWebRtcTransportDumpResponse(const FBS::WebRtcTransport::DumpResponse* binary);
+
+    flatbuffers::Offset<FBS::WebRtcTransport::ConnectRequest> createConnectRequest(flatbuffers::FlatBufferBuilder& builder, const DtlsParameters& dtlsParameters);
+
+    std::shared_ptr<WebRtcTransportStat> parseGetStatsResponse(const FBS::WebRtcTransport::GetStatsResponse* binary);
+
+    std::shared_ptr<IceCandidate> parseIceCandidate(const FBS::WebRtcTransport::IceCandidate* binary);
+
+    std::shared_ptr<IceParameters> parseIceParameters(const FBS::WebRtcTransport::IceParameters* binary);
+
+    std::shared_ptr<DtlsParameters> parseDtlsParameters(const FBS::WebRtcTransport::DtlsParameters* binary);
+
+    flatbuffers::Offset<FBS::WebRtcTransport::DtlsParameters> serializeDtlsParameters(flatbuffers::FlatBufferBuilder& builder, const DtlsParameters& dtlsParameters);
 
 }

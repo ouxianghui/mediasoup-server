@@ -40,13 +40,11 @@ namespace srv {
     {
         RtpObserverObserverInternal internal;
         std::shared_ptr<Channel> channel;
-        std::shared_ptr<PayloadChannel> payloadChannel;
         nlohmann::json appData;
         std::function<std::shared_ptr<ProducerController>(const std::string&)> getProducerController;
     };
 
     class Channel;
-    class PayloadChannel;
     
     class RtpObserverController : public std::enable_shared_from_this<RtpObserverController>
     {
@@ -97,9 +95,6 @@ namespace srv {
         RtpObserverObserverInternal _internal;
 
         std::weak_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };

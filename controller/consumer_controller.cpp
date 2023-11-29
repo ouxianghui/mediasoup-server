@@ -117,9 +117,9 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto requestOffset = FBS::Transport::CreateCloseConsumerRequestDirect(channel->builder(), _internal.consumerId.c_str());
+        auto reqOffset = FBS::Transport::CreateCloseConsumerRequestDirect(channel->builder(), _internal.consumerId.c_str());
 
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_CONSUMER, FBS::Request::Body::Transport_CloseConsumerRequest, requestOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_CONSUMER, FBS::Request::Body::Transport_CloseConsumerRequest, reqOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -271,9 +271,9 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         nlohmann::json reqData;
         reqData["priority"] = priority;
         
-        auto requestOffset = FBS::Consumer::CreateSetPriorityRequest(channel->builder(), priority);
+        auto reqOffset = FBS::Consumer::CreateSetPriorityRequest(channel->builder(), priority);
         
-        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PRIORITY, FBS::Request::Body::Consumer_SetPriorityRequest, requestOffset, _internal.consumerId);
+        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PRIORITY, FBS::Request::Body::Consumer_SetPriorityRequest, reqOffset, _internal.consumerId);
         
         auto message = FBS::Message::GetMessage(data.data());
         
@@ -323,9 +323,9 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             events.emplace_back(consumerTraceEventTypeToFbs(type));
         }
         
-        auto requestOffset = FBS::Consumer::CreateEnableTraceEventRequestDirect(channel->builder(), &events);
+        auto reqOffset = FBS::Consumer::CreateEnableTraceEventRequestDirect(channel->builder(), &events);
         
-        channel->request(FBS::Request::Method::CONSUMER_ENABLE_TRACE_EVENT, FBS::Request::Body::Consumer_EnableTraceEventRequest, requestOffset, _internal.consumerId);
+        channel->request(FBS::Request::Method::CONSUMER_ENABLE_TRACE_EVENT, FBS::Request::Body::Consumer_EnableTraceEventRequest, reqOffset, _internal.consumerId);
     }
 
     void ConsumerController::handleWorkerNotifications()
@@ -390,11 +390,11 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         else if (event == FBS::Notification::Event::CONSUMER_SCORE) {
             auto message = FBS::Message::GetMessage(data.data());
             auto notification = message->data_as_Notification();
-            if (auto scoreNotification = notification->body_as_Consumer_ScoreNotification()) {
+            if (auto nf = notification->body_as_Consumer_ScoreNotification()) {
                 ConsumerScore score;
-                score.score = scoreNotification->score()->score();
-                score.producerScore = scoreNotification->score()->producerScore();
-                for (const auto& s : *scoreNotification->score()->producerScores()) {
+                score.score = nf->score()->score();
+                score.producerScore = nf->score()->producerScore();
+                for (const auto& s : *nf->score()->producerScores()) {
                     score.producerScores.emplace_back(s);
                 }
                 this->scoreSignal(score);
@@ -403,10 +403,10 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         else if (event == FBS::Notification::Event::CONSUMER_LAYERS_CHANGE) {
             auto message = FBS::Message::GetMessage(data.data());
             auto notification = message->data_as_Notification();
-            if (auto layersChangeNf = notification->body_as_Consumer_LayersChangeNotification()) {
+            if (auto nf = notification->body_as_Consumer_LayersChangeNotification()) {
                 ConsumerLayers layers;
-                layers.spatialLayer = layersChangeNf->layers()->spatialLayer();
-                layers.temporalLayer = layersChangeNf->layers()->temporalLayer().value_or(0);
+                layers.spatialLayer = nf->layers()->spatialLayer();
+                layers.temporalLayer = nf->layers()->temporalLayer().value_or(0);
                  _currentLayers = layers;
                  this->layersChangeSignal(layers);
             }
@@ -414,16 +414,16 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         else if (event == FBS::Notification::Event::CONSUMER_TRACE) {
             auto message = FBS::Message::GetMessage(data.data());
             auto notification = message->data_as_Notification();
-            if (auto traceNotification = notification->body_as_Consumer_TraceNotification()) {
-                ConsumerTraceEventData eventData = *parseTraceEventData(traceNotification);
+            if (auto nf = notification->body_as_Consumer_TraceNotification()) {
+                ConsumerTraceEventData eventData = *parseTraceEventData(nf);
                 this->traceSignal(eventData);
             }
         }
         else if (event == FBS::Notification::Event::CONSUMER_RTP) {
             auto message = FBS::Message::GetMessage(data.data());
             auto notification = message->data_as_Notification();
-            if (auto rtpNotification = notification->body_as_Consumer_RtpNotification()) {
-                auto rtpData = rtpNotification->data();
+            if (auto nf = notification->body_as_Consumer_RtpNotification()) {
+                auto rtpData = nf->data();
                 std::vector<uint8_t> vec(rtpData->begin(), rtpData->end());
                 this->rtpSignal(vec);
             }
@@ -432,8 +432,11 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
     }
+}
 
-    std::shared_ptr<ConsumerDump> ConsumerController::parseConsumerDumpResponse(const FBS::Consumer::DumpResponse* response)
+namespace srv {
+
+    std::shared_ptr<ConsumerDump> parseConsumerDumpResponse(const FBS::Consumer::DumpResponse* response)
     {
         std::shared_ptr<BaseConsumerDump> consumerDump;
         
@@ -458,7 +461,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return consumerDump;
     }
 
-    std::shared_ptr<BaseConsumerDump> ConsumerController::parseBaseConsumerDump(const FBS::Consumer::BaseConsumerDump* baseConsumerDump)
+    std::shared_ptr<BaseConsumerDump> parseBaseConsumerDump(const FBS::Consumer::BaseConsumerDump* baseConsumerDump)
     {
         auto dump = std::make_shared<BaseConsumerDump>();
         dump->id = baseConsumerDump->id()->str();
@@ -501,7 +504,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return dump;
     }
 
-    std::shared_ptr<SimpleConsumerDump> ConsumerController::parseSimpleConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    std::shared_ptr<SimpleConsumerDump> parseSimpleConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
     {
         auto base = parseBaseConsumerDump(consumerDump->base());
         
@@ -522,7 +525,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return dump;
     }
 
-    std::shared_ptr<SimulcastConsumerDump> ConsumerController::parseSimulcastConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    std::shared_ptr<SimulcastConsumerDump> parseSimulcastConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
     {
         auto base = parseBaseConsumerDump(consumerDump->base());
         
@@ -549,7 +552,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return dump;
     }
 
-    std::shared_ptr<SvcConsumerDump> ConsumerController::parseSvcConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    std::shared_ptr<SvcConsumerDump> parseSvcConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
     {
         auto dump = parseSimulcastConsumerDump(consumerDump);
         
@@ -558,13 +561,13 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return dump;
     }
 
-    std::shared_ptr<PipeConsumerDump> ConsumerController::parsePipeConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
+    std::shared_ptr<PipeConsumerDump> parsePipeConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump)
     {
         auto base = parseBaseConsumerDump(consumerDump->base());
         
         auto dump = std::make_shared<PipeConsumerDump>();
         dump->type = "pipe";
-    
+
         dump->id = base->id;
         dump->producerId = base->producerId;
         dump->kind = base->kind;
@@ -584,7 +587,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return dump;
     }
 
-    std::shared_ptr<ConsumerTraceEventData> ConsumerController::parseTraceEventData(const FBS::Consumer::TraceNotification* trace)
+    std::shared_ptr<ConsumerTraceEventData> parseTraceEventData(const FBS::Consumer::TraceNotification* trace)
     {
         auto eventData = std::make_shared<ConsumerTraceEventData>();
         eventData->type = consumerTraceEventTypeFromFbs(trace->type());
@@ -621,7 +624,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return eventData;
     }
 
-    std::shared_ptr<ConsumerLayers> ConsumerController::parseConsumerLayers(const FBS::Consumer::ConsumerLayers* data)
+    std::shared_ptr<ConsumerLayers> parseConsumerLayers(const FBS::Consumer::ConsumerLayers* data)
     {
         auto layers = std::make_shared<ConsumerLayers>();
         
@@ -631,7 +634,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         return layers;
     }
 
-    std::vector<std::shared_ptr<ConsumerStat>> ConsumerController::parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary)
+    std::vector<std::shared_ptr<ConsumerStat>> parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary)
     {
         std::vector<std::shared_ptr<ConsumerStat>> result;
         

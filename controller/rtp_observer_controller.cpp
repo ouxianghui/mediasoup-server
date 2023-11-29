@@ -12,8 +12,7 @@
 #include "types.h"
 #include "uuid.h"
 #include "channel.h"
-#include "payload_channel.h"
-
+#include "FBS/rtpObserver.h"
 
 namespace srv {
 
@@ -44,17 +43,10 @@ namespace srv {
             return;
         }
         channel->notificationSignal.disconnect(shared_from_this());
+    
+        auto reqOffset = FBS::Router::CreateCloseRtpObserverRequestDirect(channel->builder(), _internal.rtpObserverId.c_str());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
-        nlohmann::json reqData;
-        reqData["rtpObserverId"] = _internal.rtpObserverId;
-        
-        channel->request("router.closeRtpObserver", _internal.routerId, reqData.dump());
+        channel->request(FBS::Request::Method::ROUTER_CLOSE_RTPOBSERVER, FBS::Request::Body::Router_CloseRtpObserverRequest, reqOffset, _internal.routerId);
         
         this->closeSignal();
     }
@@ -76,12 +68,6 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
         this->routerCloseSignal();
         
         this->closeSignal();
@@ -98,7 +84,7 @@ namespace srv {
         
         bool wasPaused = _paused;
 
-        channel->request("rtpObserver.pause", _internal.rtpObserverId, "{}");
+        channel->request(FBS::Request::Method::RTPOBSERVER_PAUSE, _internal.rtpObserverId);
 
         _paused = true;
 
@@ -119,7 +105,7 @@ namespace srv {
         
         bool wasPaused = _paused;
 
-        channel->request("rtpObserver.resume", _internal.rtpObserverId, "{}");
+        channel->request(FBS::Request::Method::RTPOBSERVER_RESUME, _internal.rtpObserverId);
 
         _paused = false;
 
@@ -154,11 +140,10 @@ namespace srv {
             return;
         }
 
-        nlohmann::json reqData;
-        reqData["producerId"] = producerId;
-
-        channel->request("rtpObserver.addProducer", _internal.rtpObserverId, reqData.dump());
-
+        auto reqOffset = FBS::RtpObserver::CreateAddProducerRequestDirect(channel->builder(), producerId.c_str());
+        
+        channel->request(FBS::Request::Method::RTPOBSERVER_ADD_PRODUCER, FBS::Request::Body::RtpObserver_AddProducerRequest, reqOffset, _internal.rtpObserverId);
+        
         this->addProducerSignal(producer);
     }
 
@@ -187,11 +172,10 @@ namespace srv {
             return;
         }
 
-        nlohmann::json reqData;
-        reqData["producerId"] = producerId;
-
-        channel->request("rtpObserver.removeProducer", _internal.rtpObserverId, reqData.dump());
-
+        auto reqOffset = FBS::RtpObserver::CreateRemoveProducerRequestDirect(channel->builder(), producerId.c_str());
+        
+        channel->request(FBS::Request::Method::RTPOBSERVER_REMOVE_PRODUCER, FBS::Request::Body::RtpObserver_RemoveProducerRequest, reqOffset, _internal.rtpObserverId);
+        
         this->removeProducerSignal(producer);
     }
 

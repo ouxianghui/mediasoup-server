@@ -65,9 +65,9 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
 
-        auto requestOffset = FBS::Transport::CreateCloseDataConsumerRequestDirect(channel->builder(), _internal.dataConsumerId.c_str());
+        auto reqOffset = FBS::Transport::CreateCloseDataConsumerRequestDirect(channel->builder(), _internal.dataConsumerId.c_str());
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATACONSUMER, FBS::Request::Body::Transport_CloseDataConsumerRequest, requestOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATACONSUMER, FBS::Request::Body::Transport_CloseDataConsumerRequest, reqOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -186,9 +186,9 @@ namespace srv {
             return;
         }
         
-        auto requestOffset = FBS::DataConsumer::CreateSetBufferedAmountLowThresholdRequest(channel->builder(), threshold);
+        auto reqOffset = FBS::DataConsumer::CreateSetBufferedAmountLowThresholdRequest(channel->builder(), threshold);
         
-        channel->request(FBS::Request::Method::DATACONSUMER_SET_BUFFERED_AMOUNT_LOW_THRESHOLD, FBS::Request::Body::DataConsumer_SetBufferedAmountLowThresholdRequest, requestOffset, _internal.dataConsumerId);
+        channel->request(FBS::Request::Method::DATACONSUMER_SET_BUFFERED_AMOUNT_LOW_THRESHOLD, FBS::Request::Body::DataConsumer_SetBufferedAmountLowThresholdRequest, reqOffset, _internal.dataConsumerId);
     }
 
     void DataConsumerController::setSubchannels(const std::vector<uint16_t>& subchannels)
@@ -200,9 +200,9 @@ namespace srv {
             return;
         }
         
-        auto requestOffset = FBS::DataConsumer::CreateSetSubchannelsRequestDirect(channel->builder(), &subchannels);
+        auto reqOffset = FBS::DataConsumer::CreateSetSubchannelsRequestDirect(channel->builder(), &subchannels);
         
-        auto data = channel->request(FBS::Request::Method::DATACONSUMER_SET_SUBCHANNELS, FBS::Request::Body::DataConsumer_SetSubchannelsRequest, requestOffset, _internal.dataConsumerId);
+        auto data = channel->request(FBS::Request::Method::DATACONSUMER_SET_SUBCHANNELS, FBS::Request::Body::DataConsumer_SetSubchannelsRequest, reqOffset, _internal.dataConsumerId);
         
         auto message = FBS::Message::GetMessage(data.data());
         
@@ -247,9 +247,9 @@ namespace srv {
 
         uint32_t ppid = !isBinary ? (data.size() > 0 ? 51 : 56) : (data.size() > 0 ? 53 : 57);
         
-        auto requestOffset = FBS::DataConsumer::CreateSendRequestDirect(channel->builder(), ppid, &data);
+        auto reqOffset = FBS::DataConsumer::CreateSendRequestDirect(channel->builder(), ppid, &data);
 
-        channel->request(FBS::Request::Method::DATACONSUMER_SEND, FBS::Request::Body::DataConsumer_SendRequest, requestOffset, _internal.dataConsumerId);
+        channel->request(FBS::Request::Method::DATACONSUMER_SEND, FBS::Request::Body::DataConsumer_SendRequest, reqOffset, _internal.dataConsumerId);
     }
 
     uint32_t DataConsumerController::getBufferedAmount()
@@ -336,8 +336,8 @@ namespace srv {
         }
         else if (event == FBS::Notification::Event::DATACONSUMER_BUFFERED_AMOUNT_LOW) {
             auto message = FBS::Message::GetMessage(data.data());
-            auto notification = message->data_as_Notification();
-            if (auto bufferedAmountLow = notification->body_as_DataConsumer_BufferedAmountLowNotification()) {
+            auto nf = message->data_as_Notification();
+            if (auto bufferedAmountLow = nf->body_as_DataConsumer_BufferedAmountLowNotification()) {
                 auto bufferedAmount = bufferedAmountLow->bufferedAmount();
                 this->bufferedAmountLowSignal(bufferedAmount);
             }
@@ -357,8 +357,11 @@ namespace srv {
             SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }        
     }
+}
 
-    FBS::DataProducer::Type DataConsumerController::dataConsumerTypeToFbs(const std::string& type)
+namespace srv {
+
+    FBS::DataProducer::Type dataConsumerTypeToFbs(const std::string& type)
     {
         if ("sctp") {
             return FBS::DataProducer::Type::SCTP;
@@ -372,7 +375,7 @@ namespace srv {
         return FBS::DataProducer::Type::MIN;
     }
 
-    std::string DataConsumerController::dataConsumerTypeFromFbs(FBS::DataProducer::Type type)
+    std::string dataConsumerTypeFromFbs(FBS::DataProducer::Type type)
     {
         switch (type)
         {
@@ -385,7 +388,7 @@ namespace srv {
         }
     }
 
-    std::shared_ptr<DataConsumerDump> DataConsumerController::parseDataConsumerDumpResponse(const FBS::DataConsumer::DumpResponse* data)
+    std::shared_ptr<DataConsumerDump> parseDataConsumerDumpResponse(const FBS::DataConsumer::DumpResponse* data)
     {
         auto dump = std::make_shared<DataConsumerDump>();
         
@@ -406,7 +409,7 @@ namespace srv {
         return dump;
     }
 
-    std::shared_ptr<DataConsumerStat> DataConsumerController::parseDataConsumerStats(const FBS::DataConsumer::GetStatsResponse* binary)
+    std::shared_ptr<DataConsumerStat> parseDataConsumerStats(const FBS::DataConsumer::GetStatsResponse* binary)
     {
         auto stat = std::make_shared<DataConsumerStat>();
         

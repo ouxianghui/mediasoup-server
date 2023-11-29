@@ -141,14 +141,6 @@ namespace srv {
         
         void onChannel(const std::string& targetId, const std::string& event, const std::string& data) {}
         
-        FBS::DataProducer::Type dataProducerTypeToFbs(const std::string& type);
-
-        std::string dataProducerTypeFromFbs(FBS::DataProducer::Type type);
-
-        std::shared_ptr<DataProducerDump> parseDataProducerDumpResponse(const FBS::DataProducer::DumpResponse* data);
-
-        std::shared_ptr<DataProducerStat> parseDataProducerStats(const FBS::DataProducer::GetStatsResponse* binary);
-        
     public:
         sigslot::signal<> transportCloseSignal;
         
@@ -175,7 +167,15 @@ namespace srv {
 
         // Custom app data.
         nlohmann::json _appData;
-
     };
+
+    FBS::DataProducer::Type dataProducerTypeToFbs(const std::string& type);
+
+    std::string dataProducerTypeFromFbs(FBS::DataProducer::Type type);
+
+    std::shared_ptr<DataProducerDump> parseDataProducerDumpResponse(const FBS::DataProducer::DumpResponse* data);
+
+    std::shared_ptr<DataProducerStat> parseDataProducerStats(const FBS::DataProducer::GetStatsResponse* binary);
+
 
 }

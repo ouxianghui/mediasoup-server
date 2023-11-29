@@ -12,6 +12,10 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <absl/container/flat_hash_map.h>
+#include <absl/types/optional.h>
+#include "nlohmann/json.hpp"
+#include "flatbuffers/flexbuffers.h"
 #include "parameters.h"
 #include "FBS/rtpParameters.h"
 #include "FBS/rtpPacket.h"
@@ -35,7 +39,12 @@ namespace srv
          * RTCP feedback parameter.
          */
         std::string parameter;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtcpFeedback> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
+
+    void to_json(nlohmann::json& j, const RtcpFeedback& st);
+    void from_json(const nlohmann::json& j, RtcpFeedback& st);
 
     /**
      * Provides information on the capabilities of a codec within the RTP
@@ -80,20 +89,25 @@ namespace srv
          * The number of channels supported (e.g. two for stereo). Just for audio.
          * Default 1.
          */
-        int channels = 0;
+        int channels;
 
         /**
          * Codec specific parameters. Some parameters (such as 'packetization-mode'
          * and 'profile-level-id' in H264 or 'profile-id' in VP9) are critical for
          * codec matching.
          */
-        Parameters parameters;
+        //Parameters parametersFBS;
+        
+        std::map<std::string, nlohmann::json> parameters;
 
         /**
          * Transport layer and codec-specific feedback messages for this codec.
          */
         std::vector<RtcpFeedback> rtcpFeedback;
     };
+
+    void to_json(nlohmann::json& j, const RtpCodecCapability& st);
+    void from_json(const nlohmann::json& j, RtpCodecCapability& st);
 
     /**
      * Provides information relating to supported header extensions. The list of
@@ -138,6 +152,9 @@ namespace srv
         std::string direction;
     };
 
+    void to_json(nlohmann::json& j, const RtpHeaderExtension& st);
+    void from_json(const nlohmann::json& j, RtpHeaderExtension& st);
+
     /**
      * The RTP capabilities define what mediasoup or an endpoint can receive at
      * media level.
@@ -154,6 +171,9 @@ namespace srv
          */
         std::vector<RtpHeaderExtension> headerExtensions;
     };
+
+    void to_json(nlohmann::json& j, const RtpCapabilities& st);
+    void from_json(const nlohmann::json& j, RtpCapabilities& st);
 
     /**
      * Provides information on codec settings within the RTP parameters. The list
@@ -184,17 +204,33 @@ namespace srv
         uint8_t channels = 0;
 
         /**
+         * Transport layer and codec-specific feedback messages for this codec.
+         */
+        std::vector<RtcpFeedback> rtcpFeedback;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpCodecParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
+        
+        const Parameters& _getParameters() const;
+        
+        void _setParameters(const Parameters& parameters);
+        
+        const std::map<std::string, nlohmann::json>& getParameters() const;
+        
+        void setParameters(const std::map<std::string, nlohmann::json>& parameters);
+        
+    private:
+        /**
          * Codec-specific parameters available for signaling. Some parameters (such
          * as 'packetization-mode' and 'profile-level-id' in H264 or 'profile-id' in
          * VP9) are critical for codec matching.
          */
-        Parameters parameters;
-
-        /**
-         * Transport layer and codec-specific feedback messages for this codec.
-         */
-        std::vector<RtcpFeedback> rtcpFeedback;
+        Parameters _parameters;
+        
+        std::map<std::string, nlohmann::json> parameters;
     };
+
+    void to_json(nlohmann::json& j, const RtpCodecParameters& st);
+    void from_json(const nlohmann::json& j, RtpCodecParameters& st);
 
     /**
      * Defines a RTP header extension within the RTP parameters. The list of RTP
@@ -220,16 +256,38 @@ namespace srv
          * If true, the value in the header is encrypted as per RFC 6904. Default false.
          */
         bool encrypt = false;
-
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpHeaderExtensionParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
+        
+        const Parameters& _getParameters() const;
+        
+        void _setParameters(const Parameters& parameters);
+        
+        const std::map<std::string, nlohmann::json>& getParameters() const;
+        
+        void setParameters(const std::map<std::string, nlohmann::json>& parameters);
+        
+    private:
         /**
          * Configuration parameters for the header extension.
          */
-        Parameters parameters;
+        Parameters _parameters;
+        
+        std::map<std::string, nlohmann::json> parameters;
     };
 
-    struct RtpRtxParameters{
+    void to_json(nlohmann::json& j, const RtpHeaderExtensionParameters& st);
+    void from_json(const nlohmann::json& j, RtpHeaderExtensionParameters& st);
+
+    struct RtpRtxParameters
+    {
         uint32_t ssrc = 0;
+        
+        flatbuffers::Offset<FBS::RtpParameters::Rtx> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
+
+    void to_json(nlohmann::json& j, const RtpRtxParameters& st);
+    void from_json(const nlohmann::json& j, RtpRtxParameters& st);
 
     /**
      * Provides information relating to an encoding, which represents a media RTP
@@ -279,7 +337,24 @@ namespace srv
         int scaleResolutionDownBy = 0;
 
         int maxBitrate = 0;
+   
+        bool hasCodecPayloadType { false };
+        
+        bool hasRtx { false };
+        
+        double maxFramerate { 0 };
+     
+        uint8_t spatialLayers { 1u };
+        
+        uint8_t temporalLayers { 1u };
+        
+        bool ksvc { false };
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpEncodingParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
+
+    void to_json(nlohmann::json& j, const RtpEncodingParameters& st);
+    void from_json(const nlohmann::json& j, RtpEncodingParameters& st);
 
     /**
      * Provides information on RTCP settings within the RTP parameters.
@@ -307,7 +382,12 @@ namespace srv
          * Whether RTCP-mux is used. Default true.
          */
         bool mux = true;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtcpParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
+
+    void to_json(nlohmann::json& j, const RtcpParameters& st);
+    void from_json(const nlohmann::json& j, RtcpParameters& st);
 
     /**
      * The RTP send parameters describe a media stream received by mediasoup from
@@ -366,7 +446,12 @@ namespace srv
          * Parameters used for RTCP.
          */
         RtcpParameters rtcp;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
+
+    void to_json(nlohmann::json& j, const RtpParameters& st);
+    void from_json(const nlohmann::json& j, RtpParameters& st) ;
 
     std::string rtpHeaderExtensionUriFromFbs(FBS::RtpParameters::RtpHeaderExtensionUri uri);
 
@@ -386,7 +471,7 @@ namespace srv
         std::string mid;
         std::string rid;
         std::string rrid;
-        uint16_t wideSequenceNumber;
+        absl::optional<uint16_t> wideSequenceNumber;
         
         srv::RtpPacketDump& operator=(const FBS::RtpPacket::Dump* dump) {
             this->payloadType = dump->payloadType();
@@ -402,7 +487,9 @@ namespace srv
             this->mid = dump->mid()->str();
             this->rid = dump->rid()->str();
             this->rrid = dump->rrid()->str();
-            this->wideSequenceNumber = dump->wideSequenceNumber().value_or(0);
+            if (dump->wideSequenceNumber()) {
+                this->wideSequenceNumber = dump->wideSequenceNumber().value();
+            }
             return *this;
         }
     };
@@ -430,5 +517,4 @@ namespace srv
     std::shared_ptr<RtpEncodingParameters> parseRtpEncodingParameters(const FBS::RtpParameters::RtpEncodingParameters* data);
 
     std::shared_ptr<RtpParameters> parseRtpParameters(const FBS::RtpParameters::RtpParameters* data);
-
 }

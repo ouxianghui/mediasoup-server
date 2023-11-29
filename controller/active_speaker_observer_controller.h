@@ -11,6 +11,8 @@
 
 #include <memory>
 #include "rtp_observer_controller.h"
+#include "FBS/notification.h"
+#include "FBS/activeSpeakerObserver.h"
 
 namespace srv {
 
@@ -52,7 +54,7 @@ namespace srv {
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
     };
 
 }

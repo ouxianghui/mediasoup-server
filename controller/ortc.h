@@ -19,16 +19,16 @@
 
 namespace srv {
 
-    struct RtpMappingCodec
+    struct RtpCodecMapping
     {
         int32_t payloadType;
         int32_t mappedPayloadType;
     };
 
-    void to_json(nlohmann::json& j, RtpMappingCodec& st);
-    void from_json(const nlohmann::json& j, RtpMappingCodec& st);
+    void to_json(nlohmann::json& j, RtpCodecMapping& st);
+    void from_json(const nlohmann::json& j, RtpCodecMapping& st);
 
-    struct RtpMappingEncoding
+    struct RtpEncodingMapping
     {
         uint32_t ssrc;
         std::string rid;
@@ -36,8 +36,8 @@ namespace srv {
         uint32_t mappedSsrc;
     };
 
-    void to_json(nlohmann::json& j, RtpMappingEncoding& st);
-    void from_json(const nlohmann::json& j, RtpMappingEncoding& st);
+    void to_json(nlohmann::json& j, RtpEncodingMapping& st);
+    void from_json(const nlohmann::json& j, RtpEncodingMapping& st);
 
     struct RtpMapping
     {
@@ -47,6 +47,15 @@ namespace srv {
 
     void to_json(nlohmann::json& j, RtpMapping& st);
     void from_json(const nlohmann::json& j, RtpMapping& st);
+
+    struct RtpMappingFBS
+    {
+        absl::flat_hash_map<uint8_t, uint8_t> codecs;
+        
+        std::vector<RtpEncodingMapping> encodings;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpMapping> serialize(flatbuffers::FlatBufferBuilder& builder) const;
+    };
 
     class ortc
     {

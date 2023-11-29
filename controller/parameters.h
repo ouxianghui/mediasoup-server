@@ -12,7 +12,9 @@
 #include "absl/container/flat_hash_map.h"
 #include <string>
 #include <vector>
-#include "FBS/RtpParameters.h"
+#include "flatbuffers/flexbuffers.h"
+#include "nlohmann/json.hpp"
+#include "FBS/rtpParameters.h"
 
 namespace srv {
 
@@ -32,30 +34,17 @@ namespace srv {
             };
 
         public:
-            explicit Value(bool booleanValue) : type(Type::BOOLEAN), booleanValue(booleanValue)
-            {
-            }
+            explicit Value(bool booleanValue) : type(Type::BOOLEAN), booleanValue(booleanValue) {}
 
-            explicit Value(int32_t integerValue) : type(Type::INTEGER), integerValue(integerValue)
-            {
-            }
+            explicit Value(int32_t integerValue) : type(Type::INTEGER), integerValue(integerValue) {}
 
-            explicit Value(double doubleValue) : type(Type::DOUBLE), doubleValue(doubleValue)
-            {
-            }
+            explicit Value(double doubleValue) : type(Type::DOUBLE), doubleValue(doubleValue) {}
 
-            explicit Value(std::string& stringValue) : type(Type::STRING), stringValue(stringValue)
-            {
-            }
+            explicit Value(std::string& stringValue) : type(Type::STRING), stringValue(stringValue) {}
 
-            explicit Value(std::string&& stringValue) : type(Type::STRING), stringValue(stringValue)
-            {
-            }
+            explicit Value(std::string&& stringValue) : type(Type::STRING), stringValue(stringValue) {}
 
-            explicit Value(std::vector<int32_t>& arrayOfIntegers)
-              : type(Type::ARRAY_OF_INTEGERS), arrayOfIntegers(arrayOfIntegers)
-            {
-            }
+            explicit Value(std::vector<int32_t>& arrayOfIntegers) : type(Type::ARRAY_OF_INTEGERS), arrayOfIntegers(arrayOfIntegers) {}
 
         public:
             Type type;
@@ -67,19 +56,39 @@ namespace srv {
         };
 
     public:
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::Parameter>> serialize(flatbuffers::FlatBufferBuilder& builder) const;
+        
         void Set(const flatbuffers::Vector<flatbuffers::Offset<FBS::RtpParameters::Parameter>>* data);
+        
+        void serialize(nlohmann::json& jsonObject) const;
+        
+        void Set(const nlohmann::json& data);
+        
         bool HasBoolean(const std::string& key) const;
+        
         bool HasInteger(const std::string& key) const;
+        
         bool HasPositiveInteger(const std::string& key) const;
+        
         bool HasDouble(const std::string& key) const;
+        
         bool HasString(const std::string& key) const;
+        
         bool HasArrayOfIntegers(const std::string& key) const;
+        
         bool IncludesInteger(const std::string& key, int32_t integer) const;
+        
         bool GetBoolean(const std::string& key) const;
+        
         int32_t GetInteger(const std::string& key) const;
+        
         double GetDouble(const std::string& key) const;
+        
         const std::string& GetString(const std::string& key) const;
+        
         const std::vector<int32_t>& GetArrayOfIntegers(const std::string& key) const;
+        
+        const absl::flat_hash_map<std::string, Value>& getMapKeyValues() { return this->mapKeyValues; }
 
     private:
         absl::flat_hash_map<std::string, Value> mapKeyValues;

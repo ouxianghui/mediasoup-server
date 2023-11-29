@@ -37,16 +37,23 @@ namespace srv {
         SRV_LOGD("destroy()");
     }
 
-    nlohmann::json WebRtcServerController::dump()
+    std::shared_ptr<WebRtcServerDump> WebRtcServerController::dump()
     {
         SRV_LOGD("dump()");
 
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("webRtcServer.dump", _id, "{}");
+        auto respData = channel->request(FBS::Request::Method::WEBRTCSERVER_DUMP, _id);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dumpResponse = response->body_as_WebRtcServer_DumpResponse();
+        
+        return parseWebRtcServerDump(dumpResponse);
+        
     }
 
     void WebRtcServerController::onWorkerClosed()
@@ -82,15 +89,14 @@ namespace srv {
 
         _closed = true;
 
-        nlohmann::json reqData;
-        reqData["webRtcServerId"] = _id;
-
         auto channel = _channel.lock();
         if (!channel) {
             return;
         }
+     
+        auto reqOffset = FBS::Worker::CreateCloseWebRtcServerRequestDirect(channel->builder(), _id.c_str());
         
-        channel->request("worker.closeWebRtcServer", "", reqData.dump());
+        channel->request(FBS::Request::Method::WORKER_WEBRTCSERVER_CLOSE, FBS::Request::Body::Worker_CloseWebRtcServerRequest, reqOffset, _id);
 
         {
             std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
@@ -135,6 +141,69 @@ namespace srv {
 
 namespace srv
 {
+    std::shared_ptr<IpPort> parseIpPort(const FBS::WebRtcServer::IpPort* binary)
+    {
+        auto ipPort = std::make_shared<IpPort>();
+        
+        ipPort->ip = binary->ip()->str();
+        ipPort->port = binary->port();
+        
+        return ipPort;
+    }
+
+    std::shared_ptr<IceUserNameFragment> parseIceUserNameFragment(const FBS::WebRtcServer::IceUserNameFragment* binary)
+    {
+        auto fragment = std::make_shared<IceUserNameFragment>();
+        
+        fragment->localIceUsernameFragment = binary->localIceUsernameFragment()->str();
+        fragment->webRtcTransportId = binary->webRtcTransportId()->str();
+        
+        return fragment;
+    }
+
+    std::shared_ptr<TupleHash> parseTupleHash(const FBS::WebRtcServer::TupleHash* binary)
+    {
+        auto tupleHash = std::make_shared<TupleHash>();
+        
+        tupleHash->tupleHash = binary->tupleHash();
+        tupleHash->webRtcTransportId = binary->webRtcTransportId()->str();
+        
+        return tupleHash;
+    }
+
+    std::shared_ptr<WebRtcServerDump> parseWebRtcServerDump(const FBS::WebRtcServer::DumpResponse* data)
+    {
+        auto dump = std::make_shared<WebRtcServerDump>();
+        
+        dump->id = data->id()->str();
+        
+        for (const auto& item : *data->udpSockets()) {
+            IpPort ip = *parseIpPort(item);
+            dump->udpSockets.emplace_back(ip);
+        }
+        
+        for (const auto& item : *data->tcpServers()) {
+            IpPort ip = *parseIpPort(item);
+            dump->tcpServers.emplace_back(ip);
+        }
+        
+        for (const auto& item : *data->webRtcTransportIds()) {
+            dump->tcpServers.emplace_back(item->str());
+        }
+        
+        for (const auto& item : *data->localIceUsernameFragments()) {
+            IceUserNameFragment fragment = *parseIceUserNameFragment(item);
+            dump->localIceUsernameFragments.emplace_back(fragment);
+        }
+        
+        for (const auto& item : *data->tupleHashes()) {
+            TupleHash hash = *parseTupleHash(item);
+            dump->tupleHashes.emplace_back(hash);
+        }
+        
+        return dump;
+    }
+
     void to_json(nlohmann::json& js, const WebRtcServerListenInfo& st)
     {
         js["protocol"] = st.protocol;

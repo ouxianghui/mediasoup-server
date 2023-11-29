@@ -229,15 +229,15 @@ namespace srv {
         
         SRV_LOGD("request() [method:%d, id:%u]", (uint8_t)method, id);
         
-        flatbuffers::Offset<FBS::Request::Request> requestOffset;
+        flatbuffers::Offset<FBS::Request::Request> reqOffset;
         if (bodyType != FBS::Request::Body::NONE) {
-            requestOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset);
+            reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset);
         }
         else {
-            requestOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), FBS::Request::Body::NONE, 0);
+            reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), FBS::Request::Body::NONE, 0);
         }
         
-        auto messageOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, requestOffset.Union());
+        auto messageOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
         
         _builder.FinishSizePrefixed(messageOffset);
         

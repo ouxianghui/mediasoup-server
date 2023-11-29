@@ -219,9 +219,9 @@ namespace srv {
             logTags_.emplace_back(_channel->builder().CreateString(item));
         }
         
-        auto requestOffset = FBS::Worker::CreateUpdateSettingsRequestDirect(_channel->builder(), logLevel.c_str(), &logTags_);
+        auto reqOffset = FBS::Worker::CreateUpdateSettingsRequestDirect(_channel->builder(), logLevel.c_str(), &logTags_);
         
-        _channel->request(FBS::Request::Method::WORKER_UPDATE_SETTINGS, FBS::Request::Body::Worker_UpdateSettingsRequest, requestOffset, "");
+        _channel->request(FBS::Request::Method::WORKER_UPDATE_SETTINGS, FBS::Request::Body::Worker_UpdateSettingsRequest, reqOffset, "");
     }
 
     std::shared_ptr<WebRtcServerController> WorkerController::createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData)
@@ -259,9 +259,9 @@ namespace srv {
             infos.emplace_back(info_);
         }
         
-        auto requestOffset = FBS::Worker::CreateCreateWebRtcServerRequestDirect(_channel->builder(), webRtcServerId.c_str(), &infos);
+        auto reqOffset = FBS::Worker::CreateCreateWebRtcServerRequestDirect(_channel->builder(), webRtcServerId.c_str(), &infos);
         
-        _channel->request(FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER, FBS::Request::Body::Worker_CreateWebRtcServerRequest, requestOffset, "");
+        _channel->request(FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER, FBS::Request::Body::Worker_CreateWebRtcServerRequest, reqOffset, "");
 
         std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         WebRtcServerInternal internal { webRtcServerId };
@@ -291,9 +291,9 @@ namespace srv {
         RouterInternal internal;
         internal.routerId = uuid::uuidv4();
         
-        auto requestOffset = FBS::Worker::CreateCreateRouterRequestDirect(_channel->builder(), internal.routerId.c_str());
+        auto reqOffset = FBS::Worker::CreateCreateRouterRequestDirect(_channel->builder(), internal.routerId.c_str());
 
-        _channel->request(FBS::Request::Method::WORKER_CREATE_ROUTER, FBS::Request::Body::Worker_CreateRouterRequest, requestOffset, "");
+        _channel->request(FBS::Request::Method::WORKER_CREATE_ROUTER, FBS::Request::Body::Worker_CreateRouterRequest, reqOffset, "");
 
         RouterData data;
         data.rtpCapabilities = rtpCapabilities;

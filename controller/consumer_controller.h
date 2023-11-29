@@ -14,6 +14,7 @@
 #include <atomic>
 #include <string>
 #include <unordered_map>
+#include <absl/types/optional.h>
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
@@ -143,18 +144,18 @@ namespace srv {
         /**
          * The score of the RTP stream of the consumer.
          */
-        int32_t score;
+        uint8_t score;
 
         /**
          * The score of the currently selected RTP stream of the producer.
          */
-        int32_t producerScore;
+        uint8_t producerScore;
 
         /**
          * The scores of all RTP streams in the producer ordered by encoding (just
          * useful when the producer uses simulcast).
          */
-        std::vector<int32_t> producerScores;
+        std::vector<uint8_t> producerScores;
     };
 
     using ConsumerStat = RtpStreamSendStats;
@@ -222,7 +223,6 @@ namespace srv {
     using ConsumerDump = BaseConsumerDump;
 
     class Channel;
-    class PayloadChannel;
 
     class ConsumerController : public std::enable_shared_from_this<ConsumerController>
     {
@@ -298,24 +298,6 @@ namespace srv {
 
         void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
         
-        std::shared_ptr<ConsumerDump> parseConsumerDumpResponse(const FBS::Consumer::DumpResponse* response);
-        
-        std::shared_ptr<BaseConsumerDump> parseBaseConsumerDump(const FBS::Consumer::BaseConsumerDump* data);
-
-        std::shared_ptr<SimpleConsumerDump> parseSimpleConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
-
-        std::shared_ptr<SimulcastConsumerDump> parseSimulcastConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
-
-        std::shared_ptr<SvcConsumerDump> parseSvcConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
-
-        std::shared_ptr<PipeConsumerDump> parsePipeConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
-        
-        std::shared_ptr<ConsumerTraceEventData> parseTraceEventData(const FBS::Consumer::TraceNotification* trace);
-        
-        std::shared_ptr<ConsumerLayers>  parseConsumerLayers(const FBS::Consumer::ConsumerLayers* data);
-
-        std::vector<std::shared_ptr<ConsumerStat>> parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary);
-        
     public:
         // signals
         sigslot::signal<> transportCloseSignal;
@@ -374,5 +356,23 @@ namespace srv {
         // Curent layers.
         ConsumerLayers _currentLayers;
     };
+
+    std::shared_ptr<ConsumerDump> parseConsumerDumpResponse(const FBS::Consumer::DumpResponse* response);
+
+    std::shared_ptr<BaseConsumerDump> parseBaseConsumerDump(const FBS::Consumer::BaseConsumerDump* data);
+
+    std::shared_ptr<SimpleConsumerDump> parseSimpleConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+
+    std::shared_ptr<SimulcastConsumerDump> parseSimulcastConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+
+    std::shared_ptr<SvcConsumerDump> parseSvcConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+
+    std::shared_ptr<PipeConsumerDump> parsePipeConsumerDump(const FBS::Consumer::ConsumerDump* consumerDump);
+
+    std::shared_ptr<ConsumerTraceEventData> parseTraceEventData(const FBS::Consumer::TraceNotification* trace);
+
+    std::shared_ptr<ConsumerLayers>  parseConsumerLayers(const FBS::Consumer::ConsumerLayers* data);
+
+    std::vector<std::shared_ptr<ConsumerStat>> parseConsumerStats(const FBS::Consumer::GetStatsResponse* binary);
 
 }

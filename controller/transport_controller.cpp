@@ -12,8 +12,11 @@
 #include "types.h"
 #include "uuid.h"
 #include "channel.h"
-#include "payload_channel.h"
 #include "ortc.h"
+#include "FBS/router.h"
+#include "FBS/request.h"
+#include "FBS/response.h"
+#include "FBS/transport.h"
 
 namespace srv {
 
@@ -21,7 +24,6 @@ namespace srv {
     : _internal(options->internal)
     , _data(options->data)
     , _channel(options->channel)
-    , _payloadChannel(options->payloadChannel)
     , _appData(options->appData)
     , _getRouterRtpCapabilities(options->getRouterRtpCapabilities)
     , _getProducerController(options->getProducerController)
@@ -52,16 +54,9 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
+        auto reqOffset = FBS::Router::CreateCloseTransportRequestDirect(channel->builder(), _internal.transportId.c_str());
         
-        nlohmann::json reqData;
-        reqData["transportId"] = _internal.transportId;
-        
-        channel->request("router.closeTransport", _internal.routerId, reqData.dump());
+        channel->request(FBS::Request::Method::ROUTER_CLOSE_TRANSPORT, FBS::Request::Body::Router_CloseTransportRequest, reqOffset, _internal.routerId);
         
         std::unordered_map<std::string, std::shared_ptr<ProducerController>> producerControllers;
         {
@@ -129,12 +124,6 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
         clearControllers();
         
         this->routerCloseSignal();
@@ -159,12 +148,6 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
-        
         clearControllers();
         
         this->listenServerCloseSignal();
@@ -172,25 +155,19 @@ namespace srv {
         this->closeSignal(id());
     }
 
-    nlohmann::json TransportController::dump()
-    {
-        SRV_LOGD("dump()");
-        
-        auto channel = _channel.lock();
-        if (!channel) {
-            return nlohmann::json();
-        }
-        
-        return channel->request("transport.dump", _internal.transportId, "{}");
-    }
-
-    nlohmann::json TransportController::getStats()
+    std::shared_ptr<BaseTransportDump> TransportController::dump()
     {
         assert(0);
-        return nlohmann::json();
+        return nullptr;
     }
 
-    void TransportController::connect(const nlohmann::json& data)
+    std::shared_ptr<BaseTransportStats> TransportController::getStats()
+    {
+        assert(0);
+        return nullptr;
+    }
+
+    void TransportController::connect(const std::shared_ptr<ConnectData>& data)
     {
         assert(0);
     }
@@ -204,10 +181,9 @@ namespace srv {
             return;
         }
         
-        nlohmann::json reqData;
-        reqData["bitrate"] = bitrate;
-
-        channel->request("transport.setMaxIncomingBitrate", _internal.transportId, reqData.dump());
+        auto reqOffset = FBS::Transport::CreateSetMaxIncomingBitrateRequest(channel->builder(), bitrate);
+        
+        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_INCOMING_BITRATE, FBS::Request::Body::Transport_SetMaxIncomingBitrateRequest, reqOffset, _internal.transportId);
     }
 
     void TransportController::setMaxOutgoingBitrate(int32_t bitrate)
@@ -219,10 +195,9 @@ namespace srv {
             return;
         }
         
-        nlohmann::json reqData;
-        reqData["bitrate"] = bitrate;
-
-        channel->request("transport.setMaxOutgoingBitrate", _internal.transportId, reqData.dump());
+        auto reqOffset = FBS::Transport::CreateSetMaxOutgoingBitrateRequest(channel->builder(), bitrate);
+        
+        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_OUTGOING_BITRATE, FBS::Request::Body::Transport_SetMaxOutgoingBitrateRequest, reqOffset, _internal.transportId);
     }
 
     void TransportController::setMinOutgoingBitrate(int32_t bitrate)
@@ -234,10 +209,9 @@ namespace srv {
             return;
         }
         
-        nlohmann::json reqData;
-        reqData["bitrate"] = bitrate;
-
-        channel->request("transport.setMinOutgoingBitrate", _internal.transportId, reqData.dump());
+        auto reqOffset = FBS::Transport::CreateSetMinOutgoingBitrateRequest(channel->builder(), bitrate);
+        
+        channel->request(FBS::Request::Method::TRANSPORT_SET_MIN_OUTGOING_BITRATE, FBS::Request::Body::Transport_SetMinOutgoingBitrateRequest, reqOffset, _internal.transportId);
     }
 
     void TransportController::enableTraceEvent(const std::vector<std::string>& types)
@@ -248,18 +222,16 @@ namespace srv {
         if (!channel) {
             return;
         }
-        
-        nlohmann::json items = nlohmann::json::array();
-        for (const auto& type : types) {
-            items.emplace_back(type);
-        }
-        nlohmann::json reqData;
-        reqData["types"] = items;
-        
-        
-        SRV_LOGD("enableTraceEvent(): %s", reqData.dump().c_str());
 
-        channel->request("transport.enableTraceEvent", _internal.transportId, reqData.dump());
+        std::vector<FBS::Transport::TraceEventType> events;
+        
+        for (const auto& type : types) {
+            events.emplace_back(transportTraceEventTypeToFbs(type));
+        }
+        
+        auto reqOffset = FBS::Transport::CreateEnableTraceEventRequestDirect(channel->builder(), &events);
+        
+        channel->request(FBS::Request::Method::TRANSPORT_ENABLE_TRACE_EVENT, FBS::Request::Body::Transport_EnableTraceEventRequest, reqOffset, _internal.transportId);
     }
 
     std::shared_ptr<ProducerController> TransportController::produce(const std::shared_ptr<ProducerOptions>& options)
@@ -288,9 +260,13 @@ namespace srv {
             return producerController;
         }
         
+        nlohmann::json parameters = options->rtpParameters;
+        
         // This may throw.
-        nlohmann::json jrtpParameters = options->rtpParameters;
-        ortc::validateRtpParameters(jrtpParameters);
+        ortc::validateRtpParameters(parameters);
+        
+        // TODO: check
+        options->rtpParameters = parameters;
         
         // If missing or empty encodings, add one.
         // if (
@@ -325,29 +301,30 @@ namespace srv {
 
         // This may throw.
         auto rtpMapping = ortc::getProducerRtpParametersMapping(rtpParameters, routerRtpCapabilities);
-
+        
         // This may throw.
         auto consumableRtpParameters = ortc::getConsumableRtpParameters(kind, rtpParameters, routerRtpCapabilities, rtpMapping);
 
+        // TOOD: convert json to RtpMappingFBS
+        RtpMappingFBS rtpMappingFBS;
+
         auto producerId = id.empty() ? uuid::uuidv4() : id;
-        
-        nlohmann::json reqData;
-            reqData["producerId"] = producerId;
-            reqData["kind"] = kind;
-            reqData["rtpParameters"] = rtpParameters;
-            reqData["rtpMapping"] = rtpMapping;
-            reqData["keyFrameRequestDelay"] = keyFrameRequestDelay;
-            reqData["paused"] = paused;
         
         auto channel = _channel.lock();
         if (!channel) {
             return producerController;
         }
         
-        nlohmann::json status = channel->request("transport.produce", _internal.transportId, reqData.dump());
+        auto reqOffset = createProduceRequest(channel->builder(), producerId, kind, rtpParameters, rtpMappingFBS, keyFrameRequestDelay, paused);
+
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE, FBS::Request::Body::Transport_ProduceRequest, reqOffset, _internal.transportId);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto stats = response->body_as_Transport_ProduceResponse();
         
         ProducerData producerData;
-        producerData.type = status["type"];
+        producerData.type = producerTypeFromFbs(stats->type());
         producerData.kind = kind;
         producerData.rtpParameters = rtpParameters;
         // TODO: verify convert
@@ -362,7 +339,6 @@ namespace srv {
             producerController = std::make_shared<ProducerController>(producerInternal,
                                                                       producerData,
                                                                       _channel.lock(),
-                                                                      _payloadChannel.lock(),
                                                                       appData,
                                                                       paused);
             producerController->init();
@@ -394,7 +370,7 @@ namespace srv {
         std::shared_ptr<ConsumerController> consumerController;
         
         const std::string& producerId = options->producerId;
-        const RtpCapabilities& rtpCapabilities = options->rtpCapabilities;
+        RtpCapabilities rtpCapabilities = options->rtpCapabilities;
         const bool paused = options->paused;
         const std::string& mid = options->mid;
         const ConsumerLayers& preferredLayers = options->preferredLayers;
@@ -408,9 +384,12 @@ namespace srv {
             return consumerController;
         }
 
+        nlohmann::json capablities = rtpCapabilities;
         // This may throw.
-        nlohmann::json jRtpCapabilities = rtpCapabilities;
-        ortc::validateRtpCapabilities(jRtpCapabilities);
+        ortc::validateRtpCapabilities(capablities);
+        
+        // TODO:
+        rtpCapabilities = capablities;
 
         auto producerController = _getProducerController(producerId);
         if (!producerController) {
@@ -449,23 +428,26 @@ namespace srv {
         
         auto consumerId = uuid::uuidv4();
         
-        nlohmann::json reqData;
-        reqData["consumerId"] = consumerId;
-        reqData["producerId"] = producerId;
-        reqData["kind"] = producerController->kind();
-        reqData["rtpParameters"] = rtpParameters;
-        reqData["type"] = pipe ? "pipe" : producerController->type();
-        reqData["consumableRtpEncodings"] = producerController->consumableRtpParameters().encodings;
-        reqData["paused"] = paused;
-        reqData["preferredLayers"] = preferredLayers;
-        reqData["ignoreDtx"] = ignoreDtx;
-
-        nlohmann::json status = channel->request("transport.consume", _internal.transportId, reqData.dump());
+        auto reqOffset = createConsumeRequest(channel->builder(), producerController, consumerId, rtpParameters, paused, preferredLayers, ignoreDtx, pipe);
         
-        bool paused_ = status["paused"];
-        bool producerPaused_ = status["producerPaused"];
-        ConsumerScore score_ = status["score"];
-        ConsumerLayers preferredLayers_ = status["preferredLayers"];
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME, FBS::Request::Body::Transport_ConsumeRequest, reqOffset, _internal.transportId);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto stats = response->body_as_Transport_ConsumeResponse();
+        
+        bool paused_ = stats->paused();
+        bool producerPaused_ = stats->producerPaused();
+        ConsumerScore score_;
+        score_.score = stats->score()->score();
+        score_.producerScore = stats->score()->producerScore();
+        for (const auto& item : *stats->score()->producerScores()) {
+            score_.producerScores.emplace_back(item);
+        }
+        
+        ConsumerLayers preferredLayers_;
+        preferredLayers_.spatialLayer = stats->preferredLayers()->spatialLayer();
+        preferredLayers_.temporalLayer = stats->preferredLayers()->temporalLayer().value_or(0);
         
         ConsumerInternal internal;
         internal.transportId = _internal.transportId;
@@ -482,7 +464,6 @@ namespace srv {
             consumerController = std::make_shared<ConsumerController>(internal,
                                                                       data,
                                                                       _channel.lock(),
-                                                                      _payloadChannel.lock(),
                                                                       appData,
                                                                       paused_,
                                                                       producerPaused_,
@@ -522,9 +503,10 @@ namespace srv {
         }
         
         const std::string& id = options->id;
-        const SctpStreamParameters& sctpStreamParameters = options->sctpStreamParameters;
+        SctpStreamParameters sctpStreamParameters = options->sctpStreamParameters;
         const std::string& label = options->label;
         const std::string& protocol = options->protocol;
+        const bool paused = options->paused;
         const nlohmann::json& appData = options->appData;
 
         if (_dataProducerControllers.find(id) != _dataProducerControllers.end()) {
@@ -537,9 +519,12 @@ namespace srv {
         if (constructorName.find("DirectTransport") == std::string::npos) {
             type = "sctp";
 
+            nlohmann::json parameters = sctpStreamParameters;
+            
             // This may throw.
-            nlohmann::json jsctpStreamParameters = sctpStreamParameters;
-            ortc::validateSctpStreamParameters(jsctpStreamParameters);
+            ortc::validateSctpStreamParameters(parameters);
+            
+            sctpStreamParameters = parameters;
         }
         // If this is a DirectTransport, sctpStreamParameters must not be given.
         else {
@@ -554,31 +539,29 @@ namespace srv {
         
         auto dataProducerId = id.empty() ? uuid::uuidv4() : id;
         
-        nlohmann::json reqData;
-        reqData["dataProducerId"] = dataProducerId;
-        reqData["type"] = type;
-        reqData["sctpStreamParameters"] = sctpStreamParameters;
-        reqData["label"] = label;
-        reqData["protocol"] = protocol;
+        auto reqOffset = createProduceDataRequest(channel->builder(), dataProducerId, type, sctpStreamParameters, label, protocol, paused);
         
-        auto data = channel->request("transport.produceData", _internal.transportId, reqData.dump());
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE_DATA, FBS::Request::Body::Transport_ProduceDataRequest, reqOffset, _internal.transportId);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dump = response->body_as_DataProducer_DumpResponse();
         
         DataProducerInternal internal;
         internal.transportId = _internal.transportId;
         internal.dataProducerId = dataProducerId;
         
         DataProducerData dataProducerData;
-        dataProducerData.type = data["type"];
-        dataProducerData.sctpStreamParameters = data["sctpStreamParameters"];
-        dataProducerData.label = data["label"];
-        dataProducerData.protocol = data["protocol"];
+        dataProducerData.type = dataProducerTypeFromFbs(dump->type());
+        dataProducerData.sctpStreamParameters = *parseSctpStreamParameters(dump->sctpStreamParameters());
+        dataProducerData.label = dump->label()->str();
+        dataProducerData.protocol = dump->protocol()->str();
         
         {
             std::lock_guard<std::mutex> lock(_dataProducersMutex);
             dataProducerController = std::make_shared<DataProducerController>(internal,
                                                                               dataProducerData,
                                                                               _channel.lock(),
-                                                                              _payloadChannel.lock(),
                                                                               appData);
             dataProducerController->init();
             _dataProducerControllers[dataProducerController->id()] = dataProducerController;
@@ -612,6 +595,8 @@ namespace srv {
         const bool ordered = options->ordered;
         const int64_t maxPacketLifeTime = options->maxPacketLifeTime;
         const int32_t maxRetransmits = options->maxRetransmits;
+        const bool paused = options->paused;
+        const auto& subchannels = options->subchannels;
         const nlohmann::json& appData = options->appData;
      
          if (dataProducerId.empty()) {
@@ -673,24 +658,21 @@ namespace srv {
         internal.transportId = _internal.transportId;
         internal.dataConsumerId = dataConsumerId;
         
-        nlohmann::json reqData;
-        reqData["dataConsumerId"] = dataConsumerId;
-        reqData["dataProducerId"] = dataProducerId;
-        reqData["type"] = type;
-        reqData["sctpStreamParameters"] = sctpStreamParameters;
-        reqData["label"] = label;
-        reqData["protocol"] = protocol;
+        auto reqOffset = createConsumeDataRequest(channel->builder(), dataConsumerId, dataProducerId, type, sctpStreamParameters, label, protocol, paused, subchannels);
 
-        auto data = channel->request("transport.consumeData", _internal.transportId, reqData.dump());
-
-        DataConsumerData dataConsumerData = data;
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME_DATA, FBS::Request::Body::Transport_ConsumeDataRequest, reqOffset, _internal.transportId);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dump = response->body_as_DataConsumer_DumpResponse();
+        
+        DataConsumerData dataConsumerData = *parseDataConsumerDumpResponse(dump);
         
         {
             std::lock_guard<std::mutex> lock(_dataConsumersMutex);
             dataConsumerController = std::make_shared<DataConsumerController>(internal,
                                                                               dataConsumerData,
                                                                               _channel.lock(),
-                                                                              _payloadChannel.lock(),
                                                                               appData);
             dataConsumerController->init();
             _dataConsumerControllers[dataConsumerController->id()] = dataConsumerController;
@@ -720,12 +702,12 @@ namespace srv {
 
     int32_t TransportController::getNextSctpStreamId()
     {
-        if (!this->_data["sctpParameters"] || this->_data["sctpParameters"]["MIS"] == 0) {
+        if (!this->_data || this->_data->sctpParameters.MIS == 0) {
             SRV_LOGD("TransportData is null");
             return -1;
         }
 
-        const int numStreams = this->_data["sctpParameters"]["MIS"];
+        const int numStreams = this->_data->sctpParameters.MIS;
 
         if (_sctpStreamIds.empty()) {
             for (int i = 0; i < numStreams; ++i) {
@@ -793,4 +775,427 @@ namespace srv {
             ctrl->onTransportClosed();
         }
     }
+}
+
+namespace srv {
+
+    FBS::Transport::TraceEventType transportTraceEventTypeToFbs(const std::string& eventType)
+    {
+        if (eventType == "probation") {
+            return FBS::Transport::TraceEventType::PROBATION;
+        }
+        else if (eventType == "bwe") {
+            return FBS::Transport::TraceEventType::BWE;
+        }
+        else {
+            SRV_LOGE("invalid TransportTraceEventType: %s}", eventType.c_str());
+            return FBS::Transport::TraceEventType::MIN;
+        }
+    }
+
+    std::string transportTraceEventTypeFromFbs(FBS::Transport::TraceEventType eventType)
+    {
+        switch (eventType)
+        {
+            case FBS::Transport::TraceEventType::PROBATION:
+                return "probation";
+            case FBS::Transport::TraceEventType::BWE:
+                return "bwe";
+            default:
+                return "";
+        }
+    }
+
+    std::string parseSctpState(FBS::SctpAssociation::SctpState fbsSctpState)
+    {
+        switch (fbsSctpState)
+        {
+            case FBS::SctpAssociation::SctpState::NEW:
+                return "new";
+            case FBS::SctpAssociation::SctpState::CONNECTING:
+                return "connecting";
+            case FBS::SctpAssociation::SctpState::CONNECTED:
+                return "connected";
+            case FBS::SctpAssociation::SctpState::FAILED:
+                return "failed";
+            case FBS::SctpAssociation::SctpState::CLOSED:
+                return "closed";
+            default:
+                SRV_LOGE("invalid SctpState: %u", (uint8_t)fbsSctpState);
+                return "";
+        }
+    }
+
+    std::string parseProtocol(FBS::Transport::Protocol protocol)
+    {
+        switch (protocol)
+        {
+            case FBS::Transport::Protocol::UDP:
+                return "udp";
+
+            case FBS::Transport::Protocol::TCP:
+                return "tcp";
+            default:
+                SRV_LOGE("invalid protocol: %u", (uint8_t)protocol);
+                return "";
+        }
+    }
+
+    FBS::Transport::Protocol serializeProtocol(const std::string& protocol)
+    {
+        if (protocol == "udp") {
+            return FBS::Transport::Protocol::UDP;
+        }
+        if (protocol == "tcp") {
+            return FBS::Transport::Protocol::TCP;
+        }
+        else {
+            SRV_LOGE("invalid protocol: %s}", protocol.c_str());
+            return FBS::Transport::Protocol::MIN;
+        }
+    }
+
+    std::shared_ptr<TransportTuple> parseTuple(const FBS::Transport::Tuple* binary)
+    {
+        auto tuple = std::make_shared<TransportTuple>();
+        
+        tuple->localIp = binary->localIp()->str();
+        tuple->localPort = binary->localPort();
+        tuple->remoteIp = binary->remoteIp()->str();
+        tuple->remotePort = binary->remotePort();
+        tuple->protocol = parseProtocol(binary->protocol());
+        
+        return tuple;
+    }
+
+    std::shared_ptr<BaseTransportDump> parseBaseTransportDump(const FBS::Transport::Dump* binary)
+    {
+        auto dump = std::make_shared<BaseTransportDump>();
+        
+        dump->id = binary->id()->str();
+        dump->direct = binary->direct();
+        
+        for (const auto& id : *binary->producerIds()) {
+            dump->producerIds.emplace_back(id->str());
+        }
+        
+        for (const auto& id : *binary->consumerIds()) {
+            dump->consumerIds.emplace_back(id->str());
+        }
+        
+        for (const auto& id : *binary->mapSsrcConsumerId()) {
+            dump->mapSsrcConsumerId.emplace_back(std::pair<uint32_t, std::string>(id->key(), id->value()->str()));
+        }
+        
+        for (const auto& id : *binary->mapRtxSsrcConsumerId()) {
+            dump->mapRtxSsrcConsumerId.emplace_back(std::pair<uint32_t, std::string>(id->key(), id->value()->str()));
+        }
+        
+        dump->recvRtpHeaderExtensions = *parseRecvRtpHeaderExtensions(binary->recvRtpHeaderExtensions());
+        dump->rtpListener = *parseRtpListenerDump(binary->rtpListener());
+        dump->maxMessageSize = binary->maxMessageSize();
+        
+        for (const auto& id : *binary->dataProducerIds()) {
+            dump->dataProducerIds.emplace_back(id->str());
+        }
+        
+        for (const auto& id : *binary->dataConsumerIds()) {
+            dump->dataConsumerIds.emplace_back(id->str());
+        }
+        
+        if (auto parameters = binary->sctpParameters()) {
+            auto sctpParametersDump = parseSctpParametersDump(parameters);
+            dump->sctpParameters.port = sctpParametersDump->port;
+            dump->sctpParameters.OS = sctpParametersDump->OS;
+            dump->sctpParameters.MIS = sctpParametersDump->MIS;
+            dump->sctpParameters.maxMessageSize = sctpParametersDump->maxMessageSize;
+        }
+        
+        if (const auto& state = binary->sctpState()) {
+            dump->sctpState = parseSctpState(state.value_or(FBS::SctpAssociation::SctpState::CLOSED));
+        }
+        
+        if (const auto& listener = binary->sctpListener()) {
+            dump->sctpListener = *parseSctpListenerDump(listener);
+        }
+        
+        for (const auto& type : *binary->traceEventTypes()) {
+            std::string t = type == FBS::Transport::TraceEventType::PROBATION ? "probation" : "bwe";
+            dump->traceEventTypes.emplace_back(t);
+        }
+        
+        return dump;
+    }
+
+    std::shared_ptr<BaseTransportStats> parseBaseTransportStats(const FBS::Transport::Stats* binary)
+    {
+        auto stats = std::make_shared<BaseTransportStats>();
+        
+        stats->transportId = binary->transportId()->str();
+        stats->timestamp = binary->timestamp();
+        stats->sctpState = parseSctpState(binary->sctpState().value_or(FBS::SctpAssociation::SctpState::CLOSED));
+        stats->bytesReceived = binary->bytesReceived();
+        stats->recvBitrate = binary->recvBitrate();
+        stats->bytesSent = binary->bytesSent();
+        stats->sendBitrate = binary->sendBitrate();
+        stats->rtpBytesReceived = binary->rtpBytesReceived();
+        stats->rtpRecvBitrate = binary->rtpRecvBitrate();
+        stats->rtpBytesSent = binary->rtpBytesSent();
+        stats->rtpSendBitrate = binary->rtpSendBitrate();
+        stats->rtxBytesReceived = binary->rtxBytesReceived();
+        stats->rtxRecvBitrate = binary->rtxRecvBitrate();
+        stats->rtxBytesSent = binary->rtxBytesSent();
+        stats->rtxSendBitrate = binary->rtxSendBitrate();
+        stats->probationBytesSent = binary->probationBytesSent();
+        stats->probationSendBitrate = binary->probationSendBitrate();
+        stats->availableOutgoingBitrate = binary->availableOutgoingBitrate().value_or(0);
+        stats->availableIncomingBitrate = binary->availableIncomingBitrate().value_or(0);
+        stats->maxIncomingBitrate = binary->maxIncomingBitrate().value_or(0);
+        
+        return stats;
+    }
+
+    std::shared_ptr<TransportTraceEventData> parseTransportTraceEventData(const FBS::Transport::TraceNotification* trace)
+    {
+        auto eventData = std::make_shared<TransportTraceEventData>();
+        
+        eventData->timestamp = trace->timestamp();
+        eventData->direction = trace->direction() == FBS::Common::TraceDirection::DIRECTION_IN ? "in" : "out";
+        
+        switch (trace->type()) {
+            case FBS::Transport::TraceEventType::BWE: {
+                eventData->type = "bwe";
+                if (auto info = trace->info_as_BweTraceInfo()) {
+                    eventData->info = parseBweTraceInfo(info);
+                }
+                break;
+            }
+            case FBS::Transport::TraceEventType::PROBATION: {
+                eventData->type = "probation";
+                break;
+            }
+            default:
+                break;
+        }
+        
+        return eventData;
+    }
+
+    std::shared_ptr<RecvRtpHeaderExtensions> parseRecvRtpHeaderExtensions(const FBS::Transport::RecvRtpHeaderExtensions* binary)
+    {
+        auto extensions = std::make_shared<RecvRtpHeaderExtensions>();
+        
+        if (binary->mid()) {
+            extensions->mid = binary->mid().value();
+        }
+        
+        if (binary->rid()) {
+            extensions->rid = binary->rid().value();
+        }
+        
+        if (binary->rrid()) {
+            extensions->rrid = binary->rrid().value();
+        }
+        
+        if (binary->absSendTime()) {
+            extensions->absSendTime = binary->absSendTime().value();
+        }
+        
+        if (binary->transportWideCc01()) {
+            extensions->transportWideCc01 = binary->transportWideCc01().value();
+        }
+        
+        return extensions;
+    }
+
+    std::shared_ptr<BweTraceInfo> parseBweTraceInfo(const FBS::Transport::BweTraceInfo* binary)
+    {
+        auto info = std::make_shared<BweTraceInfo>();
+        
+        info->bweType = binary->bweType() == FBS::Transport::BweType::TRANSPORT_CC ? "transport-cc'" : "remb";
+        info->desiredBitrate = binary->desiredBitrate();
+        info->effectiveDesiredBitrate = binary->effectiveDesiredBitrate();
+        info->minBitrate = binary->minBitrate();
+        info->maxBitrate = binary->maxBitrate();
+        info->startBitrate = binary->startBitrate();
+        info->maxPaddingBitrate = binary->maxPaddingBitrate();
+        info->availableBitrate = binary->availableBitrate();
+        
+        return info;
+    }
+
+    flatbuffers::Offset<FBS::Transport::ConsumeRequest> createConsumeRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                                                  const std::shared_ptr<ProducerController>& producer,
+                                                                                                  const std::string& consumerId,
+                                                                                                  const RtpParameters& rtpParameters,
+                                                                                                  bool paused,
+                                                                                                  const ConsumerLayers& preferredLayers,
+                                                                                                  bool ignoreDtx,
+                                                                                                  bool pipe)
+    {
+        auto rtpParametersOffset = rtpParameters.serialize(builder);
+        
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::RtpEncodingParameters>> consumableRtpEncodings;
+        for (const auto& encoding : producer->consumableRtpParameters().encodings) {
+            consumableRtpEncodings.emplace_back(encoding.serialize(builder));
+        }
+        
+        auto preferredLayersOffset = FBS::Consumer::CreateConsumerLayers(builder, preferredLayers.spatialLayer, preferredLayers.temporalLayer);
+        
+        FBS::RtpParameters::MediaKind kind = producer->kind() == "audio" ? FBS::RtpParameters::MediaKind::AUDIO : FBS::RtpParameters::MediaKind::VIDEO;
+        
+        FBS::RtpParameters::Type type = producerTypeToFbs(producer->type());
+        
+        auto reqOffset = FBS::Transport::CreateConsumeRequestDirect(builder,
+                                                                        consumerId.c_str(),
+                                                                        producer->id().c_str(),
+                                                                        kind,
+                                                                        rtpParametersOffset,
+                                                                        type,
+                                                                        &consumableRtpEncodings,
+                                                                        paused,
+                                                                        preferredLayersOffset,
+                                                                        ignoreDtx
+                                                                        );
+        return reqOffset;
+    }
+
+    flatbuffers::Offset<FBS::Transport::ProduceRequest> createProduceRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                                                  const std::string& producerId,
+                                                                                                  const std::string& kind,
+                                                                                                  const RtpParameters& rtpParameters,
+                                                                                                  const RtpMappingFBS& rtpMapping,
+                                                                                                  uint32_t keyFrameRequestDelay,
+                                                                                                  bool paused)
+    {
+        auto rtpParametersOffset = rtpParameters.serialize(builder);
+        
+        FBS::RtpParameters::MediaKind mediaKind = kind == "audio" ? FBS::RtpParameters::MediaKind::AUDIO : FBS::RtpParameters::MediaKind::VIDEO;
+        
+        auto rtpMappingOffset = rtpMapping.serialize(builder);
+        
+        auto reqOffset = FBS::Transport::CreateProduceRequestDirect(builder,
+                                                                    producerId.c_str(),
+                                                                    mediaKind,
+                                                                    rtpParametersOffset,
+                                                                    rtpMappingOffset,
+                                                                    keyFrameRequestDelay,
+                                                                    paused
+                                                                    );
+        return reqOffset;
+    }
+
+    flatbuffers::Offset<FBS::Transport::ConsumeDataRequest> createConsumeDataRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                                                          const std::string& dataConsumerId,
+                                                                                                          const std::string& dataProducerId,
+                                                                                                          const std::string& type,
+                                                                                                          const SctpStreamParameters& sctpStreamParameters,
+                                                                                                          const std::string& label,
+                                                                                                          const std::string& protocol,
+                                                                                                          bool paused,
+                                                                                                          const std::vector<uint16_t>& subchannels)
+    {
+        FBS::DataProducer::Type typeFBS = dataConsumerTypeToFbs(type);
+        
+        auto sctpStreamParametersOffset = sctpStreamParameters.serialize(builder);
+        
+        auto reqOffset = FBS::Transport::CreateConsumeDataRequestDirect(builder,
+                                                                            dataConsumerId.c_str(),
+                                                                            dataProducerId.c_str(),
+                                                                            typeFBS,
+                                                                            sctpStreamParametersOffset,
+                                                                            label.c_str(),
+                                                                            protocol.c_str(),
+                                                                            paused,
+                                                                            &subchannels
+                                                                            );
+        
+        return reqOffset;
+    }
+
+    flatbuffers::Offset<FBS::Transport::ProduceDataRequest> createProduceDataRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                                                          const std::string& dataProducerId,
+                                                                                                          const std::string& type,
+                                                                                                          const SctpStreamParameters& sctpStreamParameters,
+                                                                                                          const std::string& label,
+                                                                                                          const std::string& protocol,
+                                                                                                          bool paused)
+    {
+        FBS::DataProducer::Type typeFBS = dataProducerTypeToFbs(type);
+        
+        auto sctpStreamParametersOffset = sctpStreamParameters.serialize(builder);
+        
+        auto reqOffset = FBS::Transport::CreateProduceDataRequestDirect(builder,
+                                                                            dataProducerId.c_str(),
+                                                                            typeFBS,
+                                                                            sctpStreamParametersOffset,
+                                                                            label.c_str(),
+                                                                            protocol.c_str(),
+                                                                            paused
+                                                                            );
+        return reqOffset;
+    }
+
+    std::shared_ptr<RtpListenerDump> parseRtpListenerDump(const FBS::Transport::RtpListener* binary)
+    {
+        auto dump = std::make_shared<RtpListenerDump>();
+
+        for (const auto& item : *binary->ssrcTable()) {
+            dump->ssrcTable.emplace(std::pair<uint16_t, std::string>(item->key(), item->value()->str()));
+        }
+        
+        for (const auto& item : *binary->midTable()) {
+            dump->midTable.emplace(std::pair<std::string, std::string>(item->key()->str(), item->value()->str()));
+        }
+        
+        for (const auto& item : *binary->ridTable()) {
+            dump->ridTable.emplace(std::pair<std::string, std::string>(item->key()->str(), item->value()->str()));
+        }
+        
+        return dump;
+    }
+
+    std::shared_ptr<SctpListenerDump> parseSctpListenerDump(const FBS::Transport::SctpListener* binary)
+    {
+        auto dump = std::make_shared<SctpListenerDump>();
+        
+        for (const auto& item : *binary->streamIdTable()) {
+            dump->streamIdTable.emplace(std::pair<uint16_t, std::string>(item->key(), item->value()->str()));
+        }
+        
+        return dump;
+    }
+
+    void to_json(nlohmann::json& j, const TransportListenInfo& st)
+    {
+        j["protocol"] = st.protocol;
+        j["ip"] = st.ip;
+        j["announcedIp"] = st.announcedIp;
+        j["port"] = st.port;
+        j["sendBufferSize"] = st.sendBufferSize;
+        j["recvBufferSize"] = st.recvBufferSize;
+    }
+
+    void from_json(const nlohmann::json& j, TransportListenInfo& st)
+    {
+        if (j.contains("protocol")) {
+            j.at("protocol").get_to(st.protocol);
+        }
+        if (j.contains("ip")) {
+            j.at("ip").get_to(st.ip);
+        }
+        if (j.contains("announcedIp")) {
+            j.at("announcedIp").get_to(st.announcedIp);
+        }
+        if (j.contains("port")) {
+            j.at("port").get_to(st.port);
+        }
+        if (j.contains("sendBufferSize")) {
+            j.at("sendBufferSize").get_to(st.sendBufferSize);
+        }
+        if (j.contains("recvBufferSize")) {
+            j.at("recvBufferSize").get_to(st.recvBufferSize);
+        }
+    }
+
 }

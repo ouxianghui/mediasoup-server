@@ -961,7 +961,7 @@ namespace srv {
             RtpCodecParameters associatedMediaCodec;
             bool matched = false;
             int apt = 0;
-            for (auto & pair : codec.parameters) {
+            for (auto & pair : codec.getParameters()) {
                 if (pair.first == "apt") {
                     apt = pair.second;
                 }
@@ -1020,7 +1020,7 @@ namespace srv {
         auto mappedSsrc = srv::getRandomInteger(100000000, 999999999);
         
         for (auto &encoding : params.encodings) {
-            RtpMappingEncoding mappedEncoding;
+            RtpEncodingMapping mappedEncoding;
             
             mappedEncoding.mappedSsrc = mappedSsrc++;
             
@@ -1093,7 +1093,7 @@ namespace srv {
             consumableCodec.payloadType = matchedCapCodec.preferredPayloadType;
             consumableCodec.clockRate = matchedCapCodec.clockRate;
             consumableCodec.channels = matchedCapCodec.channels;
-            consumableCodec.parameters = codec.parameters; // Keep the Producer codec parameters.
+            consumableCodec.setParameters(codec.getParameters()); // Keep the Producer codec parameters.
             consumableCodec.rtcpFeedback = matchedCapCodec.rtcpFeedback;
             
             consumableParams.codecs.push_back(consumableCodec);
@@ -1123,7 +1123,7 @@ namespace srv {
                 consumableRtxCodec.mimeType = consumableCapRtxCodec.mimeType;
                 consumableRtxCodec.payloadType = consumableCapRtxCodec.preferredPayloadType;
                 consumableRtxCodec.clockRate = consumableCapRtxCodec.clockRate;
-                consumableRtxCodec.parameters = consumableCapRtxCodec.parameters;
+                consumableRtxCodec.setParameters(consumableCapRtxCodec.parameters);
                 consumableRtxCodec.rtcpFeedback = consumableCapRtxCodec.rtcpFeedback;
                 consumableParams.codecs.push_back(consumableRtxCodec);
             }
@@ -1260,7 +1260,7 @@ namespace srv {
                 for (auto& mediaCodec : consumerParams.codecs) {
                     nlohmann::json jmediaCodec = mediaCodec;
                     int capapt = 0;
-                    for (auto & pair : codec.parameters) {
+                    for (auto & pair : codec.getParameters()) {
                         if (pair.first == "apt") {
                             capapt = pair.second;
                         }
@@ -1485,13 +1485,12 @@ namespace srv {
         
         return consumerParams;
     }
-
 }
 
 
 namespace srv {
 
-    void from_json(const nlohmann::json& j, RtpMappingCodec& st) {
+    void from_json(const nlohmann::json& j, RtpCodecMapping& st) {
         if (j.contains("payloadType")) {
             j.at("payloadType").get_to(st.payloadType);
         }
@@ -1500,12 +1499,12 @@ namespace srv {
         }
     }
 
-    void to_json(nlohmann::json& j, RtpMappingCodec& st) {
+    void to_json(nlohmann::json& j, RtpCodecMapping& st) {
         j["payloadType"] = st.payloadType;
         j["mappedPayloadType"] = st.mappedPayloadType;
     }
 
-    void from_json(const nlohmann::json& j, RtpMappingEncoding& st) {
+    void from_json(const nlohmann::json& j, RtpEncodingMapping& st) {
         if (j.contains("ssrc")) {
             j.at("ssrc").get_to(st.ssrc);
         }
@@ -1520,7 +1519,7 @@ namespace srv {
         }
     }
 
-    void to_json(nlohmann::json& j, RtpMappingEncoding& st) {
+    void to_json(nlohmann::json& j, RtpEncodingMapping& st) {
         j["ssrc"] = st.ssrc;
         j["rid"] = st.rid;
         j["scalabilityMode"] = st.scalabilityMode;
@@ -1539,6 +1538,35 @@ namespace srv {
     void to_json(nlohmann::json& j, RtpMapping& st) {
         j["codecs"] = st.codecs;
         j["encodings"] = st.encodings;
+    }
+
+    flatbuffers::Offset<FBS::RtpParameters::RtpMapping> RtpMappingFBS::serialize(flatbuffers::FlatBufferBuilder& builder) const
+    {
+        // Add rtpMapping.codecs.
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::CodecMapping>> codecs;
+
+        for (const auto& kv : this->codecs) {
+            codecs.emplace_back(FBS::RtpParameters::CreateCodecMapping(builder, kv.first, kv.second));
+        }
+
+        // Add rtpMapping.encodings.
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::EncodingMapping>> encodings;
+        encodings.reserve(this->encodings.size());
+
+        for (const auto& encodingMapping : this->encodings) {
+            encodings.emplace_back(FBS::RtpParameters::CreateEncodingMappingDirect(
+              builder,
+              encodingMapping.rid.c_str(),
+              encodingMapping.ssrc != 0u ? flatbuffers::Optional<uint32_t>(encodingMapping.ssrc)
+                                         : flatbuffers::nullopt,
+              nullptr, /* capability mode. NOTE: Present in NODE*/
+              encodingMapping.mappedSsrc));
+        }
+
+        // Build rtpMapping.
+        auto rtpMapping = FBS::RtpParameters::CreateRtpMappingDirect(builder, &codecs, &encodings);
+        
+        return rtpMapping;
     }
 
 }

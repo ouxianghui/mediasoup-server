@@ -20,10 +20,14 @@
 #include "types.h"
 #include "rtp_parameters.h"
 #include "sctp_parameters.h"
+#include "srtp_parameters.h"
 #include "producer_controller.h"
 #include "consumer_controller.h"
 #include "data_producer_controller.h"
 #include "data_consumer_controller.h"
+#include "FBS/transport.h"
+#include "FBS/sctpAssociation.h"
+#include "flatbuffers/flatbuffers.h"
 
 namespace srv {
 
@@ -62,6 +66,9 @@ namespace srv {
         uint32_t recvBufferSize;
     };
 
+    void to_json(nlohmann::json& j, const TransportListenInfo& st);
+    void from_json(const nlohmann::json& j, TransportListenInfo& st);
+
     /**
      * Transport protocol.
      */
@@ -76,6 +83,25 @@ namespace srv {
         
         // Options: 'udp' | 'tcp'
         std::string protocol;
+    };
+
+    struct TransportTraceInfo {};
+
+    struct ProbationTraceInfo : TransportTraceInfo
+    {
+        
+    };
+
+    struct BweTraceInfo : TransportTraceInfo
+    {
+        std::string bweType;
+        uint32_t desiredBitrate;
+        uint32_t effectiveDesiredBitrate;
+        uint32_t minBitrate;
+        uint32_t maxBitrate;
+        uint32_t startBitrate;
+        uint32_t maxPaddingBitrate;
+        uint32_t availableBitrate;
     };
 
     /**
@@ -97,7 +123,7 @@ namespace srv {
         /**
          * Event timestamp.
          */
-        int64_t timestamp;
+        uint64_t timestamp;
 
         /**
          * Event direction.
@@ -108,7 +134,7 @@ namespace srv {
         /**
          * Per type information.
          */
-        nlohmann::json info;
+        std::shared_ptr<TransportTraceInfo> info;
     };
 
     struct RtpListenerDump
@@ -179,6 +205,35 @@ namespace srv {
         uint32_t maxIncomingBitrate;
     };
 
+    /**
+     * The hash function algorithm (as defined in the "Hash function Textual Names"
+     * registry initially specified in RFC 4572 Section 8) and its corresponding
+     * certificate fingerprint value (in lowercase hex string as expressed utilizing
+     * the syntax of "fingerprint" in RFC 4572 Section 5).
+     */
+    struct DtlsFingerprint
+    {
+        std::string algorithm;
+        std::string value;
+    };
+
+    struct DtlsParameters
+    {
+        // DtlsRole, Options: 'auto' | 'client' | 'server'
+        std::string role;
+        
+        std::vector<DtlsFingerprint> fingerprints;
+    };
+
+    struct ConnectData
+    {
+        std::string ip;
+        uint16_t port;
+        uint16_t rtcpPort;
+        SrtpParameters srtpParameters;
+        DtlsParameters dtlsParameters;
+    };
+
     // export type SctpState = 'new' | 'connecting' | 'connected' | 'failed' | 'closed';
 
     struct TransportInternal
@@ -187,15 +242,17 @@ namespace srv {
         std::string transportId;
     };
 
+    struct TransportData {
+        SctpParameters sctpParameters;
+    };
+
     class Channel;
-    class PayloadChannel;
 
     struct TransportConstructorOptions
     {
         TransportInternal internal;
-        nlohmann::json data;
+        std::shared_ptr<TransportData> data;
         std::shared_ptr<Channel> channel;
-        std::shared_ptr<PayloadChannel> payloadChannel;
         nlohmann::json appData;
         std::function<RtpCapabilities()> getRouterRtpCapabilities;
         std::function<std::shared_ptr<ProducerController>(const std::string&)> getProducerController;
@@ -223,11 +280,11 @@ namespace srv {
         
         void onListenServerClosed();
         
-        nlohmann::json dump();
+        virtual std::shared_ptr<BaseTransportDump> dump();
         
-        virtual nlohmann::json getStats();
+        virtual std::shared_ptr<BaseTransportStats> getStats();
         
-        virtual void connect(const nlohmann::json& data);
+        virtual void connect(const std::shared_ptr<ConnectData>& data);
         
         virtual void setMaxIncomingBitrate(int32_t bitrate);
 
@@ -276,13 +333,10 @@ namespace srv {
         TransportInternal _internal;
 
         // Consumer data.
-        nlohmann::json _data;
+        std::shared_ptr<TransportData> _data;
 
         // Channel instance.
         std::weak_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };
@@ -326,7 +380,67 @@ namespace srv {
 
         // Next SCTP stream id.
         int32_t _nextSctpStreamId = 0;
-        
     };
+
+    FBS::Transport::TraceEventType transportTraceEventTypeToFbs(const std::string& eventType);
+
+    std::string transportTraceEventTypeFromFbs(FBS::Transport::TraceEventType eventType);
+
+    std::string parseSctpState(FBS::SctpAssociation::SctpState fbsSctpState);
+
+    std::string parseProtocol(FBS::Transport::Protocol protocol);
+
+    FBS::Transport::Protocol serializeProtocol(const std::string& protocol);
+
+    std::shared_ptr<TransportTuple> parseTuple(const FBS::Transport::Tuple* binary);
+
+    std::shared_ptr<BaseTransportDump> parseBaseTransportDump(const FBS::Transport::Dump* binary);
+
+    std::shared_ptr<BaseTransportStats> parseBaseTransportStats(const FBS::Transport::Stats* binary);
+
+    std::shared_ptr<TransportTraceEventData> parseTransportTraceEventData(const FBS::Transport::TraceNotification* trace);
+
+    std::shared_ptr<RecvRtpHeaderExtensions> parseRecvRtpHeaderExtensions(const FBS::Transport::RecvRtpHeaderExtensions* binary);
+
+    std::shared_ptr<BweTraceInfo> parseBweTraceInfo(const FBS::Transport::BweTraceInfo* binary);
+
+    flatbuffers::Offset<FBS::Transport::ConsumeRequest> createConsumeRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                             const std::shared_ptr<ProducerController>& producer,
+                                                                             const std::string& consumerId,
+                                                                             const RtpParameters& rtpParameters,
+                                                                             bool paused,
+                                                                             const ConsumerLayers& preferredLayers,
+                                                                             bool ignoreDtx,
+                                                                             bool pipe);
+
+    flatbuffers::Offset<FBS::Transport::ProduceRequest> createProduceRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                             const std::string& producerId,
+                                                                             const std::string& kind,
+                                                                             const RtpParameters& rtpParameters,
+                                                                             const RtpMappingFBS& rtpMapping,
+                                                                             uint32_t keyFrameRequestDelay,
+                                                                             bool paused);
+
+    flatbuffers::Offset<FBS::Transport::ConsumeDataRequest> createConsumeDataRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                                     const std::string& dataConsumerId,
+                                                                                     const std::string& dataProducerId,
+                                                                                     const std::string& type,
+                                                                                     const SctpStreamParameters& sctpStreamParameters,
+                                                                                     const std::string& label,
+                                                                                     const std::string& protocol,
+                                                                                     bool paused,
+                                                                                     const std::vector<uint16_t>& subchannels);
+
+    flatbuffers::Offset<FBS::Transport::ProduceDataRequest> createProduceDataRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                                     const std::string& dataProducerId,
+                                                                                     const std::string& type,
+                                                                                     const SctpStreamParameters& sctpStreamParameters,
+                                                                                     const std::string& label,
+                                                                                     const std::string& protocol,
+                                                                                     bool paused);
+
+    std::shared_ptr<RtpListenerDump> parseRtpListenerDump(const FBS::Transport::RtpListener* binary);
+
+    std::shared_ptr<SctpListenerDump> parseSctpListenerDump(const FBS::Transport::SctpListener* binary);
 
 }

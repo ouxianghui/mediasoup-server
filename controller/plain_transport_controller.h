@@ -24,12 +24,46 @@
 
 namespace srv {
 
+    struct PlainTransportListenInfo
+    {
+        /**
+         * Listening info.
+         */
+        TransportListenInfo listenInfo;
+
+        /**
+         * Optional listening info for RTCP.
+         */
+        TransportListenInfo rtcpListenInfo;
+    };
+
+    struct PlainTransportListenIp
+    {
+        /**
+         * Listening IP address.
+         */
+        std::string listenIp;
+
+        /**
+         * Fixed port to listen on instead of selecting automatically from Worker's port
+         * range.
+         */
+        uint16_t port;
+    };
+
+    struct PlainTransportListen
+    {
+        // Either
+        std::shared_ptr<PlainTransportListenInfo> plainTransportListenInfo;
+        std::shared_ptr<PlainTransportListenIp> plainTransportListenIp;
+    };
+
     struct PlainTransportOptions
     {
         /**
          * Listening IP address.
          */
-        nlohmann::json listenIps;
+        PlainTransportListen listenInfo;
 
         /**
          * Fixed port to listen on instead of selecting automatically from Worker's port
@@ -93,47 +127,39 @@ namespace srv {
          */
         nlohmann::json appData;
     };
+//
+//    void to_json(nlohmann::json& j, const PlainTransportOptions& st);
+//    void from_json(const nlohmann::json& j, PlainTransportOptions& st);
 
-    void to_json(nlohmann::json& j, const PlainTransportOptions& st);
-    void from_json(const nlohmann::json& j, PlainTransportOptions& st);
-
-    struct PlainTransportStat
+    struct PlainTransportDump : BaseTransportDump
     {
-        // Common to all Transports.
+        bool rtcpMux;
+        bool comedia;
+        TransportTuple tuple;
+        TransportTuple rtcpTuple;
+        SrtpParameters srtpParameters;
+    };
+
+    struct PlainTransportStat : BaseTransportStats
+    {
         std::string type;
-        std::string transportId;
-        uint64_t timestamp;
-        
-        // Options: 'new' | 'connecting' | 'connected' | 'failed' | 'closed';
-        std::string sctpState;
-        
-        int32_t bytesReceived;
-        int32_t recvBitrate;
-        int32_t bytesSent;
-        int32_t sendBitrate;
-        int32_t rtpBytesReceived;
-        int32_t rtpRecvBitrate;
-        int32_t rtpBytesSent;
-        int32_t rtpSendBitrate;
-        int32_t rtxBytesReceived;
-        int32_t rtxRecvBitrate;
-        int32_t rtxBytesSent;
-        int32_t rtxSendBitrate;
-        int32_t probationBytesSent;
-        int32_t probationSendBitrate;
-        int32_t availableOutgoingBitrate;
-        int32_t availableIncomingBitrate;
-        int32_t maxIncomingBitrate;
-        
-        // PlainTransport specific.
         bool rtcpMux;
         bool comedia;
         TransportTuple tuple;
         TransportTuple rtcpTuple;
     };
 
-    void to_json(nlohmann::json& j, const PlainTransportStat& st);
-    void from_json(const nlohmann::json& j, PlainTransportStat& st);
+    struct PlainTransportData : TransportData
+    {
+        bool rtcpMux;
+        bool comedia;
+        TransportTuple tuple;
+        TransportTuple rtcpTuple;
+        
+        //SctpParameters sctpParameters;
+        std::string sctpState;
+        SrtpParameters srtpParameters;
+    };
 
     struct PlainTransportConstructorOptions : TransportConstructorOptions {};
 
@@ -148,23 +174,25 @@ namespace srv {
         
         void destroy();
         
-        TransportTuple tuple() { return _data["tuple"]; }
+        TransportTuple tuple() { return transportData()->tuple; }
 
-        TransportTuple rtcpTuple() { return _data["rtcpTuple"]; }
+        TransportTuple rtcpTuple() { return transportData()->rtcpTuple; }
 
-        SctpParameters sctpParameters() { return _data["sctpParameters"]; }
+        SctpParameters sctpParameters() { return transportData()->sctpParameters; }
 
-        std::string sctpState() { return _data["sctpState"]; }
+        std::string sctpState() { return transportData()->sctpState; }
 
-        SrtpParameters srtpParameters() { return _data["srtpParameters"]; }
+        SrtpParameters srtpParameters() { return transportData()->srtpParameters; }
 
         void close();
         
         void onRouterClosed();
         
-        nlohmann::json getStats() override;
+        std::shared_ptr<BaseTransportDump> dump() override;
         
-        void connect(const nlohmann::json& data) override;
+        std::shared_ptr<BaseTransportStats> getStats() override;
+        
+        void connect(const std::shared_ptr<ConnectData>& data) override;
         
     public:
         sigslot::signal<const TransportTuple&> tupleSignal;
@@ -176,7 +204,19 @@ namespace srv {
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
+        
+        std::shared_ptr<PlainTransportData> transportData() { return std::dynamic_pointer_cast<PlainTransportData>(this->_data); }
     };
+
+    std::shared_ptr<PlainTransportDump> parsePlainTransportDumpResponse(const FBS::PlainTransport::DumpResponse* binary);
+
+    std::shared_ptr<PlainTransportStat> parseGetStatsResponse(const FBS::PlainTransport::GetStatsResponse* binary);
+
+    flatbuffers::Offset<FBS::PlainTransport::ConnectRequest> createConnectRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                                  const std::string& ip,
+                                                                                  uint16_t port,
+                                                                                  uint16_t rtcpPort,
+                                                                                  const SrtpParameters& srtpParameters);
 
 }

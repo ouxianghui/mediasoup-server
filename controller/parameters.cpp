@@ -14,6 +14,52 @@
 
 namespace srv {
 
+    std::vector<flatbuffers::Offset<FBS::RtpParameters::Parameter>> Parameters::serialize(flatbuffers::FlatBufferBuilder& builder) const
+    {
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::Parameter>> parameters;
+
+        for (const auto& kv : this->mapKeyValues) {
+            const auto& key   = kv.first;
+            const auto& value = kv.second;
+
+            flatbuffers::Offset<FBS::RtpParameters::Parameter> parameter;
+
+            switch (value.type) {
+                case Value::Type::BOOLEAN: {
+                    auto valueOffset = FBS::RtpParameters::CreateBoolean(builder, value.booleanValue);
+                    parameter = FBS::RtpParameters::CreateParameterDirect(builder, key.c_str(), FBS::RtpParameters::Value::Boolean, valueOffset.Union());
+                    break;
+                }
+
+                case Value::Type::INTEGER: {
+                    auto valueOffset = FBS::RtpParameters::CreateInteger32(builder, value.integerValue);
+                    parameters.emplace_back(FBS::RtpParameters::CreateParameterDirect(builder, key.c_str(), FBS::RtpParameters::Value::Integer32, valueOffset.Union()));
+                    break;
+                }
+
+                case Value::Type::DOUBLE: {
+                    auto valueOffset = FBS::RtpParameters::CreateDouble(builder, value.doubleValue);
+                    parameters.emplace_back(FBS::RtpParameters::CreateParameterDirect(builder, key.c_str(), FBS::RtpParameters::Value::Double, valueOffset.Union()));
+                    break;
+                }
+
+                case Value::Type::STRING: {
+                    auto valueOffset = FBS::RtpParameters::CreateStringDirect(builder, value.stringValue.c_str());
+                    parameters.emplace_back(FBS::RtpParameters::CreateParameterDirect(builder, key.c_str(), FBS::RtpParameters::Value::String, valueOffset.Union()));
+                    break;
+                }
+
+                case Value::Type::ARRAY_OF_INTEGERS: {
+                    auto valueOffset = FBS::RtpParameters::CreateInteger32ArrayDirect(builder, &value.arrayOfIntegers);
+                    parameters.emplace_back(FBS::RtpParameters::CreateParameterDirect(builder, key.c_str(), FBS::RtpParameters::Value::Integer32Array, valueOffset.Union()));
+                    break;
+                }
+            }
+        }
+
+        return parameters;
+    }
+
     void Parameters::Set(const flatbuffers::Vector<flatbuffers::Offset<FBS::RtpParameters::Parameter>>* data)
     {
         for (const auto* parameter : *data) {
@@ -42,6 +88,88 @@ namespace srv {
 
                 case FBS::RtpParameters::Value::Integer32Array: {
                     this->mapKeyValues.emplace(key, Value(parameter->value_as_Integer32Array()->value()));
+                    break;
+                }
+
+                default:; // Just ignore other value types.
+            }
+        }
+    }
+
+    void Parameters::serialize(nlohmann::json& jsonObject) const
+    {
+        // Force it to be an object even if no key/values are added below.
+        jsonObject = nlohmann::json::object();
+
+        for (auto& kv : this->mapKeyValues) {
+            auto& key   = kv.first;
+            auto& value = kv.second;
+
+            switch (value.type) {
+                case Value::Type::BOOLEAN:
+                    jsonObject[key] = value.booleanValue;
+                    break;
+                case Value::Type::INTEGER:
+                    jsonObject[key] = value.integerValue;
+                    break;
+                case Value::Type::DOUBLE:
+                    jsonObject[key] = value.doubleValue;
+                    break;
+                case Value::Type::STRING:
+                    jsonObject[key] = value.stringValue;
+                    break;
+                case Value::Type::ARRAY_OF_INTEGERS:
+                    jsonObject[key] = value.arrayOfIntegers;
+                    break;
+            }
+        }
+    }
+
+    void Parameters::Set(const nlohmann::json& data)
+    {
+        SRV_ASSERT(data.is_object(), "data is not an object");
+
+        for (nlohmann::json::iterator it = data.begin(); it != data.end(); ++it) {
+            const std::string& key = it.key();
+            auto& value= it.value();
+
+            switch (value.type()) {
+                case nlohmann::json::value_t::boolean: {
+                    this->mapKeyValues.emplace(key, Value(value.get<bool>()));
+                    break;
+                }
+
+                case nlohmann::json::value_t::number_integer:
+                case nlohmann::json::value_t::number_unsigned: {
+                    this->mapKeyValues.emplace(key, Value(value.get<int32_t>()));
+                    break;
+                }
+
+                case nlohmann::json::value_t::number_float: {
+                    this->mapKeyValues.emplace(key, Value(value.get<double>()));
+                    break;
+                }
+
+                case nlohmann::json::value_t::string: {
+                    this->mapKeyValues.emplace(key, Value(value.get<std::string>()));
+                    break;
+                }
+
+                case nlohmann::json::value_t::array: {
+                    std::vector<int32_t> arrayOfIntegers;
+                    bool isValid = true;
+
+                    for (auto& entry : value) {
+                        if (!entry.is_number_integer()) {
+                            isValid = false;
+                            break;
+                        }
+                        arrayOfIntegers.emplace_back(entry.get<int32_t>());
+                    }
+
+                    if (!arrayOfIntegers.empty() && isValid) {
+                        this->mapKeyValues.emplace(key, Value(arrayOfIntegers));
+                    }
                     break;
                 }
 
@@ -203,5 +331,4 @@ namespace srv {
 
         return value.arrayOfIntegers;
     }
-
 }

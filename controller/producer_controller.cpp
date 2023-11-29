@@ -10,19 +10,18 @@
 #include "producer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
+#include "ortc.h"
 
 namespace srv {
 
     ProducerController::ProducerController(const ProducerInternal& internal,
                                            const ProducerData& data,
                                            const std::shared_ptr<Channel>& channel,
-                                           const std::shared_ptr<PayloadChannel>& payloadChannel,
                                            const nlohmann::json& appData,
                                            bool paused)
     : _internal(internal)
     , _data(data)
     , _channel(channel)
-    , _payloadChannel(payloadChannel)
     , _appData(appData)
     , _paused(paused)
     {
@@ -62,9 +61,9 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto requestOffset = FBS::Transport::CreateCloseProducerRequestDirect(channel->builder(), _internal.producerId.c_str());
+        auto reqOffset = FBS::Transport::CreateCloseProducerRequestDirect(channel->builder(), _internal.producerId.c_str());
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_PRODUCER, FBS::Request::Body::Transport_CloseProducerRequest, requestOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_PRODUCER, FBS::Request::Body::Transport_CloseProducerRequest, reqOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -184,9 +183,9 @@ namespace srv {
             eventTypes.emplace_back(producerTraceEventTypeToFbs(type));
         }
         
-        auto requestOffset = FBS::Producer::CreateEnableTraceEventRequestDirect(channel->builder(), &eventTypes);
+        auto reqOffset = FBS::Producer::CreateEnableTraceEventRequestDirect(channel->builder(), &eventTypes);
         
-        channel->request(FBS::Request::Method::PRODUCER_ENABLE_TRACE_EVENT, FBS::Request::Body::Producer_EnableTraceEventRequest, requestOffset, _internal.producerId);
+        channel->request(FBS::Request::Method::PRODUCER_ENABLE_TRACE_EVENT, FBS::Request::Body::Producer_EnableTraceEventRequest, reqOffset, _internal.producerId);
     }
 
     void ProducerController::send(const std::vector<uint8_t>& data)
@@ -264,8 +263,11 @@ namespace srv {
             SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
     }
+}
 
-    std::string ProducerController::producerTypeFromFbs(FBS::RtpParameters::Type type)
+namespace srv {
+
+    std::string producerTypeFromFbs(FBS::RtpParameters::Type type)
     {
         switch (type)
         {
@@ -281,7 +283,7 @@ namespace srv {
         }
     }
 
-    FBS::RtpParameters::Type ProducerController::producerTypeToFbs(const std::string& type)
+    FBS::RtpParameters::Type producerTypeToFbs(const std::string& type)
     {
         if (type == "simple") {
             return FBS::RtpParameters::Type::SIMPLE;
@@ -296,7 +298,7 @@ namespace srv {
         return FBS::RtpParameters::Type::MIN;
     }
 
-    FBS::Producer::TraceEventType ProducerController::producerTraceEventTypeToFbs(const std::string& eventType)
+    FBS::Producer::TraceEventType producerTraceEventTypeToFbs(const std::string& eventType)
     {
         if (eventType == "keyframe") {
             return FBS::Producer::TraceEventType::KEYFRAME;
@@ -319,7 +321,7 @@ namespace srv {
         }
     }
 
-    std::string ProducerController::producerTraceEventTypeFromFbs(FBS::Producer::TraceEventType eventType)
+    std::string producerTraceEventTypeFromFbs(FBS::Producer::TraceEventType eventType)
     {
         switch (eventType)
         {
@@ -339,7 +341,7 @@ namespace srv {
         }
     }
 
-    std::shared_ptr<ProducerDump> ProducerController::parseProducerDump(const FBS::Producer::DumpResponse* data)
+    std::shared_ptr<ProducerDump> parseProducerDump(const FBS::Producer::DumpResponse* data)
     {
         auto dump = std::make_shared<ProducerDump>();
 
@@ -353,7 +355,7 @@ namespace srv {
         }
         
         for (const auto& encoding : *data->rtpMapping()->encodings()) {
-            RtpEncodingMapping rtpEncodingMapping;
+            srv::RtpEncodingMapping rtpEncodingMapping;
             rtpEncodingMapping.ssrc = encoding->ssrc().value_or(0);
             rtpEncodingMapping.rid = encoding->rid()->str();
             rtpEncodingMapping.mappedSsrc = encoding->mappedSsrc();
@@ -373,7 +375,7 @@ namespace srv {
         return dump;
     }
 
-    std::vector<std::shared_ptr<ProducerStat>> ProducerController::parseProducerStats(const FBS::Producer::GetStatsResponse* binary)
+    std::vector<std::shared_ptr<ProducerStat>> parseProducerStats(const FBS::Producer::GetStatsResponse* binary)
     {
         std::vector<std::shared_ptr<ProducerStat>> result;
         
@@ -414,11 +416,11 @@ namespace srv {
             
             result.emplace_back(producerStat);
         }
-    
+
         return result;
     }
 
-    std::shared_ptr<ProducerScore> ProducerController::parseProducerScore(const FBS::Producer::Score* binary)
+    std::shared_ptr<ProducerScore> parseProducerScore(const FBS::Producer::Score* binary)
     {
         auto producerScore = std::make_shared<ProducerScore>();
         
@@ -429,7 +431,7 @@ namespace srv {
         return producerScore;
     }
 
-    std::shared_ptr<ProducerTraceEventData> ProducerController::parseTraceEventData(const FBS::Producer::TraceNotification* trace)
+    std::shared_ptr<ProducerTraceEventData> parseTraceEventData(const FBS::Producer::TraceNotification* trace)
     {
         auto eventData = std::make_shared<ProducerTraceEventData>();
         eventData->type = producerTraceEventTypeFromFbs(trace->type());

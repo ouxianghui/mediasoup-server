@@ -102,9 +102,9 @@ namespace srv {
         }
         channel->notificationSignal.disconnect(shared_from_this());
      
-        auto requestOffset = FBS::Transport::CreateCloseDataProducerRequestDirect(channel->builder(), _internal.dataProducerId.c_str());
+        auto reqOffset = FBS::Transport::CreateCloseDataProducerRequestDirect(channel->builder(), _internal.dataProducerId.c_str());
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATAPRODUCER, FBS::Request::Body::Transport_CloseDataProducerRequest, requestOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATAPRODUCER, FBS::Request::Body::Transport_CloseDataProducerRequest, reqOffset, _internal.transportId);
         
         this->closeSignal();
     }
@@ -210,8 +210,11 @@ namespace srv {
     {
         SRV_LOGD("handleWorkerNotifications()");
     }
+}
 
-    FBS::DataProducer::Type DataProducerController::dataProducerTypeToFbs(const std::string& type)
+namespace srv {
+
+    FBS::DataProducer::Type dataProducerTypeToFbs(const std::string& type)
     {
         if ("sctp") {
             return FBS::DataProducer::Type::SCTP;
@@ -224,7 +227,7 @@ namespace srv {
         return  FBS::DataProducer::Type::MIN;
     }
 
-    std::string DataProducerController::dataProducerTypeFromFbs(FBS::DataProducer::Type type)
+    std::string dataProducerTypeFromFbs(FBS::DataProducer::Type type)
     {
         switch (type)
         {
@@ -238,7 +241,7 @@ namespace srv {
         }
     }
 
-    std::shared_ptr<DataProducerDump> DataProducerController::parseDataProducerDumpResponse(const FBS::DataProducer::DumpResponse* data)
+    std::shared_ptr<DataProducerDump> parseDataProducerDumpResponse(const FBS::DataProducer::DumpResponse* data)
     {
         auto dump = std::make_shared<DataProducerDump>();
         
@@ -252,7 +255,7 @@ namespace srv {
         return dump;
     }
 
-    std::shared_ptr<DataProducerStat> DataProducerController::parseDataProducerStats(const FBS::DataProducer::GetStatsResponse* binary)
+    std::shared_ptr<DataProducerStat> parseDataProducerStats(const FBS::DataProducer::GetStatsResponse* binary)
     {
         auto stat = std::make_shared<DataProducerStat>();
         

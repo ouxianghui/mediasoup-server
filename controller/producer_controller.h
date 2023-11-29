@@ -14,7 +14,6 @@
 #include <atomic>
 #include <string>
 #include <unordered_map>
-#include <absl/container/flat_hash_map.h>
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
@@ -22,6 +21,7 @@
 #include "rtp_parameters.h"
 #include "FBS/notification.h"
 #include "FBS/producer.h"
+#include "ortc.h"
 
 
 namespace srv {
@@ -52,7 +52,7 @@ namespace srv {
          * Just for video. Time (in ms) before asking the sender for a new key frame
          * after having asked a previous one. Default 0.
          */
-       int32_t  keyFrameRequestDelay;
+       int32_t keyFrameRequestDelay;
 
         /**
          * Custom application data.
@@ -150,33 +150,19 @@ namespace srv {
         RtpParameters consumableRtpParameters;
     };
 
-    struct RtpEncodingMapping
-    {
-        std::string rid;
-        uint32_t ssrc{ 0 };
-        uint32_t mappedSsrc{ 0 };
-    };
-
-    struct RtpMapping
-    {
-        absl::flat_hash_map<uint8_t, uint8_t> codecs;
-        std::vector<RtpEncodingMapping> encodings;
-    };
-
     struct ProducerDump
     {
         std::string id;
         std::string kind;
         std::string type;
         RtpParameters rtpParameters;
-        RtpMapping rtpMapping;
+        RtpMappingFBS rtpMapping;
         std::vector<RtpStreamDump> rtpStreams;
         std::vector<std::string> traceEventTypes;
         bool paused;
     };
 
     class Channel;
-    class PayloadChannel;
 
     class ProducerController : public std::enable_shared_from_this<ProducerController>
     {
@@ -184,7 +170,6 @@ namespace srv {
         ProducerController(const ProducerInternal& internal,
                            const ProducerData& data,
                            const std::shared_ptr<Channel>& channel,
-                           const std::shared_ptr<PayloadChannel>& payloadChannel,
                            const nlohmann::json& appData,
                            bool paused);
         
@@ -234,10 +219,6 @@ namespace srv {
         
         void send(const std::vector<uint8_t>& data);
         
-        std::string producerTypeFromFbs(FBS::RtpParameters::Type type);
-
-        FBS::RtpParameters::Type producerTypeToFbs(const std::string& type);
-        
     public:
         sigslot::signal<> transportCloseSignal;
         
@@ -258,18 +239,6 @@ namespace srv {
         
         void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
         
-        FBS::Producer::TraceEventType producerTraceEventTypeToFbs(const std::string& eventType);
-
-        std::string producerTraceEventTypeFromFbs(FBS::Producer::TraceEventType eventType);
-
-        std::shared_ptr<ProducerDump> parseProducerDump(const FBS::Producer::DumpResponse* data);
-
-        std::vector<std::shared_ptr<ProducerStat>> parseProducerStats(const FBS::Producer::GetStatsResponse* binary);
-
-        std::shared_ptr<ProducerScore> parseProducerScore(const FBS::Producer::Score* binary);
-
-        std::shared_ptr<ProducerTraceEventData> parseTraceEventData(const FBS::Producer::TraceNotification* trace);
-        
     private:
         // Internal data.
         ProducerInternal _internal;
@@ -279,9 +248,6 @@ namespace srv {
 
         // Channel instance.
         std::weak_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };
@@ -296,5 +262,21 @@ namespace srv {
         std::vector<ProducerScore> _score;
         
     };
+
+    std::string producerTypeFromFbs(FBS::RtpParameters::Type type);
+
+    FBS::RtpParameters::Type producerTypeToFbs(const std::string& type);
+
+    FBS::Producer::TraceEventType producerTraceEventTypeToFbs(const std::string& eventType);
+
+    std::string producerTraceEventTypeFromFbs(FBS::Producer::TraceEventType eventType);
+
+    std::shared_ptr<ProducerDump> parseProducerDump(const FBS::Producer::DumpResponse* data);
+
+    std::vector<std::shared_ptr<ProducerStat>> parseProducerStats(const FBS::Producer::GetStatsResponse* binary);
+
+    std::shared_ptr<ProducerScore> parseProducerScore(const FBS::Producer::Score* binary);
+
+    std::shared_ptr<ProducerTraceEventData> parseTraceEventData(const FBS::Producer::TraceNotification* trace);
 
 }

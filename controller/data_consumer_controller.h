@@ -176,18 +176,10 @@ namespace srv {
         
         uint32_t getBufferedAmount();
         
-        FBS::DataProducer::Type dataConsumerTypeToFbs(const std::string& type);
-
-        std::string dataConsumerTypeFromFbs(FBS::DataProducer::Type type);
-        
     private:
         void handleWorkerNotifications();
         
         void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
-        
-        std::shared_ptr<DataConsumerDump> parseDataConsumerDumpResponse(const FBS::DataConsumer::DumpResponse* data);
-
-        std::shared_ptr<DataConsumerStat> parseDataConsumerStats(const FBS::DataConsumer::GetStatsResponse* binary);
         
     public:
         sigslot::signal<> transportCloseSignal;
@@ -237,5 +229,13 @@ namespace srv {
         nlohmann::json _appData;
         
     };
+
+    FBS::DataProducer::Type dataConsumerTypeToFbs(const std::string& type);
+
+    std::string dataConsumerTypeFromFbs(FBS::DataProducer::Type type);
+
+    std::shared_ptr<DataConsumerDump> parseDataConsumerDumpResponse(const FBS::DataConsumer::DumpResponse* data);
+
+    std::shared_ptr<DataConsumerStat> parseDataConsumerStats(const FBS::DataConsumer::GetStatsResponse* binary);
 
 }

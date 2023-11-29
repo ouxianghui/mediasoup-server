@@ -17,6 +17,8 @@
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
+#include "transport_controller.h"
+#include "FBS/webRtcServer.h"
 
 namespace srv {
 
@@ -38,6 +40,36 @@ namespace srv {
 
     void to_json(nlohmann::json& j, const WebRtcServerOptions& st);
     void from_json(const nlohmann::json& j, WebRtcServerOptions& st);
+
+    struct WebRtcServerListenInfo : TransportListenInfo {};
+
+    struct IpPort
+    {
+        std::string ip;
+        uint16_t port;
+    };
+
+    struct IceUserNameFragment
+    {
+        std::string localIceUsernameFragment;
+        std::string webRtcTransportId;
+    };
+
+    struct TupleHash
+    {
+        uint64_t tupleHash;
+        std::string webRtcTransportId;
+    };
+
+    struct WebRtcServerDump
+    {
+        std::string id;
+        std::vector<IpPort> udpSockets;
+        std::vector<IpPort> tcpServers;
+        std::vector<std::string> webRtcTransportIds;
+        std::vector<IceUserNameFragment> localIceUsernameFragments;
+        std::vector<TupleHash> tupleHashes;
+    };
 
     struct WebRtcServerInternal
     {
@@ -64,7 +96,7 @@ namespace srv {
         
         void handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& controller);
         
-        nlohmann::json dump();
+        std::shared_ptr<WebRtcServerDump> dump();
         
         void onWorkerClosed();
         
@@ -97,5 +129,13 @@ namespace srv {
         std::mutex _webRtcTransportsMutex;
         std::unordered_map<std::string, std::shared_ptr<WebRtcTransportController>> _webRtcTransportMap;
     };
+
+    std::shared_ptr<IpPort> parseIpPort(const FBS::WebRtcServer::IpPort* binary);
+
+    std::shared_ptr<IceUserNameFragment> parseIceUserNameFragment(const FBS::WebRtcServer::IceUserNameFragment* binary);
+
+    std::shared_ptr<TupleHash> parseTupleHash(const FBS::WebRtcServer::TupleHash* binary);
+
+    std::shared_ptr<WebRtcServerDump> parseWebRtcServerDump(const FBS::WebRtcServer::DumpResponse* data);
 
 }

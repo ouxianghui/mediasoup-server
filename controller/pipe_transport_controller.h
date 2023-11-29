@@ -24,18 +24,38 @@
 
 namespace srv {
 
-    struct PipeTransportOptions
+    struct PipeTransportListenInfo
+    {
+        /**
+         * Listening info.
+         */
+        TransportListenInfo listenInfo;
+    };
+
+    struct PipeTransportListenIp
     {
         /**
          * Listening IP address.
          */
-        nlohmann::json listenIp;
+        std::string listenIp;
 
         /**
          * Fixed port to listen on instead of selecting automatically from Worker's port
          * range.
          */
-        int32_t port = 0;
+        uint16_t port;
+    };
+
+    struct PipeTransportListen
+    {
+        // Either
+        std::shared_ptr<PipeTransportListenInfo> pipeTransportListenInfo;
+        std::shared_ptr<PipeTransportListenIp> pipeTransportListenIp;
+    };
+
+    struct PipeTransportOptions
+    {
+        PipeTransportListen listenInfo;
 
         /**
          * Create a SCTP association. Default false.
@@ -79,41 +99,31 @@ namespace srv {
         nlohmann::json appData;
     };
 
-    struct PipeTransportStat
+    struct PipeTransportDump : BaseTransportDump
     {
-        // Common to all Transports.
+        TransportTuple tuple;
+        bool rtx;
+        SrtpParameters srtpParameters;
+    };
+
+    struct PipeTransportStat : BaseTransportStats
+    {
         std::string type;
-        std::string transportId;
-        int64_t timestamp;
-        
-        std::string sctpState;
-        
-        int32_t bytesReceived;
-        int32_t recvBitrate;
-        int32_t bytesSent;
-        int32_t sendBitrate;
-        int32_t rtpBytesReceived;
-        int32_t rtpRecvBitrate;
-        int32_t rtpBytesSent;
-        int32_t rtpSendBitrate;
-        int32_t rtxBytesReceived;
-        int32_t rtxRecvBitrate;
-        int32_t rtxBytesSent;
-        int32_t rtxSendBitrate;
-        int32_t probationBytesSent;
-        int32_t probationSendBitrate;
-        int32_t availableOutgoingBitrate;
-        int32_t availableIncomingBitrate;
-        int32_t maxIncomingBitrate;
-        
-        // PipeTransport specific.
         TransportTuple tuple;
     };
 
-    void to_json(nlohmann::json& j, const PipeTransportStat& st);
-    void from_json(const nlohmann::json& j, PipeTransportStat& st);
+    struct PipeTransportData : TransportData
+    {
+        TransportTuple tuple;
+        //SctpParameters sctpParameters;
+        std::string sctpState;
+        bool rtx;
+        SrtpParameters srtpParameters;
+    };
 
     struct PipeTransportConstructorOptions : TransportConstructorOptions {};
+
+    class ProducerController;
 
     class PipeTransportController : public TransportController
     {
@@ -126,21 +136,21 @@ namespace srv {
         
         void destroy();
         
-        TransportTuple tuple() { return _data["tuple"]; }
+        TransportTuple tuple() { return transportData()->tuple; }
 
-        SctpParameters sctpParameters() { return _data["sctpParameters"]; }
+        SctpParameters sctpParameters() { return transportData()->sctpParameters; }
 
-        std::string sctpState() { return _data["sctpState"]; }
+        std::string sctpState() { return transportData()->sctpState; }
 
-        SrtpParameters srtpParameters() { return _data["srtpParameters"]; }
+        SrtpParameters srtpParameters() { return transportData()->srtpParameters; }
         
         void close();
         
         void onRouterClosed();
+    
+        std::shared_ptr<BaseTransportStats> getStats() override;
         
-        nlohmann::json getStats() override;
-        
-        void connect(const nlohmann::json& data) override;
+        void connect(const std::shared_ptr<ConnectData>& data) override;
         
         std::shared_ptr<ConsumerController> consume(const std::shared_ptr<ConsumerOptions>& options) override;
         
@@ -152,7 +162,18 @@ namespace srv {
         
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
+        
+        std::shared_ptr<PipeTransportData> transportData() { return std::dynamic_pointer_cast<PipeTransportData>(this->_data); }
     };
+
+    std::shared_ptr<PipeTransportDump> parsePipeTransportDumpResponse(const FBS::PipeTransport::DumpResponse* binary);
+
+    std::shared_ptr<PipeTransportStat> parseGetStatsResponse(const FBS::PipeTransport::GetStatsResponse* binary);
+
+    flatbuffers::Offset<FBS::Transport::ConsumeRequest> createConsumeRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                             const std::string& consumerId,
+                                                                             std::shared_ptr<ProducerController> producer,
+                                                                             const RtpParameters& rtpParameters);
 
 }

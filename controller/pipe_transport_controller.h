@@ -24,38 +24,52 @@
 
 namespace srv {
 
-    struct PipeTransportListenInfo
+    // struct PipeTransportListenInfo
+    // {
+    //     /**
+    //      * Listening info.
+    //      */
+    //     TransportListenInfo listenInfo;
+    // };
+    //
+    // struct PipeTransportListenIp
+    // {
+    //     /**
+    //      * Listening IP address.
+    //      */
+    //     std::string listenIp;
+    //
+    //     /**
+    //      * Fixed port to listen on instead of selecting automatically from Worker's port
+    //      * range.
+    //      */
+    //     uint16_t port;
+    // };
+    //
+    // struct PipeTransportListen
+    // {
+    //     // Either
+    //     std::shared_ptr<PipeTransportListenInfo> pipeTransportListenInfo;
+    //     std::shared_ptr<PipeTransportListenIp> pipeTransportListenIp;
+    // };
+
+    struct PipeTransportOptions
     {
         /**
          * Listening info.
          */
         TransportListenInfo listenInfo;
-    };
-
-    struct PipeTransportListenIp
-    {
+        
         /**
          * Listening IP address.
          */
-        std::string listenIp;
-
+        TransportListenIp listenIp;
+        
         /**
          * Fixed port to listen on instead of selecting automatically from Worker's port
          * range.
          */
         uint16_t port;
-    };
-
-    struct PipeTransportListen
-    {
-        // Either
-        std::shared_ptr<PipeTransportListenInfo> pipeTransportListenInfo;
-        std::shared_ptr<PipeTransportListenIp> pipeTransportListenIp;
-    };
-
-    struct PipeTransportOptions
-    {
-        PipeTransportListen listenInfo;
 
         /**
          * Create a SCTP association. Default false.
@@ -112,8 +126,9 @@ namespace srv {
         TransportTuple tuple;
     };
 
-    struct PipeTransportData : TransportData
+    class PipeTransportData : public TransportData
     {
+    public:
         TransportTuple tuple;
         //SctpParameters sctpParameters;
         std::string sctpState;
@@ -150,7 +165,7 @@ namespace srv {
     
         std::shared_ptr<BaseTransportStats> getStats() override;
         
-        void connect(const std::shared_ptr<ConnectData>& data) override;
+        void connect(const std::shared_ptr<ConnectParams>& data) override;
         
         std::shared_ptr<ConsumerController> consume(const std::shared_ptr<ConsumerOptions>& options) override;
         

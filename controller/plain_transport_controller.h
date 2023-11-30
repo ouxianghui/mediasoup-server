@@ -24,7 +24,41 @@
 
 namespace srv {
 
-    struct PlainTransportListenInfo
+    // struct PlainTransportListenInfo
+    // {
+    //     /**
+    //      * Listening info.
+    //      */
+    //     TransportListenInfo listenInfo;
+    //
+    //     /**
+    //      * Optional listening info for RTCP.
+    //      */
+    //     TransportListenInfo rtcpListenInfo;
+    // };
+    //
+    // struct PlainTransportListenIp
+    // {
+    //     /**
+    //      * Listening IP address.
+    //      */
+    //     std::string listenIp;
+    //
+    //     /**
+    //      * Fixed port to listen on instead of selecting automatically from Worker's port
+    //      * range.
+    //      */
+    //     uint16_t port;
+    // };
+    //
+    // struct PlainTransportListen
+    // {
+    //     // Either
+    //     std::shared_ptr<PlainTransportListenInfo> plainTransportListenInfo;
+    //     std::shared_ptr<PlainTransportListenIp> plainTransportListenIp;
+    // };
+
+    struct PlainTransportOptions
     {
         /**
          * Listening info.
@@ -35,41 +69,17 @@ namespace srv {
          * Optional listening info for RTCP.
          */
         TransportListenInfo rtcpListenInfo;
-    };
-
-    struct PlainTransportListenIp
-    {
+        
         /**
          * Listening IP address.
          */
-        std::string listenIp;
-
+        TransportListenIp listenIp;
+        
         /**
          * Fixed port to listen on instead of selecting automatically from Worker's port
          * range.
          */
         uint16_t port;
-    };
-
-    struct PlainTransportListen
-    {
-        // Either
-        std::shared_ptr<PlainTransportListenInfo> plainTransportListenInfo;
-        std::shared_ptr<PlainTransportListenIp> plainTransportListenIp;
-    };
-
-    struct PlainTransportOptions
-    {
-        /**
-         * Listening IP address.
-         */
-        PlainTransportListen listenInfo;
-
-        /**
-         * Fixed port to listen on instead of selecting automatically from Worker's port
-         * range.
-         */
-        int32_t port = 0;
 
         /**
          * Use RTCP-mux (RTP and RTCP in the same port). Default true.
@@ -127,9 +137,9 @@ namespace srv {
          */
         nlohmann::json appData;
     };
-//
-//    void to_json(nlohmann::json& j, const PlainTransportOptions& st);
-//    void from_json(const nlohmann::json& j, PlainTransportOptions& st);
+
+    void to_json(nlohmann::json& j, const PlainTransportOptions& st);
+    void from_json(const nlohmann::json& j, PlainTransportOptions& st);
 
     struct PlainTransportDump : BaseTransportDump
     {
@@ -149,7 +159,7 @@ namespace srv {
         TransportTuple rtcpTuple;
     };
 
-    struct PlainTransportData : TransportData
+    struct PlainTransportData : public TransportData
     {
         bool rtcpMux;
         bool comedia;
@@ -192,7 +202,7 @@ namespace srv {
         
         std::shared_ptr<BaseTransportStats> getStats() override;
         
-        void connect(const std::shared_ptr<ConnectData>& data) override;
+        void connect(const std::shared_ptr<ConnectParams>& data) override;
         
     public:
         sigslot::signal<const TransportTuple&> tupleSignal;

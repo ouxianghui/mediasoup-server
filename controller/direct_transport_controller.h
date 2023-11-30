@@ -43,7 +43,7 @@ namespace srv {
         std::string type;
     };
 
-    struct DirectTransportData : TransportData
+    class DirectTransportData : public TransportData
     {
         //sctpParameters?: SctpParameters;
     };
@@ -69,7 +69,7 @@ namespace srv {
         
         std::shared_ptr<BaseTransportStats> getStats() override;
         
-        void connect(const std::shared_ptr<ConnectData>& data) override;
+        void connect(const std::shared_ptr<ConnectParams>& data) override;
 
         void setMaxIncomingBitrate(int32_t bitrate) override;
         

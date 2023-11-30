@@ -770,10 +770,11 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
         if (auto peer = wpeer.lock()) {
             if (data.type == "bwe" && data.direction == "out") {
                 nlohmann::json msg;
-                msg["desiredBitrate"] = data.info["desiredBitrate"];
-                msg["effectiveDesiredBitrate"] = data.info["effectiveDesiredBitrate"];
-                msg["availableBitrate"] = data.info["availableBitrate"];
-                
+                if (auto info = std::dynamic_pointer_cast<srv::BweTraceInfo>(data.info)) {
+                    msg["desiredBitrate"] = info->desiredBitrate;
+                    msg["effectiveDesiredBitrate"] = info->effectiveDesiredBitrate;
+                    msg["availableBitrate"] = info->availableBitrate;
+                }
                 peer->notify("downlinkBwe", msg);
             }
         }
@@ -836,7 +837,10 @@ void Room::onHandleConnectWebRtcTransport(const std::shared_ptr<Peer>& peer, con
     
     SRV_LOGD("connectWebRtcTransport dtlsParameters: %s", params.dump(4).c_str());
              
-    transportController->connect(params);
+    auto connectParams = std::make_shared<srv::ConnectParams>();
+    connectParams->dtlsParameters = dtlsParameters;
+    
+    transportController->connect(connectParams);
     
     accept(request, {});
 }
@@ -862,7 +866,7 @@ void Room::onHandleRestartIce(const std::shared_ptr<Peer>& peer, const nlohmann:
     const auto& transportController = peer->data()->transportControllers[transportId];
     
     if (auto wtc = std::dynamic_pointer_cast<srv::WebRtcTransportController>(transportController)) {
-        auto iceParameters = wtc->restartIce();
+        auto iceParameters = *wtc->restartIce();
         accept(request, iceParameters);
     }
 }
@@ -1462,8 +1466,9 @@ void Room::onHandleGetTransportStats(const std::shared_ptr<Peer>& peer, const nl
     const auto& transportController = peer->data()->transportControllers[transportId];
 
     auto stats = transportController->getStats();
+    nlohmann::json jsonStats = *stats;
     
-    accept(request, stats);
+    accept(request, jsonStats);
 }
 
 void Room::onHandleGetProducerStats(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1494,7 +1499,14 @@ void Room::onHandleGetProducerStats(const std::shared_ptr<Peer>& peer, const nlo
 
     auto stats = producerConstroller->getStats();
     
-    accept(request, stats);
+    std::vector<srv::ProducerStat> statsVec;
+    for (const auto& item : stats) {
+        statsVec.emplace_back(*item);
+    }
+    
+    nlohmann::json jsonStats = statsVec;
+    
+    accept(request, jsonStats);
 }
 
 void Room::onHandleGetConsumerStats(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1525,10 +1537,17 @@ void Room::onHandleGetConsumerStats(const std::shared_ptr<Peer>& peer, const nlo
 
     auto stats = consumerConstroller->getStats();
     
-    accept(request, stats);
+    std::vector<srv::ConsumerStat> statsVec;
+    for (const auto& item : stats) {
+        statsVec.emplace_back(*item);
+    }
+    
+    nlohmann::json jsonStats = statsVec;
+    
+    accept(request, jsonStats);
 }
 
-void Room::onHandleGetDataConsumerStats(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
+void Room::onHandleGetDataProducerStats(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
 {
     std::string method;
     if (request.contains("method")) {
@@ -1556,10 +1575,17 @@ void Room::onHandleGetDataConsumerStats(const std::shared_ptr<Peer>& peer, const
     
     auto stats = dataProducerConstroller->getStats();
     
-    accept(request, stats);
+    std::vector<srv::DataProducerStat> statsVec;
+    for (const auto& item : stats) {
+        statsVec.emplace_back(*item);
+    }
+    
+    nlohmann::json jsonStats = statsVec;
+    
+    accept(request, jsonStats);
 }
 
-void Room::onHandleGetDataProducerStats(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
+void Room::onHandleGetDataConsumerStats(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
 {
     std::string method;
     if (request.contains("method")) {
@@ -1577,17 +1603,24 @@ void Room::onHandleGetDataProducerStats(const std::shared_ptr<Peer>& peer, const
     const auto& data = request["data"];
     const auto& dataConsumerId = data["dataConsumerId"];
     
-    if (peer->data()->consumerControllers.find(dataConsumerId) == peer->data()->consumerControllers.end()) {
+    if (peer->data()->dataConsumerControllers.find(dataConsumerId) == peer->data()->dataConsumerControllers.end()) {
         SRV_LOGD("data consumer with id consumerId: %s not found", dataConsumerId.dump().c_str());
         accept(request, {});
         return;
     }
     
-    const auto& dataConsumerConstroller = peer->data()->consumerControllers[dataConsumerId];
+    const auto& dataConsumerConstroller = peer->data()->dataConsumerControllers[dataConsumerId];
     
     auto stats = dataConsumerConstroller->getStats();
     
-    accept(request, stats);
+    std::vector<srv::DataConsumerStat> statsVec;
+    for (const auto& item : stats) {
+        statsVec.emplace_back(*item);
+    }
+    
+    nlohmann::json jsonStats = statsVec;
+    
+    accept(request, jsonStats);
 }
     
 void Room::onHandleResetNetworkThrottle(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)

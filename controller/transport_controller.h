@@ -31,6 +31,22 @@
 
 namespace srv {
 
+    struct TransportListenIp
+    {
+        /**
+         * Listening IPv4 or IPv6.
+         */
+        std::string ip;
+
+        /**
+         * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
+         * private IP).
+         */
+        std::string announcedIp;
+    };
+
+    void to_json(nlohmann::json& j, const TransportListenIp& st);
+    void from_json(const nlohmann::json& j, TransportListenIp& st);
 
     struct TransportListenInfo
     {
@@ -58,12 +74,12 @@ namespace srv {
         /**
          * Send buffer size (bytes).
          */
-        uint32_t sendBufferSize;
+        uint32_t sendBufferSize = 0;
 
         /**
          * Recv buffer size (bytes).
          */
-        uint32_t recvBufferSize;
+        uint32_t recvBufferSize = 0;
     };
 
     void to_json(nlohmann::json& j, const TransportListenInfo& st);
@@ -85,15 +101,20 @@ namespace srv {
         std::string protocol;
     };
 
-    struct TransportTraceInfo {};
-
-    struct ProbationTraceInfo : TransportTraceInfo
+    class TransportTraceInfo
     {
-        
+    public:
+        virtual ~TransportTraceInfo() = default;
     };
 
-    struct BweTraceInfo : TransportTraceInfo
+    class ProbationTraceInfo : public TransportTraceInfo
     {
+    public:
+    };
+
+    class BweTraceInfo : public TransportTraceInfo
+    {
+    public:
         std::string bweType;
         uint32_t desiredBitrate;
         uint32_t effectiveDesiredBitrate;
@@ -136,6 +157,9 @@ namespace srv {
          */
         std::shared_ptr<TransportTraceInfo> info;
     };
+
+    void to_json(nlohmann::json& j, const TransportTraceEventData& st);
+    void from_json(const nlohmann::json& j, TransportTraceEventData& st);
 
     struct RtpListenerDump
     {
@@ -205,6 +229,9 @@ namespace srv {
         uint32_t maxIncomingBitrate;
     };
 
+    void to_json(nlohmann::json& j, const BaseTransportStats& st);
+    void from_json(const nlohmann::json& j, BaseTransportStats& st);
+
     /**
      * The hash function algorithm (as defined in the "Hash function Textual Names"
      * registry initially specified in RFC 4572 Section 8) and its corresponding
@@ -217,6 +244,9 @@ namespace srv {
         std::string value;
     };
 
+    void to_json(nlohmann::json& j, const DtlsFingerprint& st);
+    void from_json(const nlohmann::json& j, DtlsFingerprint& st);
+    
     struct DtlsParameters
     {
         // DtlsRole, Options: 'auto' | 'client' | 'server'
@@ -225,7 +255,10 @@ namespace srv {
         std::vector<DtlsFingerprint> fingerprints;
     };
 
-    struct ConnectData
+    void to_json(nlohmann::json& j, const DtlsParameters& st);
+    void from_json(const nlohmann::json& j, DtlsParameters& st);
+
+    struct ConnectParams
     {
         std::string ip;
         uint16_t port;
@@ -242,7 +275,9 @@ namespace srv {
         std::string transportId;
     };
 
-    struct TransportData {
+    class TransportData {
+    public:
+        virtual ~TransportData() = default;
         SctpParameters sctpParameters;
     };
 
@@ -284,7 +319,7 @@ namespace srv {
         
         virtual std::shared_ptr<BaseTransportStats> getStats();
         
-        virtual void connect(const std::shared_ptr<ConnectData>& data);
+        virtual void connect(const std::shared_ptr<ConnectParams>& data);
         
         virtual void setMaxIncomingBitrate(int32_t bitrate);
 
@@ -417,7 +452,7 @@ namespace srv {
                                                                              const std::string& producerId,
                                                                              const std::string& kind,
                                                                              const RtpParameters& rtpParameters,
-                                                                             const RtpMappingFBS& rtpMapping,
+                                                                             const RtpMappingFbs& rtpMapping,
                                                                              uint32_t keyFrameRequestDelay,
                                                                              bool paused);
 

@@ -8,11 +8,11 @@ message(STATUS "PROJECT_INCLUDE_DIR : " ${PROJECT_INCLUDE_DIR})
 message(STATUS "PROJECT_LIB_DIR : " ${PROJECT_LIB_DIR})
 
 # C++ standard requirements.
-set(CMAKE_CXX_STANDAR 14)
+set(CMAKE_CXX_STANDAR 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (NOT WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 ENDif ()
 
 IF (WIN32)
@@ -75,7 +75,7 @@ ENDif (CMAKE_SYSTEM_NAME MATCHES "Linux")
 
 if (UNIX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++17")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC")
 ENDif ()
 message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})
@@ -84,7 +84,7 @@ if (APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
     set_property(TARGET ${PROJECT_NAME}
         PROPERTY XCODE_ATTRIBUTE_WARNING_CFLAGS
-        -std=c++14
+        -std=c++17
         PROPERTY XCODE_ATTRIBUTE_OTHER_CPLUSPLUSFLAGS
     )
 ENDif ()
@@ -99,6 +99,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libwebrtc/deps/abseil-cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libsdptransform
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../release/include/fbs
 )
 
 if (APPLE) 
@@ -124,7 +125,7 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
     ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
-    ${PROJECT_LIB_DIR}/libsdptransform.a
+    # ${PROJECT_LIB_DIR}/libsdptransform.a
     dl
 )
 else ()
@@ -151,7 +152,7 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
     ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
-    ${PROJECT_LIB_DIR}/libsdptransform.a
+    # ${PROJECT_LIB_DIR}/libsdptransform.a
     dl
     -Wl,--end-group
 )

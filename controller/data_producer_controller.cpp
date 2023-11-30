@@ -269,4 +269,36 @@ namespace srv {
         return stat;
     }
 
+    void to_json(nlohmann::json& j, const DataProducerStat& st)
+     {
+         j["type"] = st.type;
+         j["timestamp"] = st.timestamp;
+         j["label"] = st.label;
+         j["protocol"] = st.protocol;
+         j["messagesReceived"] = st.messagesReceived;
+         j["bytesReceived"] = st.bytesReceived;
+     }
+
+     void from_json(const nlohmann::json& j, DataProducerStat& st)
+     {
+         if (j.contains("type")) {
+             j.at("type").get_to(st.type);
+         }
+         if (j.contains("timestamp")) {
+             j.at("timestamp").get_to(st.timestamp);
+         }
+         if (j.contains("label")) {
+             j.at("label").get_to(st.label);
+         }
+         if (j.contains("protocol")) {
+             j.at("protocol").get_to(st.protocol);
+         }
+         if (j.contains("messagesReceived")) {
+             j.at("messagesReceived").get_to(st.messagesReceived);
+         }
+         if (j.contains("bytesReceived")) {
+             j.at("bytesReceived").get_to(st.bytesReceived);
+         }
+     }
+
 }

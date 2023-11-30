@@ -243,7 +243,6 @@ namespace srv {
         }
         
         std::string webRtcServerId = uuid::uuidv4();
-        auto webRtcServerId_ = _channel->builder().CreateString(webRtcServerId);
         
         std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> infos;
         
@@ -339,18 +338,22 @@ namespace srv {
         channel->notificationSignal.connect(&WorkerController::onChannel, shared_from_this());
     }
 
-    void WorkerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void WorkerController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
-        if (event == "running") {
+        if (event == FBS::Notification::Event::WORKER_RUNNING) {
             this->startSignal();
             this->startSignal.disconnect_all();
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
     }
+}
 
-    std::shared_ptr<WorkerDump> WorkerController::parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response)
+namespace srv
+{
+
+    std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response)
     {
         auto workerDump = std::make_shared<WorkerDump>();
         
@@ -383,10 +386,6 @@ namespace srv {
         return workerDump;
     }
 
-}
-
-namespace srv
-{
     void to_json(nlohmann::json& j, const WorkerSettings& st)
     {
         j["logLevel"] = st.logLevel;

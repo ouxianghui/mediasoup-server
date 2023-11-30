@@ -240,8 +240,8 @@ namespace srv {
         
         rtpParameters->mid = data->mid()->str();
 
-        const auto* codecsFBS = data->codecs();
-        for (const auto& codec : *codecsFBS) {
+        const auto* codecsFbs = data->codecs();
+        for (const auto& codec : *codecsFbs) {
             RtpCodecParameters parameters;
             parameters.mimeType = codec->mimeType()->str();
             parameters.payloadType = codec->payloadType();
@@ -254,7 +254,7 @@ namespace srv {
                 RtcpFeedback rtcpFeedback;
                 rtcpFeedback.type = feedback->type()->str();
                 rtcpFeedback.parameter = feedback->parameter()->str();
-                parameters.rtcpFeedback.emplace_back(feedback);
+                parameters.rtcpFeedback.emplace_back(rtcpFeedback);
             }
             
             rtpParameters->codecs.emplace_back(parameters);

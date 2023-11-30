@@ -18,6 +18,26 @@
 
 #define SRV_CLASS "ortc"
 
+namespace Utils
+{
+    class Json
+    {
+    public:
+        static bool IsPositiveInteger(const nlohmann::json& value)
+        {
+            if (value.is_number_unsigned()) {
+                return true;
+            }
+            else if (value.is_number_integer()) {
+                return value.get<int64_t>() >= 0;
+            }
+            else {
+                return false;
+            }
+        }
+    };
+}
+
 namespace srv {
     
     std::vector<int> DynamicPayloadTypes {
@@ -1540,7 +1560,7 @@ namespace srv {
         j["encodings"] = st.encodings;
     }
 
-    flatbuffers::Offset<FBS::RtpParameters::RtpMapping> RtpMappingFBS::serialize(flatbuffers::FlatBufferBuilder& builder) const
+    flatbuffers::Offset<FBS::RtpParameters::RtpMapping> RtpMappingFbs::serialize(flatbuffers::FlatBufferBuilder& builder) const
     {
         // Add rtpMapping.codecs.
         std::vector<flatbuffers::Offset<FBS::RtpParameters::CodecMapping>> codecs;
@@ -1569,4 +1589,93 @@ namespace srv {
         return rtpMapping;
     }
 
+    void convert(const nlohmann::json& data, RtpMappingFbs& rtpMapping)
+    {
+        auto jsonRtpMappingIt = data.find("rtpMapping");
+
+        if (jsonRtpMappingIt == data.end() || !jsonRtpMappingIt->is_object()) {
+            SRV_THROW_TYPE_ERROR("missing rtpMapping");
+        }
+
+        auto jsonCodecsIt = jsonRtpMappingIt->find("codecs");
+
+        if (jsonCodecsIt == jsonRtpMappingIt->end() || !jsonCodecsIt->is_array()) {
+            SRV_THROW_TYPE_ERROR("missing rtpMapping.codecs");
+        }
+
+        for (auto& codec : *jsonCodecsIt) {
+            if (!codec.is_object())
+            {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.codecs (not an object)");
+            }
+
+            auto jsonPayloadTypeIt = codec.find("payloadType");
+
+            if (jsonPayloadTypeIt == codec.end() || !Utils::Json::IsPositiveInteger(*jsonPayloadTypeIt)) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.codecs (missing payloadType)");
+            }
+
+            auto jsonMappedPayloadTypeIt = codec.find("mappedPayloadType");
+
+            if (jsonMappedPayloadTypeIt == codec.end() || !Utils::Json::IsPositiveInteger(*jsonMappedPayloadTypeIt)) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.codecs (missing mappedPayloadType)");
+            }
+
+            rtpMapping.codecs[jsonPayloadTypeIt->get<uint8_t>()] = jsonMappedPayloadTypeIt->get<uint8_t>();
+        }
+
+        auto jsonEncodingsIt = jsonRtpMappingIt->find("encodings");
+
+        if (jsonEncodingsIt == jsonRtpMappingIt->end() || !jsonEncodingsIt->is_array()) {
+            SRV_THROW_TYPE_ERROR("missing rtpMapping.encodings");
+        }
+
+        rtpMapping.encodings.reserve(jsonEncodingsIt->size());
+
+        for (auto& encoding : *jsonEncodingsIt) {
+            if (!encoding.is_object()) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings");
+            }
+
+            rtpMapping.encodings.emplace_back();
+
+            auto& encodingMapping = rtpMapping.encodings.back();
+
+            // ssrc is optional.
+            auto jsonSsrcIt = encoding.find("ssrc");
+
+            if (jsonSsrcIt != encoding.end() && Utils::Json::IsPositiveInteger(*jsonSsrcIt)) {
+                encodingMapping.ssrc = jsonSsrcIt->get<uint32_t>();
+            }
+
+            // rid is optional.
+            auto jsonRidIt = encoding.find("rid");
+
+            if (jsonRidIt != encoding.end() && jsonRidIt->is_string()) {
+                encodingMapping.rid = jsonRidIt->get<std::string>();
+            }
+
+            // However ssrc or rid must be present (if more than 1 encoding).
+            if (jsonEncodingsIt->size() > 1 && jsonSsrcIt == encoding.end() && jsonRidIt == encoding.end()) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings (missing ssrc or rid)");
+            }
+
+            // // If there is no mid and a single encoding, ssrc or rid must be present.
+            // if (rtpParameters.mid.empty() &&
+            //     jsonEncodingsIt->size() == 1 &&
+            //     jsonSsrcIt == encoding.end() &&
+            //     jsonRidIt == encoding.end()) {
+            //     SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings (missing ssrc or rid, or rtpParameters.mid)");
+            // }
+
+            // mappedSsrc is mandatory.
+            auto jsonMappedSsrcIt = encoding.find("mappedSsrc");
+
+            if (jsonMappedSsrcIt == encoding.end() || !Utils::Json::IsPositiveInteger(*jsonMappedSsrcIt)) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings (missing mappedSsrc)");
+            }
+
+            encodingMapping.mappedSsrc = jsonMappedSsrcIt->get<uint32_t>();
+        }
+    }
 }

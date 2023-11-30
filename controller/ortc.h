@@ -48,7 +48,7 @@ namespace srv {
     void to_json(nlohmann::json& j, RtpMapping& st);
     void from_json(const nlohmann::json& j, RtpMapping& st);
 
-    struct RtpMappingFBS
+    struct RtpMappingFbs
     {
         absl::flat_hash_map<uint8_t, uint8_t> codecs;
         
@@ -56,6 +56,8 @@ namespace srv {
         
         flatbuffers::Offset<FBS::RtpParameters::RtpMapping> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
+
+    void convert(const nlohmann::json& data, RtpMappingFbs& rtpMapping);
 
     class ortc
     {

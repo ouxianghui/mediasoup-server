@@ -112,7 +112,7 @@ namespace srv {
         
         uv_async_t* _handle = nullptr;
         
-        flatbuffers::FlatBufferBuilder _builder {4096};
+        flatbuffers::FlatBufferBuilder _builder {8192};
     };
 
     template<typename T>
@@ -130,7 +130,7 @@ namespace srv {
         
         flatbuffers::Offset<FBS::Notification::Notification> notificationOffset;
         if (bodyType != FBS::Notification::Body::NONE) {
-            notificationOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, bodyType, bodyOffset);
+            notificationOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, bodyType, bodyOffset.Union());
         }
         else {
             notificationOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, FBS::Notification::Body::NONE, 0);
@@ -138,7 +138,7 @@ namespace srv {
         
         auto messageOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Notification, notificationOffset.Union());
         
-        _builder.FinishSizePrefixed(messageOffset);
+        _builder.Finish(messageOffset);
 
         if (_builder.GetSize() > MESSAGE_MAX_LEN) {
             SRV_LOGD("Channel request too big");
@@ -148,9 +148,9 @@ namespace srv {
         auto msg = std::make_shared<Message>();
         msg->messageLen = (uint32_t)_builder.GetSize();
         msg->message = new uint8_t[msg->messageLen];
-        std::copy(_builder.GetBufferPointer(), _builder.GetBufferPointer() + msg->messageLen, msg->message);
+        std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
         
-        _builder.Reset();
+        _builder.Clear();
         
         if (_requestQueue.try_enqueue(msg)) {
             notifyRead();
@@ -170,6 +170,8 @@ namespace srv {
             SRV_LOGD("Channel closed");
             return {};
         }
+        
+        SRV_LOGD("--> begin request");
         
         std::promise<std::vector<uint8_t>> promise;
         auto result = promise.get_future();
@@ -231,7 +233,7 @@ namespace srv {
         
         flatbuffers::Offset<FBS::Request::Request> reqOffset;
         if (bodyType != FBS::Request::Body::NONE) {
-            reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset);
+            reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset.Union());
         }
         else {
             reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), FBS::Request::Body::NONE, 0);
@@ -239,7 +241,7 @@ namespace srv {
         
         auto messageOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
         
-        _builder.FinishSizePrefixed(messageOffset);
+        _builder.Finish(messageOffset);
         
         if (_builder.GetSize() > MESSAGE_MAX_LEN) {
             SRV_LOGD("Channel request too big");
@@ -249,9 +251,11 @@ namespace srv {
         auto msg = std::make_shared<Message>();
         msg->messageLen = (uint32_t)_builder.GetSize();
         msg->message = new uint8_t[msg->messageLen];
-        std::copy(_builder.GetBufferPointer(), _builder.GetBufferPointer() + msg->messageLen, msg->message);
+        std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
         
-        _builder.Reset();
+        _builder.Clear();
+        
+        SRV_LOGD("--> end request");
         
         if (_requestQueue.try_enqueue(msg)) {
             notifyRead();

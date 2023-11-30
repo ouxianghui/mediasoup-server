@@ -85,7 +85,7 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void PipeTransportController::connect(const std::shared_ptr<ConnectData>& reqData)
+    void PipeTransportController::connect(const std::shared_ptr<ConnectParams>& reqData)
     {
         SRV_LOGD("connect()");
         
@@ -96,8 +96,6 @@ namespace srv {
             return;
         }
 
-        auto srtpParametersOffset = reqData->srtpParameters.serialize(channel->builder());
-        
         auto reqOffset = FBS::PipeTransport::CreateConnectRequestDirect(channel->builder(),
                                                                         reqData->ip.c_str(),
                                                                         reqData->port,

@@ -4,12 +4,12 @@ set(PROJECT_NAME "controller")
 project(${PROJECT_NAME})
 
 # C++ standard requirements.
-set(CMAKE_CXX_STANDAR 14)
+set(CMAKE_CXX_STANDAR 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 IF(UNIX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++17")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC")
 ENDIF()
 message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})

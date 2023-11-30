@@ -46,7 +46,8 @@ namespace srv {
     {
         auto channel = static_cast<Channel*>(ctx);
         if (channel && message && messageLen > 0) {
-            std::vector<uint8_t> msg(message, message + messageLen);
+            // NOTE: Worker use builder.FinishSizePrefixed()
+            std::vector<uint8_t> msg(message + sizeof(int32_t), message + messageLen);
             channel->onMessage(msg);
         }
     }
@@ -76,7 +77,7 @@ namespace srv {
         }
     }
 
-    void Channel::onMessage(const  std::vector<uint8_t>& message)
+    void Channel::onMessage(const std::vector<uint8_t>& message)
     {
         asio::post(_threadPool.get_executor(), [wself = std::weak_ptr<Channel>(shared_from_this()), message]() {
             auto self = wself.lock();
@@ -90,7 +91,7 @@ namespace srv {
     void Channel::processMessage(const std::vector<uint8_t>& msg)
     {
         try {
-            const auto* message = FBS::Message::GetMessage(msg.data());
+            const auto* message = FBS::Message::GetMessage(&msg[0]);
             
             // We can receive JSON messages (Channel messages) or log strings.
             switch (message->data_type()) {

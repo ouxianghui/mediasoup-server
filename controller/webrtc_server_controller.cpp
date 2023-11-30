@@ -188,7 +188,7 @@ namespace srv
         }
         
         for (const auto& item : *data->webRtcTransportIds()) {
-            dump->tcpServers.emplace_back(item->str());
+            dump->webRtcTransportIds.emplace_back(item->str());
         }
         
         for (const auto& item : *data->localIceUsernameFragments()) {

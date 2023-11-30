@@ -26,60 +26,64 @@
 
 namespace srv {
 
-    struct WebRtcTransportListenIndividualListenInfo
+    // struct WebRtcTransportListenIndividualListenInfo
+    // {
+    //     /**
+    //      * Listening info.
+    //      */
+    //     std::vector<TransportListenInfo> listenInfos;
+    // };
+    //
+    // struct WebRtcTransportListenIndividualListenIp
+    // {
+    //     /**
+    //      * Listening IP address or addresses in order of preference (first one is the
+    //      * preferred one).
+    //      */
+    //     std::vector<std::string> listenIps;
+    //
+    //     /**
+    //      * Fixed port to listen on instead of selecting automatically from Worker's port
+    //      * range.
+    //      */
+    //     uint16_t port;
+    // };
+    //
+    // class WebRtcServerController;
+    //
+    // struct WebRtcTransportListenServer
+    // {
+    //     /**
+    //      * Instance of WebRtcServer.
+    //      */
+    //     std::shared_ptr<WebRtcServerController> webRtcServer;
+    // };
+    //
+    // struct WebRtcTransportListen
+    // {
+    //     std::shared_ptr<WebRtcTransportListenIndividualListenInfo> webRtcTransportListenIndividualListenInfo;
+    //     std::shared_ptr<WebRtcTransportListenIndividualListenIp> webRtcTransportListenIndividualListenIp;
+    //     std::shared_ptr<WebRtcTransportListenServer> webRtcTransportListenServer;
+    // };
+
+    struct WebRtcTransportOptions
     {
         /**
          * Listening info.
          */
         std::vector<TransportListenInfo> listenInfos;
-    };
-
-    struct WebRtcTransportListenIndividualListenIp
-    {
+        
         /**
          * Listening IP address or addresses in order of preference (first one is the
          * preferred one).
          */
-        std::vector<std::string> listenIps;
-
+        std::vector<TransportListenIp> listenIps;
+        
         /**
          * Fixed port to listen on instead of selecting automatically from Worker's port
          * range.
          */
         uint16_t port;
-    };
-
-    class WebRtcServerController;
-
-    struct WebRtcTransportListenServer
-    {
-        /**
-         * Instance of WebRtcServer.
-         */
-        std::shared_ptr<WebRtcServerController> webRtcServer;
-    };
-
-    struct WebRtcTransportListen
-    {
-        std::shared_ptr<WebRtcTransportListenIndividualListenInfo> webRtcTransportListenIndividualListenInfo;
-        std::shared_ptr<WebRtcTransportListenIndividualListenIp> webRtcTransportListenIndividualListenIp;
-        std::shared_ptr<WebRtcTransportListenServer> webRtcTransportListenServer;
-    };
-
-    struct WebRtcTransportOptions
-    {
-        /**
-         * Listening IP address or addresses in order of preference (first one is the
-         * preferred one). Mandatory unless webRtcServer is given.
-         *  TransportListenIp | string
-         */
-        nlohmann::json listenIps;
-
-        /**
-         * Fixed port to listen on instead of selecting automatically from Worker's port
-         * range.
-         */
-        int32_t port = 0;
         
         std::shared_ptr<WebRtcServerController> webRtcServer;
         
@@ -139,12 +143,18 @@ namespace srv {
         nlohmann::json appData;
     };
 
+    void to_json(nlohmann::json& j, const WebRtcTransportOptions& st);
+    void from_json(const nlohmann::json& j, WebRtcTransportOptions& st);
+
     struct IceParameters
     {
         std::string usernameFragment;
         std::string password;
         bool iceLite;
     };
+
+    void to_json(nlohmann::json& j, const IceParameters& st);
+    void from_json(const nlohmann::json& j, IceParameters& st);
 
     struct IceCandidate
     {
@@ -158,6 +168,9 @@ namespace srv {
         std::string type = "host";
         std::string tcpType = "passive";
     };
+
+    void to_json(nlohmann::json& j, const IceCandidate& st);
+    void from_json(const nlohmann::json& j, IceCandidate& st);
 
     struct WebRtcTransportStat : BaseTransportStats
     {
@@ -186,8 +199,9 @@ namespace srv {
         std::string dtlsRemoteCert;
     };
 
-    struct WebRtcTransportData : TransportData
+    class WebRtcTransportData : public TransportData
     {
+    public:
         std::string iceRole = "controlled";
         IceParameters iceParameters;
         std::vector<IceCandidate> iceCandidates;
@@ -244,7 +258,7 @@ namespace srv {
         
         std::shared_ptr<BaseTransportStats> getStats() override;
         
-        void connect(const std::shared_ptr<ConnectData>& data) override;
+        void connect(const std::shared_ptr<ConnectParams>& data) override;
         
         std::shared_ptr<IceParameters> restartIce();
 
@@ -265,7 +279,7 @@ namespace srv {
         
         void cleanData();
         
-        std::shared_ptr<WebRtcTransportData> transportData() { return std::dynamic_pointer_cast<WebRtcTransportData>(this->_data); }
+        std::shared_ptr<WebRtcTransportData> transportData() { return std::dynamic_pointer_cast<WebRtcTransportData, TransportData>(this->_data); }
     };
 
     std::string iceStateFromFbs(FBS::WebRtcTransport::IceState iceState);

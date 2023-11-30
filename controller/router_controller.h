@@ -20,6 +20,7 @@
 #include "rtp_parameters.h"
 #include "transport_controller.h"
 #include "sctp_parameters.h"
+#include "FBS/router.h"
 
 namespace srv {
  
@@ -30,7 +31,6 @@ namespace srv {
     class DataProducerController;
     class RtpObserverController;
     class Channel;
-    class PayloadChannel;
     struct WebRtcTransportOptions;
     class WebRtcTransportController;
     struct PlainTransportOptions;
@@ -44,6 +44,26 @@ namespace srv {
     struct AudioLevelObserverOptions;
     class AudioLevelObserverController;
     class PipeTransportController;
+
+    // struct PipeToRouterListenInfo
+    // {
+    //     TransportListenInfo listenInfo;
+    // };
+
+    // struct PipeToRouterListenIp
+    // {
+    //     /**
+    //      * IP used in the PipeTransport pair. Default '127.0.0.1'.
+    //      */
+    //     std::string listenIp;
+    // };
+
+    // struct PipeToRouterListen
+    // {
+    //     // Either
+    //     std::shared_ptr<PipeToRouterListenInfo> PpipeToRouterListenInfo;
+    //     std::shared_ptr<PipeToRouterListenIp> PpipeToRouterListenIp;
+    // };
 
     struct RouterData
     {
@@ -69,6 +89,22 @@ namespace srv {
     struct PipeToRouterOptions
     {
         /**
+         * Listening info.
+         */
+        TransportListenInfo listenInfo;
+        
+        /**
+         * Listening IP address.
+         */
+        TransportListenIp listenIp;
+        
+        /**
+         * Fixed port to listen on instead of selecting automatically from Worker's port
+         * range.
+         */
+        uint16_t port;
+        
+        /**
          * The id of the Producer to consume.
          */
         std::string producerId;
@@ -82,12 +118,6 @@ namespace srv {
          * Target Router instance.
          */
         std::shared_ptr<RouterController> routerController;
-
-        /**
-         * IP used in the PipeTransport pair. Default '127.0.0.1'.
-         * value: TransportListenIp | string;
-         */
-        std::string listenIp;
 
         /**
          * Create a SCTP association. Default true.
@@ -108,8 +138,6 @@ namespace srv {
          * Enable SRTP.
          */
         bool enableSrtp;
-        
-        TransportListenInfo listenInfo;
     };
 
     struct PipeToRouterResult
@@ -286,5 +314,7 @@ namespace srv {
         // Map of PipeTransport pair indexed by the id of the Router in which pipeToRouter() was called.
         std::unordered_map<std::string, PipeTransportControllerPair> _routerPipeTransportPairMap;
     };
+
+    std::shared_ptr<RouterDump> parseRouterDumpResponse(const FBS::Router::DumpResponse* binary);
 
 }

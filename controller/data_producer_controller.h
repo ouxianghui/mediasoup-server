@@ -66,6 +66,9 @@ namespace srv {
         uint64_t bytesReceived;
     };
 
+    void to_json(nlohmann::json& j, const DataProducerStat& st);
+    void from_json(const nlohmann::json& j, DataProducerStat& st);
+
     struct DataProducerInternal
     {
         std::string transportId;

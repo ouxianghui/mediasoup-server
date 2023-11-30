@@ -30,7 +30,6 @@
 namespace srv {
     
     class Channel;
-    class PayloadChannel;
 
     struct WorkerSettings
     {
@@ -247,9 +246,7 @@ namespace srv {
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
-        
-        std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
     
     private:
         std::shared_ptr<WorkerSettings> _settings;
@@ -274,4 +271,5 @@ namespace srv {
         std::thread _thread;
     };
     
+    std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response);
 }

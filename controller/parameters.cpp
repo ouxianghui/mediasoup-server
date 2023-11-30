@@ -125,7 +125,7 @@ namespace srv {
         }
     }
 
-    void Parameters::Set(const nlohmann::json& data)
+    void Parameters::Set(nlohmann::json& data)
     {
         SRV_ASSERT(data.is_object(), "data is not an object");
 

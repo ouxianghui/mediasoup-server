@@ -83,6 +83,9 @@ namespace srv {
         int32_t bufferedAmount;
     };
 
+    void to_json(nlohmann::json& j, const DataConsumerStat& st);
+    void from_json(const nlohmann::json& j, DataConsumerStat& st);
+
     struct DataConsumerInternal
     {
         std::string transportId;

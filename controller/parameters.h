@@ -62,7 +62,7 @@ namespace srv {
         
         void serialize(nlohmann::json& jsonObject) const;
         
-        void Set(const nlohmann::json& data);
+        void Set(nlohmann::json& data);
         
         bool HasBoolean(const std::string& key) const;
         

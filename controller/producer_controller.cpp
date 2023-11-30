@@ -440,32 +440,190 @@ namespace srv {
 
         if (trace->info_type() == FBS::Producer::TraceInfo::KeyFrameTraceInfo) {
             auto traceInfo = std::make_shared<KeyFrameTraceInfo>();
-            auto traceInfoFBS = trace->info_as_KeyFrameTraceInfo();
-            traceInfo->isRtx = traceInfoFBS->isRtx();
-            traceInfo->rtpPacket = traceInfoFBS->rtpPacket();
+            auto traceInfoFbs = trace->info_as_KeyFrameTraceInfo();
+            traceInfo->isRtx = traceInfoFbs->isRtx();
+            traceInfo->rtpPacket = traceInfoFbs->rtpPacket();
             eventData->info = traceInfo;
         }
         else if (trace->info_type() == FBS::Producer::TraceInfo::FirTraceInfo) {
             auto traceInfo = std::make_shared<FirTraceInfo>();
-            auto traceInfoFBS = trace->info_as_FirTraceInfo();
-            traceInfo->ssrc = traceInfoFBS->ssrc();
+            auto traceInfoFbs = trace->info_as_FirTraceInfo();
+            traceInfo->ssrc = traceInfoFbs->ssrc();
             eventData->info = traceInfo;
         }
         else if (trace->info_type() == FBS::Producer::TraceInfo::PliTraceInfo) {
             auto traceInfo = std::make_shared<PliTraceInfo>();
-            auto traceInfoFBS = trace->info_as_PliTraceInfo();
-            traceInfo->ssrc = traceInfoFBS->ssrc();
+            auto traceInfoFbs = trace->info_as_PliTraceInfo();
+            traceInfo->ssrc = traceInfoFbs->ssrc();
             eventData->info = traceInfo;
         }
         else if (trace->info_type() == FBS::Producer::TraceInfo::RtpTraceInfo) {
             auto traceInfo = std::make_shared<KeyFrameTraceInfo>();
-            auto traceInfoFBS = trace->info_as_KeyFrameTraceInfo();
-            traceInfo->isRtx = traceInfoFBS->isRtx();
-            traceInfo->rtpPacket = traceInfoFBS->rtpPacket();
+            auto traceInfoFbs = trace->info_as_KeyFrameTraceInfo();
+            traceInfo->isRtx = traceInfoFbs->isRtx();
+            traceInfo->rtpPacket = traceInfoFbs->rtpPacket();
             eventData->info = traceInfo;
         }
         
         return eventData;
+    }
+
+    void to_json(nlohmann::json& j, const ProducerScore& st)
+    {
+        j["ssrc"] = st.ssrc;
+        j["rid"] = st.rid;
+        j["score"] = st.score;
+    }
+
+    void from_json(const nlohmann::json& j, ProducerScore& st)
+    {
+        if (j.contains("ssrc")) {
+            j.at("ssrc").get_to(st.ssrc);
+        }
+        if (j.contains("rid")) {
+            j.at("rid").get_to(st.rid);
+        }
+        if (j.contains("score")) {
+            j.at("score").get_to(st.score);
+        }
+    }
+
+    void to_json(nlohmann::json& j, const ProducerVideoOrientation& st)
+    {
+        j["camera"] = st.camera;
+        j["flip"] = st.flip;
+        j["rotation"] = st.rotation;
+    }
+
+    void from_json(const nlohmann::json& j, ProducerVideoOrientation& st)
+    {
+        if (j.contains("camera")) {
+            j.at("camera").get_to(st.camera);
+        }
+        if (j.contains("flip")) {
+            j.at("flip").get_to(st.flip);
+        }
+        if (j.contains("rotation")) {
+            j.at("rotation").get_to(st.rotation);
+        }
+    }
+
+    void to_json(nlohmann::json& j, const ProducerTraceEventData& st)
+    {
+        j["type"] = st.type;
+        j["timestamp"] = st.timestamp;
+        j["direction"] = st.direction;
+        //j["info"] = st.info;
+    }
+
+    void from_json(const nlohmann::json& j, ProducerTraceEventData& st)
+    {
+        if (j.contains("type")) {
+            j.at("type").get_to(st.type);
+        }
+        if (j.contains("timestamp")) {
+            j.at("timestamp").get_to(st.timestamp);
+        }
+        if (j.contains("direction")) {
+            j.at("direction").get_to(st.direction);
+        }
+        //if (j.contains("info")) {
+        //    j.at("info").get_to(st.info);
+        //}
+    }
+
+    void to_json(nlohmann::json& j, const ProducerStat& st)
+    {
+        j["type"] = st.type;
+        j["timestamp"] = st.timestamp;
+        j["ssrc"] = st.ssrc;
+        j["rtxSsrc"] = st.rtxSsrc;
+        j["kind"] = st.kind;
+
+        j["mimeType"] = st.mimeType;
+        j["packetsLost"] = st.packetsLost;
+        j["fractionLost"] = st.fractionLost;
+        j["packetsDiscarded"] = st.packetsDiscarded;
+        j["packetsRetransmitted"] = st.packetsRetransmitted;
+
+        j["packetsRepaired"] = st.packetsRepaired;
+        j["nackCount"] = st.nackCount;
+        j["nackPacketCount"] = st.nackPacketCount;
+        j["pliCount"] = st.pliCount;
+        j["firCount"] = st.firCount;
+
+        j["score"] = st.score;
+        j["packetCount"] = st.packetCount;
+        j["byteCount"] = st.byteCount;
+        j["bitrate"] = st.bitrate;
+        j["roundTripTime"] = st.roundTripTime;
+    }
+
+    void from_json(const nlohmann::json& j, ProducerStat& st)
+    {
+        if (j.contains("type")) {
+            j.at("type").get_to(st.type);
+        }
+        if (j.contains("timestamp")) {
+            j.at("timestamp").get_to(st.timestamp);
+        }
+        if (j.contains("ssrc")) {
+            j.at("ssrc").get_to(st.ssrc);
+        }
+        if (j.contains("rtxSsrc")) {
+            j.at("rtxSsrc").get_to(st.rtxSsrc);
+        }
+        if (j.contains("kind")) {
+            j.at("kind").get_to(st.kind);
+        }
+        
+        if (j.contains("mimeType")) {
+            j.at("mimeType").get_to(st.mimeType);
+        }
+        if (j.contains("packetsLost")) {
+            j.at("packetsLost").get_to(st.packetsLost);
+        }
+        if (j.contains("fractionLost")) {
+            j.at("fractionLost").get_to(st.fractionLost);
+        }
+        if (j.contains("packetsDiscarded")) {
+            j.at("packetsDiscarded").get_to(st.packetsDiscarded);
+        }
+        if (j.contains("packetsRetransmitted")) {
+            j.at("packetsRetransmitted").get_to(st.packetsRetransmitted);
+        }
+        
+        if (j.contains("packetsRepaired")) {
+            j.at("packetsRepaired").get_to(st.packetsRepaired);
+        }
+        if (j.contains("nackCount")) {
+            j.at("nackCount").get_to(st.nackCount);
+        }
+        if (j.contains("nackPacketCount")) {
+            j.at("nackPacketCount").get_to(st.nackPacketCount);
+        }
+        if (j.contains("pliCount")) {
+            j.at("pliCount").get_to(st.pliCount);
+        }
+        if (j.contains("firCount")) {
+            j.at("firCount").get_to(st.firCount);
+        }
+        
+        if (j.contains("score")) {
+            j.at("score").get_to(st.score);
+        }
+        if (j.contains("packetCount")) {
+            j.at("packetCount").get_to(st.packetCount);
+        }
+        if (j.contains("byteCount")) {
+            j.at("byteCount").get_to(st.byteCount);
+        }
+        if (j.contains("bitrate")) {
+            j.at("bitrate").get_to(st.bitrate);
+        }
+        if (j.contains("roundTripTime")) {
+            j.at("roundTripTime").get_to(st.roundTripTime);
+        }
     }
 
 }

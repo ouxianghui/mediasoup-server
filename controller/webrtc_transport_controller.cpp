@@ -124,7 +124,7 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void WebRtcTransportController::connect(const std::shared_ptr<ConnectData>& reqData)
+    void WebRtcTransportController::connect(const std::shared_ptr<ConnectParams>& reqData)
     {
         SRV_LOGD("connect()");
         
@@ -419,7 +419,7 @@ namespace srv {
         }
         
         dump->iceState = iceStateFromFbs(binary->iceState());
-        dump->iceSelectedTuple = *parseTuple(binary->iceSelectedTuple());
+        //dump->iceSelectedTuple = *parseTuple(binary->iceSelectedTuple());
         dump->dtlsParameters = *parseDtlsParameters(binary->dtlsParameters());
         dump->dtlsState = dtlsStateFromFbs(binary->dtlsState());
         
@@ -531,4 +531,133 @@ namespace srv {
         
         return FBS::WebRtcTransport::CreateDtlsParametersDirect(builder, &fingerprints, role);
     }
+}
+
+namespace srv
+{
+
+    void to_json(nlohmann::json& j, const WebRtcTransportOptions& st)
+    {
+        //j["listenInfos"] = st.listenInfos;
+        j["listenIps"] = st.listenIps;
+        j["port"] = st.port;
+        j["enableUdp"] = st.enableUdp;
+        j["enableTcp"] = st.enableTcp;
+        j["preferUdp"] = st.preferUdp;
+        j["preferTcp"] = st.preferTcp;
+        j["initialAvailableOutgoingBitrate"] = st.initialAvailableOutgoingBitrate;
+        j["minimumAvailableOutgoingBitrate"] = st.minimumAvailableOutgoingBitrate;
+        j["enableSctp"] = st.enableSctp;
+        j["numSctpStreams"] = st.numSctpStreams;
+        j["maxSctpMessageSize"] = st.maxSctpMessageSize;
+        j["maxIncomingBitrate"] = st.maxIncomingBitrate;
+        j["sctpSendBufferSize"] = st.sctpSendBufferSize;
+        j["appData"] = st.appData;
+    }
+
+    void from_json(const nlohmann::json& j, WebRtcTransportOptions& st)
+    {
+        //if (j.contains("listenInfos")) {
+        //    j.at("listenInfos").get_to(st.listenInfos);
+        //}
+        if (j.contains("listenIps")) {
+            j.at("listenIps").get_to(st.listenIps);
+        }
+        if (j.contains("port")) {
+            j.at("port").get_to(st.port);
+        }
+        if (j.contains("enableUdp")) {
+            j.at("enableUdp").get_to(st.enableUdp);
+        }
+        if (j.contains("enableTcp")) {
+            j.at("enableTcp").get_to(st.enableTcp);
+        }
+        if (j.contains("preferUdp")) {
+            j.at("preferUdp").get_to(st.preferUdp);
+        }
+        if (j.contains("preferTcp")) {
+            j.at("preferTcp").get_to(st.preferTcp);
+        }
+        if (j.contains("initialAvailableOutgoingBitrate")) {
+            j.at("initialAvailableOutgoingBitrate").get_to(st.initialAvailableOutgoingBitrate);
+        }
+        if (j.contains("minimumAvailableOutgoingBitrate")) {
+            j.at("minimumAvailableOutgoingBitrate").get_to(st.minimumAvailableOutgoingBitrate);
+        }
+        if (j.contains("enableSctp")) {
+            j.at("enableSctp").get_to(st.enableSctp);
+        }
+        if (j.contains("numSctpStreams")) {
+            j.at("numSctpStreams").get_to(st.numSctpStreams);
+        }
+        if (j.contains("maxSctpMessageSize")) {
+            j.at("maxSctpMessageSize").get_to(st.maxSctpMessageSize);
+        }
+        if (j.contains("maxIncomingBitrate")) {
+            j.at("maxIncomingBitrate").get_to(st.maxIncomingBitrate);
+        }
+        if (j.contains("sctpSendBufferSize")) {
+            j.at("sctpSendBufferSize").get_to(st.sctpSendBufferSize);
+        }
+        if (j.contains("appData")) {
+            j.at("appData").get_to(st.appData);
+        }
+    }
+
+    void to_json(nlohmann::json& j, const IceParameters& st)
+     {
+         j["usernameFragment"] = st.usernameFragment;
+         j["password"] = st.password;
+         j["iceLite"] = st.iceLite;
+     }
+
+     void from_json(const nlohmann::json& j, IceParameters& st)
+     {
+         if (j.contains("usernameFragment")) {
+             j.at("usernameFragment").get_to(st.usernameFragment);
+         }
+         if (j.contains("password")) {
+             j.at("password").get_to(st.password);
+         }
+         if (j.contains("iceLite")) {
+             j.at("iceLite").get_to(st.iceLite);
+         }
+     }
+
+    void to_json(nlohmann::json& j, const IceCandidate& st)
+    {
+        j["foundation"] = st.foundation;
+        j["priority"] = st.priority;
+        j["ip"] = st.ip;
+        j["protocol"] = st.protocol;
+        j["port"] = st.port;
+        j["type"] = st.type;
+        j["tcpType"] = st.tcpType;
+    }
+
+    void from_json(const nlohmann::json& j, IceCandidate& st)
+    {
+        if (j.contains("foundation")) {
+            j.at("foundation").get_to(st.foundation);
+        }
+        if (j.contains("priority")) {
+            j.at("priority").get_to(st.priority);
+        }
+        if (j.contains("ip")) {
+            j.at("ip").get_to(st.ip);
+        }
+        if (j.contains("protocol")) {
+            j.at("protocol").get_to(st.protocol);
+        }
+        if (j.contains("port")) {
+            j.at("port").get_to(st.port);
+        }
+        if (j.contains("type")) {
+            j.at("type").get_to(st.type);
+        }
+        if (j.contains("tcpType")) {
+            j.at("tcpType").get_to(st.tcpType);
+        }
+    }
+
 }

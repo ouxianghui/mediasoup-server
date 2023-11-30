@@ -21,6 +21,7 @@
 #include "pipe_transport_controller.h"
 #include "audio_level_observer_controller.h"
 #include "active_speaker_observer_controller.h"
+#include "FBS/worker.h"
 
 namespace srv {
 
@@ -141,10 +142,8 @@ namespace srv {
             return;
         }
         
-        nlohmann::json reqData;
-        reqData["routerId"] = _internal.routerId;
-
-        channel->request("worker.closeRouter", "", reqData.dump());
+        auto reqOffset = FBS::Worker::CreateCloseRouterRequestDirect(channel->builder(), _internal.routerId.c_str());
+        channel->request(FBS::Request::Method::WORKER_CLOSE_ROUTER, FBS::Request::Body::Worker_CloseRouterRequest, reqOffset, "");
 
         clear();
 
@@ -175,10 +174,16 @@ namespace srv {
         
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("router.dump", _internal.routerId, "{}");
+        auto respData = channel->request(FBS::Request::Method::ROUTER_DUMP, _internal.routerId);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dumpResponse = response->body_as_Router_DumpResponse();
+        
+        return parseRouterDumpResponse(dumpResponse);
     }
 
     std::shared_ptr<WebRtcTransportController> RouterController::createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options)
@@ -198,10 +203,11 @@ namespace srv {
             return transportController;
         }
         
-        const nlohmann::json& listenIps = options->listenIps;
-        const int32_t port = options->port;
-        const bool enableUdp = options->enableUdp;
-        const bool enableTcp = options->enableTcp;
+        const auto& listenIps = options->listenIps;
+        auto listenInfos = options->listenInfos;
+        const uint16_t port = options->port;
+        bool enableUdp = options->enableUdp;
+        bool enableTcp = options->enableTcp;
         const bool preferUdp = options->preferUdp;
         const bool preferTcp = options->preferTcp;
         const int32_t initialAvailableOutgoingBitrate = options->initialAvailableOutgoingBitrate;
@@ -212,42 +218,168 @@ namespace srv {
         const nlohmann::json& appData = options->appData;
         const auto& webRtcServer = options->webRtcServer;
         
-        if (!webRtcServer && !listenIps.is_array()) {
-            SRV_LOGE("missing webRtcServer and listenIps (one of them is mandatory)");
+        if (!webRtcServer && listenIps.empty() && listenInfos.empty()) {
+            SRV_LOGE("missing webRtcServer, listenInfos and listenIps (one of them is mandatory)");
             return transportController;
         }
-
+        else if (webRtcServer && !listenInfos.empty() && !listenIps.empty())
+        {
+            SRV_LOGE("only one of webRtcServer, listenInfos and listenIps must be given");
+            return transportController;
+        }
+        
         TransportInternal internal;
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
         
-        nlohmann::json reqData;
-        reqData["transportId"] = internal.transportId;
-        reqData["webRtcServerId"] =  webRtcServer ? webRtcServer->id() : "";
-        reqData["listenIps"] = listenIps;
-        reqData["port"] = port;
-        reqData["enableUdp"] = enableUdp;
-        reqData["enableTcp"] = enableTcp;
-        reqData["preferUdp"] = preferUdp;
-        reqData["preferTcp"] = preferTcp;
-        reqData["initialAvailableOutgoingBitrate"] = initialAvailableOutgoingBitrate;
-        reqData["enableSctp"] = enableSctp;
-        reqData["numSctpStreams"] = numSctpStreams;
-        reqData["maxSctpMessageSize"] = maxSctpMessageSize;
-        reqData["sctpSendBufferSize"] = sctpSendBufferSize;
-        reqData["isDataChannel"] = true;
-        
-        nlohmann::json jsData;
+        // If webRtcServer is given, then do not force default values for enableUdp
+        // and enableTcp. Otherwise set them if unset.
         if (webRtcServer) {
-            jsData = channel->request("router.createWebRtcTransportWithServer", _internal.routerId, reqData.dump());
+            enableUdp = true;
+            enableTcp = true;
         }
         else {
-            jsData = channel->request("router.createWebRtcTransport", _internal.routerId, reqData.dump());
+            enableUdp = true;
+            enableTcp = false;
         }
+        
+        // Convert deprecated TransportListenIps to TransportListenInfos.
+        if (!listenIps.empty()) {
+            // Normalize IP strings to TransportListenInfo objects.
+            std::vector<TransportListenInfo> listenInfosTmp;
+            for (const auto& listenIp : listenIps) {
+                TransportListenInfo info;
+                info.ip = listenIp.ip;
+                info.announcedIp = listenIp.announcedIp;
+                listenInfosTmp.emplace_back(info);
+            }
+
+            listenInfos.clear();
+
+            std::vector<std::string> orderedProtocols;
+
+            if (enableUdp && (!enableTcp || preferUdp)) {
+                orderedProtocols.emplace_back("udp");
+                if (enableTcp) {
+                    orderedProtocols.emplace_back("tcp");
+                }
+            }
+            else if (enableTcp && (!enableUdp || (preferTcp && !preferUdp))) {
+                orderedProtocols.emplace_back("tcp");
+                if (enableUdp) {
+                    orderedProtocols.emplace_back("udp");
+                }
+            }
+
+            for (const auto& listenIp : listenInfosTmp) {
+                for (const auto& protocol : orderedProtocols) {
+                    TransportListenInfo info;
+                    info.protocol = protocol;
+                    info.ip = listenIp.ip;
+                    info.announcedIp = listenIp.announcedIp;
+                    info.port = port;
+                    listenInfos.emplace_back(info);
+                }
+            }
+        }
+        
+        // nlohmann::json reqData;
+        // reqData["transportId"] = internal.transportId;
+        // reqData["webRtcServerId"] =  webRtcServer ? webRtcServer->id() : "";
+        // reqData["listenIps"] = listenIps;
+        // reqData["port"] = port;
+        // reqData["enableUdp"] = enableUdp;
+        // reqData["enableTcp"] = enableTcp;
+        // reqData["preferUdp"] = preferUdp;
+        // reqData["preferTcp"] = preferTcp;
+        // reqData["initialAvailableOutgoingBitrate"] = initialAvailableOutgoingBitrate;
+        // reqData["enableSctp"] = enableSctp;
+        // reqData["numSctpStreams"] = numSctpStreams;
+        // reqData["maxSctpMessageSize"] = maxSctpMessageSize;
+        // reqData["sctpSendBufferSize"] = sctpSendBufferSize;
+        // reqData["isDataChannel"] = true;
+        //
+        // nlohmann::json jsData;
+        // if (webRtcServer) {
+        //     jsData = channel->request("router.createWebRtcTransportWithServer", _internal.routerId, reqData.dump());
+        // }
+        // else {
+        //     jsData = channel->request("router.createWebRtcTransport", _internal.routerId, reqData.dump());
+        // }
+        
+        flatbuffers::Offset<void> listenOffset;
+        
+        if (webRtcServer) {
+            listenOffset = FBS::WebRtcTransport::CreateListenServerDirect(channel->builder(), webRtcServer->id().c_str()).Union();
+        }
+        else {
+            std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> listenInfos_;
+            for (const auto& item : listenInfos) {
+                auto infoOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+                                                                         item.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                         item.ip.c_str(),
+                                                                         item.announcedIp.c_str(),
+                                                                         item.port,
+                                                                         item.sendBufferSize,
+                                                                         item.recvBufferSize
+                                                                         );
+                listenInfos_.emplace_back(infoOffset);
+            }
+            listenOffset = FBS::WebRtcTransport::CreateListenIndividualDirect(channel->builder(), &listenInfos_).Union();
+        }
+        
+        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(channel->builder(), numSctpStreams.OS, numSctpStreams.MIS);
+        bool isDataChannel = true;
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(),
+                                                                        false,
+                                                                        flatbuffers::nullopt,
+                                                                        initialAvailableOutgoingBitrate,
+                                                                        enableSctp,
+                                                                        numSctpStreamsOffset,
+                                                                        maxSctpMessageSize,
+                                                                        sctpSendBufferSize,
+                                                                        isDataChannel
+                                                                        );
+        
+        auto webRtcTransportOptionsOffset = FBS::WebRtcTransport::CreateWebRtcTransportOptions(channel->builder(),
+                                                                                               baseTransportOptionsOffset,
+                                                                                               webRtcServer ? FBS::WebRtcTransport::Listen::ListenServer : FBS::WebRtcTransport::Listen::ListenIndividual,
+                                                                                               listenOffset,
+                                                                                               enableUdp,
+                                                                                               enableTcp,
+                                                                                               preferUdp,
+                                                                                               preferTcp
+                                                                                               );
+        
+        auto reqOffset = FBS::Router::CreateCreateWebRtcTransportRequestDirect(channel->builder(), internal.transportId.c_str(), webRtcTransportOptionsOffset);
+        
+        auto respData = channel->request(webRtcServer ? FBS::Request::Method::ROUTER_CREATE_WEBRTCTRANSPORT_WITH_SERVER : FBS::Request::Method::ROUTER_CREATE_WEBRTCTRANSPORT,
+                                         FBS::Request::Body::Router_CreateWebRtcTransportRequest,
+                                         reqOffset,
+                                         _internal.routerId
+                                         );
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dumpResponse = response->body_as_WebRtcTransport_DumpResponse();
+        
+        auto dump = parseWebRtcTransportDumpResponse(dumpResponse);
+        
+        auto webRtcTransportData = std::make_shared<WebRtcTransportData>();
+        webRtcTransportData->iceRole = dump->iceRole;
+        webRtcTransportData->iceParameters = dump->iceParameters;
+        webRtcTransportData->iceCandidates = dump->iceCandidates;
+        webRtcTransportData->iceState = dump->iceState;
+        webRtcTransportData->iceSelectedTuple = dump->iceSelectedTuple;
+        webRtcTransportData->dtlsParameters = dump->dtlsParameters;
+        webRtcTransportData->dtlsState = dump->dtlsState;
+        webRtcTransportData->dtlsRemoteCert = dump->dtlsRemoteCert;
+        webRtcTransportData->sctpParameters = dump->sctpParameters;
+        webRtcTransportData->sctpState = dump->sctpState;
         
         auto wtcOptions = std::make_shared<WebRtcTransportConstructorOptions>();
         wtcOptions->internal = internal;
-        wtcOptions->data = jsData;
+        wtcOptions->data = webRtcTransportData;
         wtcOptions->channel = _channel.lock();
         wtcOptions->appData = appData;
         wtcOptions->getRouterRtpCapabilities = _getRouterRtpCapabilities;
@@ -290,8 +422,10 @@ namespace srv {
             return transportController;
         }
         
-        const nlohmann::json& listenIps = options->listenIps;
-        const int32_t port = options->port;
+        const auto& listenIp = options->listenIp;
+        auto listenInfo = options->listenInfo;
+        auto rtcpListenInfo = options->rtcpListenInfo;
+        const uint16_t port = options->port;
         const bool rtcpMux = options->rtcpMux;
         const bool comedia = options->comedia;
         const bool enableSctp = options->enableSctp;
@@ -302,30 +436,118 @@ namespace srv {
         const int32_t sctpSendBufferSize = options->sctpSendBufferSize;
         const nlohmann::json& appData = options->appData;
 
-
+        if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+            SRV_LOGE("missing listenInfo and listenIp (one of them is mandatory)");
+            return nullptr;
+        }
+        else if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
+            SRV_LOGE("only one of listenInfo and listenIp must be given");
+            return nullptr;
+        }
+        
+        // If rtcpMux is enabled, ignore rtcpListenInfo.
+        if (rtcpMux) {
+            rtcpListenInfo.ip.clear();
+            rtcpListenInfo.announcedIp.clear();
+            rtcpListenInfo.port = -1;
+        }
+        
+        // Convert deprecated TransportListenIps to TransportListenInfos.
+        if (!listenIp.ip.empty()) {
+            // Normalize IP string to TransportListenInfo object.
+            listenInfo.protocol = "udp";
+            listenInfo.ip = listenIp.ip;
+            listenInfo.announcedIp = listenIp.ip;
+            listenInfo.port = port;
+        }
+        
         TransportInternal internal;
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
+
+        // nlohmann::json reqData;
+        // reqData["transportId"] = internal.transportId;
+        // reqData["listenIps"] = listenIps;
+        // reqData["port"] = port;
+        // reqData["rtcpMux"] = rtcpMux;
+        // reqData["comedia"] = comedia;
+        // reqData["enableSctp"] = enableSctp;
+        // reqData["numSctpStreams"] = numSctpStreams;
+        // reqData["maxSctpMessageSize"] = maxSctpMessageSize;
+        // reqData["sctpSendBufferSize"] = sctpSendBufferSize;
+        // reqData["isDataChannel"] = true;
+        // reqData["enableSrtp"] = enableSrtp;
+        // reqData["srtpCryptoSuite"] = srtpCryptoSuite;
+        //
+        // nlohmann::json jsData = channel->request("router.createPlainTransport", _internal.routerId, reqData.dump());
         
-        nlohmann::json reqData;
-        reqData["transportId"] = internal.transportId;
-        reqData["listenIps"] = listenIps;
-        reqData["port"] = port;
-        reqData["rtcpMux"] = rtcpMux;
-        reqData["comedia"] = comedia;
-        reqData["enableSctp"] = enableSctp;
-        reqData["numSctpStreams"] = numSctpStreams;
-        reqData["maxSctpMessageSize"] = maxSctpMessageSize;
-        reqData["sctpSendBufferSize"] = sctpSendBufferSize;
-        reqData["isDataChannel"] = true;
-        reqData["enableSrtp"] = enableSrtp;
-        reqData["srtpCryptoSuite"] = srtpCryptoSuite;
+        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(channel->builder(), numSctpStreams.OS, numSctpStreams.MIS);
+        bool isDataChannel = false;
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(),
+                                                                        false,
+                                                                        flatbuffers::nullopt,
+                                                                        flatbuffers::nullopt,
+                                                                        enableSctp,
+                                                                        numSctpStreamsOffset,
+                                                                        maxSctpMessageSize,
+                                                                        sctpSendBufferSize,
+                                                                        isDataChannel
+                                                                        );
         
-        nlohmann::json jsData = channel->request("router.createPlainTransport", _internal.routerId, reqData.dump());
+        auto listenOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+                                                                   listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                   listenInfo.ip.c_str(),
+                                                                   listenInfo.announcedIp.c_str(),
+                                                                   listenInfo.port,
+                                                                   listenInfo.sendBufferSize,
+                                                                   listenInfo.recvBufferSize
+                                                                   );
+        
+        auto rtcpListenOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+                                                                       rtcpListenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                       rtcpListenInfo.ip.c_str(),
+                                                                       rtcpListenInfo.announcedIp.c_str(),
+                                                                       rtcpListenInfo.port,
+                                                                       rtcpListenInfo.sendBufferSize,
+                                                                       rtcpListenInfo.recvBufferSize
+                                                                   );
+        
+        auto plainTransportOptionsOffset = FBS::PlainTransport::CreatePlainTransportOptions(channel->builder(),
+                                                                                            baseTransportOptionsOffset,
+                                                                                            listenOffset,
+                                                                                            rtcpListenOffset,
+                                                                                            rtcpMux,
+                                                                                            comedia,
+                                                                                            enableSrtp,
+                                                                                            cryptoSuiteToFbs(srtpCryptoSuite)
+                                                                                            );
+
+        auto reqOffset = FBS::Router::CreateCreatePlainTransportRequestDirect(channel->builder(), internal.transportId.c_str(), plainTransportOptionsOffset);
+        
+        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_PLAINTRANSPORT,
+                                         FBS::Request::Body::Router_CreatePlainTransportRequest,
+                                         reqOffset,
+                                         _internal.routerId
+                                         );
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dumpResponse = response->body_as_PlainTransport_DumpResponse();
+        
+        auto dump = parsePlainTransportDumpResponse(dumpResponse);
+        
+        auto plainTransportData = std::make_shared<PlainTransportData>();
+        plainTransportData->rtcpMux = dump->rtcpMux;
+        plainTransportData->comedia = dump->comedia;
+        plainTransportData->tuple = dump->tuple;
+        plainTransportData->rtcpTuple = dump->rtcpTuple;
+        plainTransportData->sctpParameters = dump->sctpParameters;
+        plainTransportData->sctpState = dump->sctpState;
+        plainTransportData->srtpParameters = dump->srtpParameters;
         
         auto ptcOptions = std::make_shared<PlainTransportConstructorOptions>();
         ptcOptions->internal = internal;
-        ptcOptions->data = jsData;
+        ptcOptions->data = plainTransportData;
         ptcOptions->channel = _channel.lock();
         ptcOptions->appData = appData;
         ptcOptions->getRouterRtpCapabilities = _getRouterRtpCapabilities;
@@ -366,21 +588,46 @@ namespace srv {
         const int32_t maxMessageSize = options->maxMessageSize;
         const nlohmann::json& appData = options->appData;
 
-
+        if (maxMessageSize < 0) {
+            SRV_LOGE("if given, maxMessageSize must be a positive number");
+            return transportController;
+        }
+        
         TransportInternal internal;
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
         
-        nlohmann::json reqData;
-        reqData["transportId"] = internal.transportId;
-        reqData["direct"] = true;
-        reqData["maxMessageSize"] = maxMessageSize;
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(), true, maxMessageSize);
         
-        nlohmann::json jsData = channel->request("router.createDirectTransport", _internal.routerId, reqData.dump());
+        auto directTransportOptionsOffset = FBS::DirectTransport::CreateDirectTransportOptions(channel->builder(), baseTransportOptionsOffset);
+        
+        auto reqOffset = FBS::Router::CreateCreateDirectTransportRequestDirect(channel->builder(), internal.transportId.c_str(), directTransportOptionsOffset);
+        
+        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_DIRECTTRANSPORT,
+                                         FBS::Request::Body::Router_CreateDirectTransportRequest,
+                                         reqOffset,
+                                         _internal.routerId
+                                         );
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dumpResponse = response->body_as_DirectTransport_DumpResponse();
+        
+        auto dump = parseDirectTransportDumpResponse(dumpResponse);
+            
+        // nlohmann::json reqData;
+        // reqData["transportId"] = internal.transportId;
+        // reqData["direct"] = true;
+        // reqData["maxMessageSize"] = maxMessageSize;
+        //
+        // nlohmann::json jsData = channel->request("router.createDirectTransport", _internal.routerId, reqData.dump());
+        
+        auto directTransportData = std::make_shared<DirectTransportData>();
+        directTransportData->sctpParameters = dump->sctpParameters;
         
         auto dtcOptions = std::make_shared<DirectTransportConstructorOptions>();
         dtcOptions->internal = internal;
-        dtcOptions->data = jsData;
+        dtcOptions->data = directTransportData;
         dtcOptions->channel = _channel.lock();
         dtcOptions->appData = appData;
         dtcOptions->getRouterRtpCapabilities = _getRouterRtpCapabilities;
@@ -404,9 +651,125 @@ namespace srv {
     std::shared_ptr<PipeTransportController> RouterController::createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options)
     {
         SRV_LOGD("createPipeTransportController()");
-        std::shared_ptr<PipeTransportController> pipeTransportController;
         
-        return pipeTransportController;
+        std::shared_ptr<PipeTransportController> transportController;
+        
+        if (!options) {
+            SRV_LOGE("options must be a valid pointer");
+            return transportController;
+        }
+        
+        auto channel = _channel.lock();
+        if (!channel) {
+            SRV_LOGE("channel must be a valid pointer");
+            return transportController;
+        }
+        
+        auto listenInfo = options->listenInfo;
+        const auto& listenIp = options->listenIp;
+        const uint16_t port = options->port;
+        const bool enableSctp = options->enableSctp;
+        const NumSctpStreams& numSctpStreams = options->numSctpStreams;
+        const int32_t maxSctpMessageSize = options->maxSctpMessageSize;
+        const int32_t sctpSendBufferSize = options->sctpSendBufferSize;
+        const bool enableRtx = options->enableRtx;
+        const bool enableSrtp = options->enableSrtp;
+        const nlohmann::json& appData = options->appData;
+        
+        if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+            SRV_LOGE("missing listenInfo and listenIp (one of them is mandatory)");
+            return nullptr;
+        }
+        else if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
+            SRV_LOGE("only one of listenInfo and listenIp must be given");
+            return nullptr;
+        }
+        
+        // Convert deprecated TransportListenIps to TransportListenInfos.
+        if (!listenIp.ip.empty()) {
+            // Normalize IP string to TransportListenInfo object.
+            listenInfo.protocol = "udp";
+            listenInfo.ip = listenIp.ip;
+            listenInfo.announcedIp = listenIp.announcedIp;
+            listenInfo.port = port;
+        }
+        
+        TransportInternal internal;
+        internal.routerId = _internal.routerId;
+        internal.transportId = uuid::uuidv4();
+        
+        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(channel->builder(), numSctpStreams.OS, numSctpStreams.MIS);
+        bool isDataChannel = false;
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(),
+                                                                        false,
+                                                                        flatbuffers::nullopt,
+                                                                        flatbuffers::nullopt,
+                                                                        enableSctp,
+                                                                        numSctpStreamsOffset,
+                                                                        maxSctpMessageSize,
+                                                                        sctpSendBufferSize,
+                                                                        isDataChannel
+                                                                        );
+        
+        auto listenOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+                                                                   listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                   listenInfo.ip.c_str(),
+                                                                   listenInfo.announcedIp.c_str(),
+                                                                   listenInfo.port,
+                                                                   listenInfo.sendBufferSize,
+                                                                   listenInfo.recvBufferSize
+                                                                   );
+        
+        auto pipeTransportOptionsOffset = FBS::PipeTransport::CreatePipeTransportOptions(channel->builder(),
+                                                                                         baseTransportOptionsOffset,
+                                                                                         listenOffset,
+                                                                                         enableRtx,
+                                                                                         enableSrtp
+                                                                                         );
+        
+        auto reqOffset = FBS::Router::CreateCreatePipeTransportRequestDirect(channel->builder(), internal.transportId.c_str(), pipeTransportOptionsOffset);
+        
+        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_PIPETRANSPORT,
+                                         FBS::Request::Body::Router_CreatePipeTransportRequest,
+                                         reqOffset,
+                                         _internal.routerId
+                                         );
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        auto response = message->data_as_Response();
+        auto dumpResponse = response->body_as_PipeTransport_DumpResponse();
+        
+        auto dump = parsePipeTransportDumpResponse(dumpResponse);
+        
+        auto pipeTransportData = std::make_shared<PipeTransportData>();
+        pipeTransportData->tuple = dump->tuple;
+        pipeTransportData->sctpParameters = dump->sctpParameters;
+        pipeTransportData->sctpState = dump->sctpState;
+        pipeTransportData->srtpParameters = dump->srtpParameters;
+        pipeTransportData->rtx = dump->rtx;
+        
+        
+        auto ptcOptions = std::make_shared<PipeTransportConstructorOptions>();
+        ptcOptions->internal = internal;
+        ptcOptions->data = pipeTransportData;
+        ptcOptions->channel = _channel.lock();
+        ptcOptions->appData = appData;
+        ptcOptions->getRouterRtpCapabilities = _getRouterRtpCapabilities;
+        ptcOptions->getProducerController = _getProducerController;
+        ptcOptions->getDataProducerController = _getDataProducerController;
+        
+        {
+            std::lock_guard<std::mutex> lock(_transportsMutex);
+            transportController = std::make_shared<PipeTransportController>(ptcOptions);
+            transportController->init();
+            _transportControllers[internal.transportId] = transportController;
+        }
+        
+        connectSignals(transportController);
+        
+        this->newTransportSignal(transportController);
+        
+        return transportController;
     }
 
     std::shared_ptr<ActiveSpeakerObserverController> RouterController::createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options)
@@ -433,11 +796,21 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.rtpObserverId = uuid::uuidv4();
 
-        nlohmann::json reqData;
-        reqData["rtpObserverId"] = internal.rtpObserverId;
-        reqData["interval"] = interval;
+        // nlohmann::json reqData;
+        // reqData["rtpObserverId"] = internal.rtpObserverId;
+        // reqData["interval"] = interval;
+        //
+        // channel->request("router.createActiveSpeakerObserver", _internal.routerId, reqData.dump());
         
-        channel->request("router.createActiveSpeakerObserver", _internal.routerId, reqData.dump());
+        auto activeRtpObserverOptionsOffset = FBS::ActiveSpeakerObserver::CreateActiveSpeakerObserverOptions(channel->builder(), interval);
+        
+        auto reqOffset = FBS::Router::CreateCreateActiveSpeakerObserverRequestDirect(channel->builder(), internal.rtpObserverId.c_str(), activeRtpObserverOptionsOffset);
+        
+        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_ACTIVESPEAKEROBSERVER,
+                                         FBS::Request::Body::Router_CreateActiveSpeakerObserverRequest,
+                                         reqOffset,
+                                         _internal.routerId
+                                         );
         
         auto roocOptions = std::make_shared<RtpObserverObserverConstructorOptions>();
         roocOptions->internal = internal;
@@ -491,18 +864,38 @@ namespace srv {
         const int interval = options->interval;
         const nlohmann::json& appData = options->appData;
         
+        if (maxEntries <= 0) {
+            SRV_LOGE("if given, maxEntries must be a positive number");
+            return rtpObserverController;
+        }
+        
+        if (threshold < -127 || threshold > 0) {
+            SRV_LOGE("if given, threshole must be a negative number greater than -127");
+            return rtpObserverController;
+        }
+        
         RtpObserverObserverInternal internal;
         internal.routerId = _internal.routerId;
         internal.rtpObserverId = uuid::uuidv4();
 
-        nlohmann::json reqData;
-        reqData["rtpObserverId"] = internal.rtpObserverId;
-        reqData["maxEntries"] = maxEntries;
-        reqData["threshold"] = threshold;
-        reqData["interval"] = interval;
-
-        channel->request("router.createAudioLevelObserver", _internal.routerId, reqData.dump());
+        // nlohmann::json reqData;
+        // reqData["rtpObserverId"] = internal.rtpObserverId;
+        // reqData["maxEntries"] = maxEntries;
+        // reqData["threshold"] = threshold;
+        // reqData["interval"] = interval;
+        //
+        // channel->request("router.createAudioLevelObserver", _internal.routerId, reqData.dump());
+        
+        auto audioLevelObserverOptionsOffset = FBS::AudioLevelObserver::CreateAudioLevelObserverOptions(channel->builder(), maxEntries, threshold, interval);
+        
+        auto reqOffset = FBS::Router::CreateCreateAudioLevelObserverRequestDirect(channel->builder(), internal.rtpObserverId.c_str(), audioLevelObserverOptionsOffset);
     
+        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_AUDIOLEVELOBSERVER,
+                                         FBS::Request::Body::Router_CreateAudioLevelObserverRequest,
+                                         reqOffset,
+                                         _internal.routerId
+                                         );
+        
         auto alocOptions = std::make_shared<AudioLevelObserverConstructorOptions>();
         alocOptions->internal = internal;
         alocOptions->channel = _channel.lock();
@@ -637,290 +1030,353 @@ namespace srv {
         });
     }
 
-std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options)
-{
-    SRV_LOGD("pipeToRouter()");
-    
-    std::shared_ptr<PipeToRouterResult> result;
-    
-    if (!options) {
-        SRV_LOGE("options must be a valid pointer");
-        return result;
-    }
-    
-    const auto& producerId = options->producerId;
-    
-    const auto& dataProducerId = options->dataProducerId;
-    
-    std::shared_ptr<RouterController> routerController = options->routerController;
-
-    const auto& listenIp = options->listenIp;
-
-    bool enableSctp = options->enableSctp;
-    
-    const auto& numSctpStreams = options->numSctpStreams;
-
-    bool enableRtx = options->enableRtx;
-    
-    bool enableSrtp = options->enableSctp;
-    
-    if (producerId.empty() && dataProducerId.empty()) {
-        SRV_LOGE("missing producerId or dataProducerId");
-        return result;
-    }
-    else if (!producerId.empty() && !dataProducerId.empty()) {
-        SRV_LOGE("just producerId or dataProducerId can be given");
-        return result;
-    }
-    else if (!routerController) {
-        SRV_LOGE("Router not found");
-        return result;
-    }
-    else if (routerController.get() == this) {
-        SRV_LOGE("cannot use this Router as destination");
-        return result;
-    }
-    
-    
-    std::shared_ptr<ProducerController> producerController;
-    std::shared_ptr<DataProducerController> dataProducerController;
-
-    if (!producerId.empty()) {
-        if (this->_producerControllers.find(producerId) == this->_producerControllers.end()) {
-            SRV_LOGE("Producer not found");
+    std::shared_ptr<PipeToRouterResult> RouterController::pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options)
+    {
+        SRV_LOGD("pipeToRouter()");
+        
+        std::shared_ptr<PipeToRouterResult> result;
+        
+        if (!options) {
+            SRV_LOGE("options must be a valid pointer");
             return result;
         }
-        producerController = _producerControllers[producerId];
-    }
-    else if (!dataProducerId.empty()) {
-        if (this->_dataProducerControllers.find(dataProducerId) == this->_dataProducerControllers.end()) {
-            SRV_LOGE("Data producer not found");
+        
+        auto listenInfo = options->listenInfo;
+        const auto& listenIp = options->listenIp;
+        const auto port = options->port;
+        const auto& producerId = options->producerId;
+        const auto& dataProducerId = options->dataProducerId;
+        std::shared_ptr<RouterController> routerController = options->routerController;
+        bool enableSctp = options->enableSctp;
+        const auto& numSctpStreams = options->numSctpStreams;
+        bool enableRtx = options->enableRtx;
+        bool enableSrtp = options->enableSctp;
+        
+        if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+            listenInfo.protocol = "udp";
+            listenInfo.ip = "127.0.0.1";
+        }
+
+        if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
+            SRV_LOGE("only one of listenInfo and listenIp must be given");
             return result;
         }
-        dataProducerController = _dataProducerControllers[dataProducerId];
-    }
+        
+        if (producerId.empty() && dataProducerId.empty()) {
+            SRV_LOGE("missing producerId or dataProducerId");
+            return result;
+        }
+        else if (!producerId.empty() && !dataProducerId.empty()) {
+            SRV_LOGE("just producerId or dataProducerId can be given");
+            return result;
+        }
+        else if (!routerController) {
+            SRV_LOGE("Router not found");
+            return result;
+        }
+        else if (routerController.get() == this) {
+            SRV_LOGE("cannot use this Router as destination");
+            return result;
+        }
+        
+        // Convert deprecated TransportListenIps to TransportListenInfos.
+        if (!listenIp.ip.empty()) {
+            // Normalize IP string to TransportListenIp object.
+            listenInfo.protocol = "udp";
+            listenInfo.ip = listenIp.ip;
+            listenInfo.announcedIp = listenIp.announcedIp;
+        }
+        
+        std::shared_ptr<ProducerController> producerController;
+        std::shared_ptr<DataProducerController> dataProducerController;
 
-    auto pipeTransportPairKey = routerController->id();
-    std::shared_ptr<PipeTransportController> localPipeTransportController;
-    std::shared_ptr<PipeTransportController> remotePipeTransportController;
-    PipeTransportControllerPair pipeTransportControllerPair;
-    
-    if (_routerPipeTransportPairMap.find(pipeTransportPairKey) == _routerPipeTransportPairMap.end()) {
-        SRV_LOGE("given key already exists in this Router");
-        return result;
-    }
-    else {
-        auto ptOptions = std::make_shared<PipeTransportOptions>();
-        ptOptions->listenIp = listenIp;
-        ptOptions->enableSctp = enableSctp;
-        ptOptions->numSctpStreams = numSctpStreams;
-        ptOptions->enableRtx = enableRtx;
-        ptOptions->enableSrtp = enableSrtp;
-        
-        localPipeTransportController = this->createPipeTransportController(ptOptions);
-        pipeTransportControllerPair[this->id()] = localPipeTransportController;
-        
-        remotePipeTransportController = routerController->createPipeTransportController(ptOptions);
-        pipeTransportControllerPair[routerController->id()] = remotePipeTransportController;
-        
-        localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakRemote = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (auto remote = weakRemote.lock()) {
-                remote->close();
-            }
-            if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
-                self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
-            }
-        });
-        
-        localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakLocal = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (auto local = weakLocal.lock()) {
-                local->close();
-            }
-            if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
-                self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
-            }
-        });
-        
-        nlohmann::json rData;
-        rData["ip"] = remotePipeTransportController->tuple().localIp;
-        rData["port"] = remotePipeTransportController->tuple().localPort;
-        rData["srtpParameters"] = remotePipeTransportController->srtpParameters();
-        localPipeTransportController->connect(rData);
-        
-        nlohmann::json lData;
-        lData["ip"] = localPipeTransportController->tuple().localIp;
-        lData["port"] = localPipeTransportController->tuple().localPort;
-        lData["srtpParameters"] = localPipeTransportController->srtpParameters();
-        remotePipeTransportController->connect(lData);
-        
-        this->_routerPipeTransportPairMap[pipeTransportPairKey] = pipeTransportControllerPair;
-        
-        routerController->addPipeTransportPair(this->id(), pipeTransportControllerPair);
-    }
-    
-    if (producerController) {
-        std::shared_ptr<ConsumerController> pipeConsumerController;
-        std::shared_ptr<ProducerController> pipeProducerController;
-        
-        try {
-            auto cOptions = std::make_shared<ConsumerOptions>();
-            cOptions->producerId = producerId;
-            pipeConsumerController = localPipeTransportController->consume(cOptions);
-            
-            auto pOptions = std::make_shared<ProducerOptions>();
-            pOptions->id = producerController->id();
-            pOptions->kind = pipeConsumerController->kind();
-            pOptions->rtpParameters = pipeConsumerController->rtpParameters();
-            pOptions->paused = pipeConsumerController->producerPaused();
-            pOptions->appData = producerController->appData();
-            pipeProducerController = remotePipeTransportController->produce(pOptions);
-            
-            if (producerController->closed()) {
-                SRV_LOGE("original Producer closed");
+        if (!producerId.empty()) {
+            if (this->_producerControllers.find(producerId) == this->_producerControllers.end()) {
+                SRV_LOGE("Producer not found");
                 return result;
             }
-            
-            // Ensure that producer.paused has not changed in the meanwhile and, if so, sync the pipeProducer.
-            if (pipeProducerController->paused() != producerController->paused()) {
-                if (producerController->paused()) {
-                    pipeProducerController->pause();
-                }
-                else {
-                    pipeProducerController->resume();
-                }
+            producerController = _producerControllers[producerId];
+        }
+        else if (!dataProducerId.empty()) {
+            if (this->_dataProducerControllers.find(dataProducerId) == this->_dataProducerControllers.end()) {
+                SRV_LOGE("Data producer not found");
+                return result;
             }
+            dataProducerController = _dataProducerControllers[dataProducerId];
+        }
+
+        auto pipeTransportPairKey = routerController->id();
+        std::shared_ptr<PipeTransportController> localPipeTransportController;
+        std::shared_ptr<PipeTransportController> remotePipeTransportController;
+        PipeTransportControllerPair pipeTransportControllerPair;
+        
+        if (_routerPipeTransportPairMap.find(pipeTransportPairKey) == _routerPipeTransportPairMap.end()) {
+            SRV_LOGE("given key already exists in this Router");
+            return result;
+        }
+        else {
+            auto ptOptions = std::make_shared<PipeTransportOptions>();
+            ptOptions->listenInfo = listenInfo;
+            ptOptions->listenIp = listenIp;
+            ptOptions->port = port;
+            ptOptions->enableSctp = enableSctp;
+            ptOptions->numSctpStreams = numSctpStreams;
+            ptOptions->enableRtx = enableRtx;
+            ptOptions->enableSrtp = enableSrtp;
             
-            // Pipe events from the pipe Consumer to the pipe Producer.
-            pipeConsumerController->closeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
-                if (auto pipeProducerController = weakPipeProducerController.lock()) {
-                    pipeProducerController->close();
+            localPipeTransportController = this->createPipeTransportController(ptOptions);
+            pipeTransportControllerPair[this->id()] = localPipeTransportController;
+            
+            remotePipeTransportController = routerController->createPipeTransportController(ptOptions);
+            pipeTransportControllerPair[routerController->id()] = remotePipeTransportController;
+            
+            localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakRemote = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){
+                auto self = wself.lock();
+                if (!self) {
+                    return;
+                }
+                if (auto remote = weakRemote.lock()) {
+                    remote->close();
+                }
+                if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
+                    self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
                 }
             });
             
-            pipeConsumerController->pauseSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
-                if (auto pipeProducerController = weakPipeProducerController.lock()) {
-                    pipeProducerController->pause();
+            localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakLocal = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){
+                auto self = wself.lock();
+                if (!self) {
+                    return;
+                }
+                if (auto local = weakLocal.lock()) {
+                    local->close();
+                }
+                if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
+                    self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
                 }
             });
             
-            pipeConsumerController->resumeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
-                if (auto pipeProducerController = weakPipeProducerController.lock()) {
-                    pipeProducerController->resume();
-                }
-            });
+            auto rData = std::make_shared<ConnectParams>();
+            rData->ip = remotePipeTransportController->tuple().localIp;
+            rData->port = remotePipeTransportController->tuple().localPort;
+            rData->srtpParameters = remotePipeTransportController->srtpParameters();
+            localPipeTransportController->connect(rData);
             
-            // Pipe events from the pipe Producer to the pipe Consumer.
-            pipeProducerController->closeSignal.connect([weakPipeConsumerController = std::weak_ptr<ConsumerController>(pipeConsumerController)](){
-                if (auto pipeConsumerController = weakPipeConsumerController.lock()) {
+            auto lData = std::make_shared<ConnectParams>();
+            lData->ip = localPipeTransportController->tuple().localIp;
+            lData->port = localPipeTransportController->tuple().localPort;
+            lData->srtpParameters = localPipeTransportController->srtpParameters();
+            remotePipeTransportController->connect(lData);
+            
+            this->_routerPipeTransportPairMap[pipeTransportPairKey] = pipeTransportControllerPair;
+            
+            routerController->addPipeTransportPair(this->id(), pipeTransportControllerPair);
+        }
+        
+        if (producerController) {
+            std::shared_ptr<ConsumerController> pipeConsumerController;
+            std::shared_ptr<ProducerController> pipeProducerController;
+            
+            try {
+                auto cOptions = std::make_shared<ConsumerOptions>();
+                cOptions->producerId = producerId;
+                pipeConsumerController = localPipeTransportController->consume(cOptions);
+                
+                auto pOptions = std::make_shared<ProducerOptions>();
+                pOptions->id = producerController->id();
+                pOptions->kind = pipeConsumerController->kind();
+                pOptions->rtpParameters = pipeConsumerController->rtpParameters();
+                pOptions->paused = pipeConsumerController->producerPaused();
+                pOptions->appData = producerController->appData();
+                pipeProducerController = remotePipeTransportController->produce(pOptions);
+                
+                if (producerController->closed()) {
+                    SRV_LOGE("original Producer closed");
+                    return result;
+                }
+                
+                // Ensure that producer.paused has not changed in the meanwhile and, if so, sync the pipeProducer.
+                if (pipeProducerController->paused() != producerController->paused()) {
+                    if (producerController->paused()) {
+                        pipeProducerController->pause();
+                    }
+                    else {
+                        pipeProducerController->resume();
+                    }
+                }
+                
+                // Pipe events from the pipe Consumer to the pipe Producer.
+                pipeConsumerController->closeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                    if (auto pipeProducerController = weakPipeProducerController.lock()) {
+                        pipeProducerController->close();
+                    }
+                });
+                
+                pipeConsumerController->pauseSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                    if (auto pipeProducerController = weakPipeProducerController.lock()) {
+                        pipeProducerController->pause();
+                    }
+                });
+                
+                pipeConsumerController->resumeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                    if (auto pipeProducerController = weakPipeProducerController.lock()) {
+                        pipeProducerController->resume();
+                    }
+                });
+                
+                // Pipe events from the pipe Producer to the pipe Consumer.
+                pipeProducerController->closeSignal.connect([weakPipeConsumerController = std::weak_ptr<ConsumerController>(pipeConsumerController)](){
+                    if (auto pipeConsumerController = weakPipeConsumerController.lock()) {
+                        pipeConsumerController->close();
+                    }
+                });
+                
+                result = std::make_shared<PipeToRouterResult>();
+                result->pipeConsumerController = pipeConsumerController;
+                result->pipeProducerController = pipeProducerController;
+                
+                return result;
+            }
+            catch (const char* what) {
+                SRV_LOGE("pipeToRouter() | error creating pipe Consumer/Producer pair:%s", what);
+                if (pipeConsumerController) {
                     pipeConsumerController->close();
                 }
-            });
-            
-            result = std::make_shared<PipeToRouterResult>();
-            result->pipeConsumerController = pipeConsumerController;
-            result->pipeProducerController = pipeProducerController;
-            
-            return result;
-        }
-        catch (const char* what) {
-            SRV_LOGE("pipeToRouter() | error creating pipe Consumer/Producer pair:%s", what);
-            if (pipeConsumerController) {
-                pipeConsumerController->close();
-            }
 
-            if (pipeProducerController) {
-                pipeProducerController->close();
+                if (pipeProducerController) {
+                    pipeProducerController->close();
+                }
             }
         }
-    }
-    else if (dataProducerController) {
-        std::shared_ptr<DataConsumerController> pipeDataConsumerController;
-        std::shared_ptr<DataProducerController> pipeDataProducerController;
-        try {
-            auto cOptions = std::make_shared<DataConsumerOptions>();
-            cOptions->dataProducerId = dataProducerId;
-            pipeDataConsumerController = localPipeTransportController->consumeData(cOptions);
-            
-            auto pOptions = std::make_shared<DataProducerOptions>();
-            pOptions->id = dataProducerController->id();
-            pOptions->sctpStreamParameters = pipeDataConsumerController->sctpStreamParameters();
-            pOptions->label = pipeDataConsumerController->label();
-            pOptions->protocol = pipeDataConsumerController->protocol();
-            pOptions->appData = dataProducerController->appData();
-            
-            if (dataProducerController->closed()) {
-                SRV_LOGE("original data producer closed");
+        else if (dataProducerController) {
+            std::shared_ptr<DataConsumerController> pipeDataConsumerController;
+            std::shared_ptr<DataProducerController> pipeDataProducerController;
+            try {
+                auto cOptions = std::make_shared<DataConsumerOptions>();
+                cOptions->dataProducerId = dataProducerId;
+                pipeDataConsumerController = localPipeTransportController->consumeData(cOptions);
+                
+                auto pOptions = std::make_shared<DataProducerOptions>();
+                pOptions->id = dataProducerController->id();
+                pOptions->sctpStreamParameters = pipeDataConsumerController->sctpStreamParameters();
+                pOptions->label = pipeDataConsumerController->label();
+                pOptions->protocol = pipeDataConsumerController->protocol();
+                pOptions->appData = dataProducerController->appData();
+                
+                if (dataProducerController->closed()) {
+                    SRV_LOGE("original data producer closed");
+                    return result;
+                }
+                
+                // Pipe events from the pipe DataConsumer to the pipe DataProducer.
+                pipeDataConsumerController->closeSignal.connect([weakPipeDataProducerController = std::weak_ptr<DataProducerController>(pipeDataProducerController)](){
+                    if (auto pipeDataProducerController = weakPipeDataProducerController.lock()) {
+                        pipeDataProducerController->close();
+                    }
+                });
+                
+                // Pipe events from the pipe DataProducer to the pipe DataConsumer.
+                pipeDataProducerController->closeSignal.connect([weakPipeDataConsumerController = std::weak_ptr<DataConsumerController>(pipeDataConsumerController)](){
+                    if (auto pipeDataConsumerController = weakPipeDataConsumerController.lock()) {
+                        pipeDataConsumerController->close();
+                    }
+                });
+                
+                result = std::make_shared<PipeToRouterResult>();
+                result->pipeDataConsumerController = pipeDataConsumerController;
+                result->pipeDataProducerController = pipeDataProducerController;
+                
                 return result;
             }
-            
-            // Pipe events from the pipe DataConsumer to the pipe DataProducer.
-            pipeDataConsumerController->closeSignal.connect([weakPipeDataProducerController = std::weak_ptr<DataProducerController>(pipeDataProducerController)](){
-                if (auto pipeDataProducerController = weakPipeDataProducerController.lock()) {
-                    pipeDataProducerController->close();
-                }
-            });
-            
-            // Pipe events from the pipe DataProducer to the pipe DataConsumer.
-            pipeDataProducerController->closeSignal.connect([weakPipeDataConsumerController = std::weak_ptr<DataConsumerController>(pipeDataConsumerController)](){
-                if (auto pipeDataConsumerController = weakPipeDataConsumerController.lock()) {
+            catch (const char* what) {
+                SRV_LOGE("pipeToRouter() | error creating pipe DataConsumer/DataProducer pair:%s", what);
+                if (pipeDataConsumerController) {
                     pipeDataConsumerController->close();
                 }
-            });
-            
-            result = std::make_shared<PipeToRouterResult>();
-            result->pipeDataConsumerController = pipeDataConsumerController;
-            result->pipeDataProducerController = pipeDataProducerController;
-            
-            return result;
-        }
-        catch (const char* what) {
-            SRV_LOGE("pipeToRouter() | error creating pipe DataConsumer/DataProducer pair:%s", what);
-            if (pipeDataConsumerController) {
-                pipeDataConsumerController->close();
-            }
 
-            if (pipeDataProducerController) {
-                pipeDataProducerController->close();
+                if (pipeDataProducerController) {
+                    pipeDataProducerController->close();
+                }
             }
         }
+        
+        return result;
     }
-    
-    return result;
-}
 
-// key: router.id
-void RouterController::addPipeTransportPair(const std::string& key, PipeTransportControllerPair& pair)
-{
-    if (_routerPipeTransportPairMap.find(key) != _routerPipeTransportPairMap.end()) {
-        SRV_LOGE("given key already exists in this Router");
-        return;
-    }
-    
-    _routerPipeTransportPairMap[key] = pair;
-    
-    auto localPipeTransportController = pair[_internal.routerId];
-    
-    localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), key](const std::string& routerId){
-        auto self = wself.lock();
-        if (!self) {
+    // key: router.id
+    void RouterController::addPipeTransportPair(const std::string& key, PipeTransportControllerPair& pair)
+    {
+        if (_routerPipeTransportPairMap.find(key) != _routerPipeTransportPairMap.end()) {
+            SRV_LOGE("given key already exists in this Router");
             return;
         }
-        self->_routerPipeTransportPairMap.erase(key);
-    });
-}
+        
+        _routerPipeTransportPairMap[key] = pair;
+        
+        auto localPipeTransportController = pair[_internal.routerId];
+        
+        localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), key](const std::string& routerId){
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            self->_routerPipeTransportPairMap.erase(key);
+        });
+    }
 
 }
 
 namespace srv
 {
+    std::shared_ptr<RouterDump> parseRouterDumpResponse(const FBS::Router::DumpResponse* binary)
+    {
+        auto dump = std::make_shared<RouterDump>();
+
+        dump->id = binary->id()->str();
+        
+        for (const auto& item : *binary->transportIds()) {
+            dump->transportIds.emplace_back(item->str());
+        }
+        
+        for (const auto& item : *binary->rtpObserverIds()) {
+            dump->rtpObserverIds.emplace_back(item->str());
+        }
+        
+        for (const auto& item : *binary->mapProducerIdConsumerIds()) {
+            std::vector<std::string> consumerIds;
+            for (const auto& id : *item->values()) {
+                consumerIds.emplace_back(id->str());
+            }
+            dump->mapProducerIdConsumerIds.emplace_back(std::pair<std::string, std::vector<std::string>>(item->key()->str(), consumerIds));
+        }
+        
+        for (const auto& item : *binary->mapConsumerIdProducerId()) {
+            dump->mapConsumerIdProducerId.emplace_back(std::pair<std::string, std::string>(item->key()->str(), item->value()->str()));
+        }
+        
+        for (const auto& item : *binary->mapProducerIdObserverIds()) {
+            std::vector<std::string> observerIds;
+            for (const auto& id : *item->values()) {
+                observerIds.emplace_back(id->str());
+            }
+            dump->mapProducerIdObserverIds.emplace_back(std::pair<std::string, std::vector<std::string>>(item->key()->str(), observerIds));
+        }
+        
+        for (const auto& item : *binary->mapDataProducerIdDataConsumerIds()) {
+            std::vector<std::string> dataConsumerIds;
+            for (const auto& id : *item->values()) {
+                dataConsumerIds.emplace_back(id->str());
+            }
+            dump->mapDataProducerIdDataConsumerIds.emplace_back(std::pair<std::string, std::vector<std::string>>(item->key()->str(), dataConsumerIds));
+        }
+        
+        for (const auto& item : *binary->mapDataConsumerIdDataProducerId()) {
+            dump->mapDataConsumerIdDataProducerId.emplace_back(std::pair<std::string, std::string>(item->key()->str(), item->value()->str()));
+        }
+        
+        return dump;
+    }
+
     void to_json(nlohmann::json& j, const RouterOptions& st)
     {
         j["mediaCodecs"] = st.mediaCodecs;

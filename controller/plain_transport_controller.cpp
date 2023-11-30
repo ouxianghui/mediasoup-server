@@ -99,7 +99,7 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void PlainTransportController::connect(const std::shared_ptr<ConnectData>& reqData)
+    void PlainTransportController::connect(const std::shared_ptr<ConnectParams>& reqData)
     {
         SRV_LOGD("connect()");
         
@@ -274,173 +274,60 @@ namespace srv
     }
 }
 
-//namespace srv
-//{
-//    void to_json(nlohmann::json& j, const PlainTransportStat& st)
-//    {
-//        j["type"] = st.type;
-//        j["transportId"] = st.transportId;
-//        j["timestamp"] = st.timestamp;
-//        j["sctpState"] = st.sctpState;
-//
-//        j["bytesReceived"] = st.bytesReceived;
-//        j["recvBitrate"] = st.recvBitrate;
-//        j["bytesSent"] = st.bytesSent;
-//        j["sendBitrate"] = st.sendBitrate;
-//        j["rtpBytesReceived"] = st.rtpBytesReceived;
-//        j["rtpRecvBitrate"] = st.rtpRecvBitrate;
-//
-//        j["rtpBytesSent"] = st.rtpBytesSent;
-//        j["rtpSendBitrate"] = st.rtpSendBitrate;
-//        j["rtxBytesReceived"] = st.rtxBytesReceived;
-//        j["rtxRecvBitrate"] = st.rtxRecvBitrate;
-//        j["rtxBytesSent"] = st.rtxBytesSent;
-//
-//        j["rtxSendBitrate"] = st.rtxSendBitrate;
-//        j["probationBytesSent"] = st.probationBytesSent;
-//        j["probationSendBitrate"] = st.probationSendBitrate;
-//        j["availableOutgoingBitrate"] = st.availableOutgoingBitrate;
-//        j["availableIncomingBitrate"] = st.availableIncomingBitrate;
-//        j["maxIncomingBitrate"] = st.maxIncomingBitrate;
-//
-//        j["rtcpMux"] = st.rtcpMux;
-//        j["comedia"] = st.comedia;
-//        j["tuple"] = st.tuple;
-//        j["rtcpTuple"] = st.rtcpTuple;
-//    }
-//
-//    void from_json(const nlohmann::json& j, PlainTransportStat& st)
-//    {
-//        if (j.contains("type")) {
-//            j.at("type").get_to(st.type);
-//        }
-//        if (j.contains("transportId")) {
-//            j.at("transportId").get_to(st.transportId);
-//        }
-//        if (j.contains("timestamp")) {
-//            j.at("timestamp").get_to(st.timestamp);
-//        }
-//        if (j.contains("sctpState")) {
-//            j.at("sctpState").get_to(st.sctpState);
-//        }
-//        if (j.contains("bytesReceived")) {
-//            j.at("bytesReceived").get_to(st.bytesReceived);
-//        }
-//        if (j.contains("recvBitrate")) {
-//            j.at("recvBitrate").get_to(st.recvBitrate);
-//        }
-//        if (j.contains("bytesSent")) {
-//            j.at("bytesSent").get_to(st.bytesSent);
-//        }
-//        if (j.contains("sendBitrate")) {
-//            j.at("sendBitrate").get_to(st.sendBitrate);
-//        }
-//        if (j.contains("rtpBytesReceived")) {
-//            j.at("rtpBytesReceived").get_to(st.rtpBytesReceived);
-//        }
-//        if (j.contains("rtpRecvBitrate")) {
-//            j.at("rtpRecvBitrate").get_to(st.rtpRecvBitrate);
-//        }
-//        if (j.contains("rtpBytesSent")) {
-//            j.at("rtpBytesSent").get_to(st.rtpBytesSent);
-//        }
-//        if (j.contains("rtpSendBitrate")) {
-//            j.at("rtpSendBitrate").get_to(st.rtpSendBitrate);
-//        }
-//        if (j.contains("rtxBytesReceived")) {
-//            j.at("rtxBytesReceived").get_to(st.rtxBytesReceived);
-//        }
-//        if (j.contains("rtxRecvBitrate")) {
-//            j.at("rtxRecvBitrate").get_to(st.rtxRecvBitrate);
-//        }
-//        if (j.contains("rtxBytesSent")) {
-//            j.at("rtxBytesSent").get_to(st.rtxBytesSent);
-//        }
-//        if (j.contains("rtxSendBitrate")) {
-//            j.at("rtxSendBitrate").get_to(st.rtxSendBitrate);
-//        }
-//        if (j.contains("probationBytesSent")) {
-//            j.at("probationBytesSent").get_to(st.probationBytesSent);
-//        }
-//        if (j.contains("probationSendBitrate")) {
-//            j.at("probationSendBitrate").get_to(st.probationSendBitrate);
-//        }
-//        if (j.contains("availableOutgoingBitrate")) {
-//            j.at("availableOutgoingBitrate").get_to(st.availableOutgoingBitrate);
-//        }
-//        if (j.contains("availableIncomingBitrate")) {
-//            j.at("availableIncomingBitrate").get_to(st.availableIncomingBitrate);
-//        }
-//        if (j.contains("maxIncomingBitrate")) {
-//            j.at("maxIncomingBitrate").get_to(st.maxIncomingBitrate);
-//        }
-//
-//        if (j.contains("rtcpMux")) {
-//            j.at("rtcpMux").get_to(st.rtcpMux);
-//        }
-//        if (j.contains("comedia")) {
-//            j.at("comedia").get_to(st.comedia);
-//        }
-//        if (j.contains("tuple")) {
-//            j.at("tuple").get_to(st.tuple);
-//        }
-//        if (j.contains("rtcpTuple")) {
-//            j.at("rtcpTuple").get_to(st.rtcpTuple);
-//        }
-//    }
-//
-//    void to_json(nlohmann::json& j, const PlainTransportOptions& st)
-//    {
-//        j["listenIps"] = st.listenIps;
-//        j["port"] = st.port;
-//        j["rtcpMux"] = st.rtcpMux;
-//        j["comedia"] = st.comedia;
-//
-//        j["enableSctp"] = st.enableSctp;
-//        j["numSctpStreams"] = st.numSctpStreams;
-//        j["maxSctpMessageSize"] = st.maxSctpMessageSize;
-//        j["sctpSendBufferSize"] = st.sctpSendBufferSize;
-//
-//        j["enableSrtp"] = st.enableSrtp;
-//        j["srtpCryptoSuite"] = st.srtpCryptoSuite;
-//        j["appData"] = st.appData;
-//    }
-//
-//    void from_json(const nlohmann::json& j, PlainTransportOptions& st)
-//    {
-//        if (j.contains("listenIps")) {
-//            j.at("listenIps").get_to(st.listenIps);
-//        }
-//        if (j.contains("port")) {
-//            j.at("port").get_to(st.port);
-//        }
-//        if (j.contains("rtcpMux")) {
-//            j.at("rtcpMux").get_to(st.rtcpMux);
-//        }
-//        if (j.contains("comedia")) {
-//            j.at("comedia").get_to(st.comedia);
-//        }
-//        if (j.contains("enableSctp")) {
-//            j.at("enableSctp").get_to(st.enableSctp);
-//        }
-//        if (j.contains("numSctpStreams")) {
-//            j.at("numSctpStreams").get_to(st.numSctpStreams);
-//        }
-//        if (j.contains("maxSctpMessageSize")) {
-//            j.at("maxSctpMessageSize").get_to(st.maxSctpMessageSize);
-//        }
-//        if (j.contains("maxSctpMessageSize")) {
-//            j.at("maxSctpMessageSize").get_to(st.maxSctpMessageSize);
-//        }
-//        if (j.contains("enableSrtp")) {
-//            j.at("enableSrtp").get_to(st.enableSrtp);
-//        }
-//        if (j.contains("srtpCryptoSuite")) {
-//            j.at("srtpCryptoSuite").get_to(st.srtpCryptoSuite);
-//        }
-//        if (j.contains("appData")) {
-//            j.at("appData").get_to(st.appData);
-//        }
-//    }
-//
-//}
+namespace srv
+{
+    void to_json(nlohmann::json& j, const PlainTransportOptions& st)
+    {
+        j["listenIp"] = st.listenIp;
+        j["port"] = st.port;
+        j["rtcpMux"] = st.rtcpMux;
+        j["comedia"] = st.comedia;
+
+        j["enableSctp"] = st.enableSctp;
+        j["numSctpStreams"] = st.numSctpStreams;
+        j["maxSctpMessageSize"] = st.maxSctpMessageSize;
+        j["sctpSendBufferSize"] = st.sctpSendBufferSize;
+
+        j["enableSrtp"] = st.enableSrtp;
+        j["srtpCryptoSuite"] = st.srtpCryptoSuite;
+        j["appData"] = st.appData;
+    }
+
+    void from_json(const nlohmann::json& j, PlainTransportOptions& st)
+    {
+        if (j.contains("listenIp")) {
+            j.at("listenIp").get_to(st.listenIp);
+        }
+        if (j.contains("port")) {
+            j.at("port").get_to(st.port);
+        }
+        if (j.contains("rtcpMux")) {
+            j.at("rtcpMux").get_to(st.rtcpMux);
+        }
+        if (j.contains("comedia")) {
+            j.at("comedia").get_to(st.comedia);
+        }
+        if (j.contains("enableSctp")) {
+            j.at("enableSctp").get_to(st.enableSctp);
+        }
+        if (j.contains("numSctpStreams")) {
+            j.at("numSctpStreams").get_to(st.numSctpStreams);
+        }
+        if (j.contains("maxSctpMessageSize")) {
+            j.at("maxSctpMessageSize").get_to(st.maxSctpMessageSize);
+        }
+        if (j.contains("maxSctpMessageSize")) {
+            j.at("maxSctpMessageSize").get_to(st.maxSctpMessageSize);
+        }
+        if (j.contains("enableSrtp")) {
+            j.at("enableSrtp").get_to(st.enableSrtp);
+        }
+        if (j.contains("srtpCryptoSuite")) {
+            j.at("srtpCryptoSuite").get_to(st.srtpCryptoSuite);
+        }
+        if (j.contains("appData")) {
+            j.at("appData").get_to(st.appData);
+        }
+    }
+
+}

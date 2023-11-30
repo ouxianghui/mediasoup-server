@@ -96,7 +96,7 @@ namespace srv
          * and 'profile-level-id' in H264 or 'profile-id' in VP9) are critical for
          * codec matching.
          */
-        //Parameters parametersFBS;
+        //Parameters parametersFbs;
         
         std::map<std::string, nlohmann::json> parameters;
 

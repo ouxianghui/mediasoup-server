@@ -94,7 +94,7 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void DirectTransportController::connect(const std::shared_ptr<ConnectData>& data)
+    void DirectTransportController::connect(const std::shared_ptr<ConnectParams>& data)
     {
         SRV_LOGD("connect()");
     }

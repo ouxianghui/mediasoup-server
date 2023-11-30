@@ -139,6 +139,9 @@ namespace srv {
         std::shared_ptr<TraceInfo> info;
     };
 
+    void to_json(nlohmann::json& j, const ConsumerTraceEventData& st);
+    void from_json(const nlohmann::json& j, ConsumerTraceEventData& st);
+
     struct ConsumerScore
     {
         /**
@@ -158,7 +161,13 @@ namespace srv {
         std::vector<uint8_t> producerScores;
     };
 
+    void to_json(nlohmann::json& j, const ConsumerScore& st);
+    void from_json(const nlohmann::json& j, ConsumerScore& st);
+
     using ConsumerStat = RtpStreamSendStats;
+
+    void to_json(nlohmann::json& j, const ConsumerStat& st);
+    void from_json(const nlohmann::json& j, ConsumerStat& st);
 
     struct ConsumerInternal
     {

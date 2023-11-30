@@ -109,9 +109,9 @@ namespace srv {
         
         auto response = message->data_as_Response();
         
-        auto dumpFBS = response->body_as_DataConsumer_DumpResponse();
+        auto dumpFbs = response->body_as_DataConsumer_DumpResponse();
         
-        return parseDataConsumerDumpResponse(dumpFBS);
+        return parseDataConsumerDumpResponse(dumpFbs);
         
     }
 
@@ -130,9 +130,9 @@ namespace srv {
         
         auto response = message->data_as_Response();
         
-        auto statsFBS = response->body_as_DataConsumer_GetStatsResponse();
+        auto statsFbs = response->body_as_DataConsumer_GetStatsResponse();
 
-        return std::vector<std::shared_ptr<DataConsumerStat>> { parseDataConsumerStats(statsFBS) };
+        return std::vector<std::shared_ptr<DataConsumerStat>> { parseDataConsumerStats(statsFbs) };
     }
 
     void DataConsumerController::pause()
@@ -422,6 +422,42 @@ namespace srv {
         stat->bufferedAmount = binary->bufferedAmount();
         
         return stat;
+    }
+
+    void to_json(nlohmann::json& j, const DataConsumerStat& st)
+    {
+        j["type"] = st.type;
+        j["timestamp"] = st.timestamp;
+        j["label"] = st.label;
+        j["protocol"] = st.protocol;
+        j["messagesSent"] = st.messagesSent;
+        j["bytesSent"] = st.bytesSent;
+        j["bufferedAmount"] = st.bufferedAmount;
+    }
+
+    void from_json(const nlohmann::json& j, DataConsumerStat& st)
+    {
+        if (j.contains("type")) {
+            j.at("type").get_to(st.type);
+        }
+        if (j.contains("timestamp")) {
+            j.at("timestamp").get_to(st.timestamp);
+        }
+        if (j.contains("label")) {
+            j.at("label").get_to(st.label);
+        }
+        if (j.contains("protocol")) {
+            j.at("protocol").get_to(st.protocol);
+        }
+        if (j.contains("messagesSent")) {
+            j.at("messagesSent").get_to(st.messagesSent);
+        }
+        if (j.contains("bytesSent")) {
+            j.at("bytesSent").get_to(st.bytesSent);
+        }
+        if (j.contains("bufferedAmount")) {
+            j.at("bufferedAmount").get_to(st.bufferedAmount);
+        }
     }
 
 }

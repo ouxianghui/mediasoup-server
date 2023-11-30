@@ -93,6 +93,9 @@ namespace srv {
         std::shared_ptr<TraceInfo> info;
     };
 
+    void to_json(nlohmann::json& j, const ProducerTraceEventData& st);
+    void from_json(const nlohmann::json& j, ProducerTraceEventData& st);
+
     struct ProducerScore
     {
         /**
@@ -110,6 +113,9 @@ namespace srv {
          */
         uint8_t score;
     };
+
+    void to_json(nlohmann::json& j, const ProducerScore& st);
+    void from_json(const nlohmann::json& j, ProducerScore& st);
 
     struct ProducerVideoOrientation
     {
@@ -129,7 +135,13 @@ namespace srv {
         uint16_t rotation;
     };
 
+    void to_json(nlohmann::json& j, const ProducerVideoOrientation& st);
+    void from_json(const nlohmann::json& j, ProducerVideoOrientation& st);
+
     struct ProducerStat : RtpStreamRecvStats {};
+
+    void to_json(nlohmann::json& j, const ProducerStat& st);
+    void from_json(const nlohmann::json& j, ProducerStat& st);
 
     /**
      * Producer type.
@@ -156,7 +168,7 @@ namespace srv {
         std::string kind;
         std::string type;
         RtpParameters rtpParameters;
-        RtpMappingFBS rtpMapping;
+        RtpMappingFbs rtpMapping;
         std::vector<RtpStreamDump> rtpStreams;
         std::vector<std::string> traceEventTypes;
         bool paused;

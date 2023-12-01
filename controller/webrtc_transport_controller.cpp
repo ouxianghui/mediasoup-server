@@ -350,19 +350,19 @@ namespace srv {
 
     FBS::WebRtcTransport::FingerprintAlgorithm fingerprintAlgorithmToFbs(const std::string& algorithm)
     {
-        if ("sha-1") {
+        if ("sha-1" == algorithm) {
             return FBS::WebRtcTransport::FingerprintAlgorithm::SHA1;
         }
-        else if ("sha-224") {
+        else if ("sha-224" == algorithm) {
             return FBS::WebRtcTransport::FingerprintAlgorithm::SHA224;
         }
-        else if ("sha-256") {
+        else if ("sha-256" == algorithm) {
             return FBS::WebRtcTransport::FingerprintAlgorithm::SHA256;
         }
-        else if ("sha-384") {
+        else if ("sha-384" == algorithm) {
             return FBS::WebRtcTransport::FingerprintAlgorithm::SHA384;
         }
-        else if ("sha-512") {
+        else if ("sha-512" == algorithm) {
             return FBS::WebRtcTransport::FingerprintAlgorithm::SHA512;
         }
 
@@ -373,13 +373,13 @@ namespace srv {
 
     FBS::WebRtcTransport::DtlsRole dtlsRoleToFbs(const std::string& role)
     {
-        if ("auto") {
+        if ("auto" == role) {
             return FBS::WebRtcTransport::DtlsRole::AUTO;
         }
-        if ("client") {
+        if ("client" == role) {
             return FBS::WebRtcTransport::DtlsRole::CLIENT;
         }
-        if ("server") {
+        if ("server" == role) {
             return FBS::WebRtcTransport::DtlsRole::SERVER;
         }
 
@@ -523,6 +523,7 @@ namespace srv {
         
         for (const auto& item : dtlsParameters.fingerprints) {
             auto algorithm = fingerprintAlgorithmToFbs(item.algorithm);
+            SRV_LOGD("dtlsParameters.fingerprints, algorithm: %u, value: %s", (uint8_t)algorithm, item.value.c_str());
             auto ft = FBS::WebRtcTransport::CreateFingerprintDirect(builder, algorithm, item.value.c_str());
             fingerprints.emplace_back(ft);
         }

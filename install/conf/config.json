@@ -14,7 +14,7 @@
 		"workerSettings": {
 			"dtlsCertificateFile": "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_cert.crt",
 			"dtlsPrivateKeyFile":  "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_key.pem",
-			"logLevel": "warn",
+			"logLevel": "debug",
 			"logTags": [
 				"info",
 				"ice",

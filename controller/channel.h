@@ -176,8 +176,6 @@ namespace srv {
             return {};
         }
         
-        SRV_LOGD("--> begin request");
-        
         std::promise<std::vector<uint8_t>> promise;
         auto result = promise.get_future();
         
@@ -262,8 +260,6 @@ namespace srv {
             std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
             
             _builder.Clear();
-            
-            SRV_LOGD("--> end request");
             
             if (_requestQueue.try_enqueue(msg)) {
                 notifyRead();

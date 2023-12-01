@@ -261,14 +261,12 @@ namespace srv {
         }
         
         nlohmann::json parameters = options->rtpParameters;
-        SRV_LOGE("---------> 1 parameters: '%s'", parameters.dump().c_str());
+        
         // This may throw.
         ortc::validateRtpParameters(parameters);
         
         // TODO: check
         options->rtpParameters = parameters;
-        
-        SRV_LOGE("---------> 2 parameters: '%s'", parameters.dump().c_str());
         
         // If missing or empty encodings, add one.
         // if (

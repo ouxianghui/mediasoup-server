@@ -110,8 +110,6 @@ namespace srv {
             return;
         }
         
-        auto srtpParametersOffset = reqData->srtpParameters.serialize(channel->builder());
-        
         auto reqOffset = FBS::PlainTransport::CreateConnectRequestDirect(channel->builder(),
                                                                          reqData->ip.c_str(),
                                                                          reqData->port,

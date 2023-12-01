@@ -230,7 +230,9 @@ namespace srv {
                     ProducerScore producerScore;
                     producerScore.score = item->score();
                     producerScore.ssrc = item->ssrc();
-                    producerScore.rid = item->rid()->str();
+                    if (auto rid = item->rid()) {
+                        producerScore.rid = rid->str();
+                    }
                     scores.emplace_back(producerScore);
                 }
                 {

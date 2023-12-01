@@ -216,10 +216,10 @@ namespace srv {
 
     FBS::DataProducer::Type dataProducerTypeToFbs(const std::string& type)
     {
-        if ("sctp") {
+        if ("sctp" == type) {
             return FBS::DataProducer::Type::SCTP;
         }
-        else if ("direct") {
+        else if ("direct" == type) {
             return FBS::DataProducer::Type::DIRECT;
         }
 

@@ -3,19 +3,18 @@ parent_dir=$(dirname $(pwd))
 cd script
   #./buildabsl.sh
   #./buildsigslot.sh
+  #./buildconcurrentqueue.sh
   #./buildopenssl.sh
-  ./buildoatpp.sh
-  ./buildoatppwebsocket.sh
-  ./buildoatppopenssl.sh
-  ./builduv.sh
   #./buildjson.sh
   #./buildcatch.sh
-  ./buildsrtp.sh
-  ./buildusrsctp.sh
-  #./buildconcurrentqueue.sh
-
-  ./buildwebrtc.sh
-  #./buildflatbuffers.sh
-  ./buildworker.sh
+  #./buildoatpp.sh
+  #./buildoatppwebsocket.sh
+  #./buildoatppopenssl.sh
+  #./builduv.sh
+  #./buildsrtp.sh
+  #./buildusrsctp.sh
+  ./buildflatbuffers.sh
+  #./buildwebrtc.sh
+  #./buildworker.sh
 
 

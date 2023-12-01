@@ -187,6 +187,13 @@ void Settings::SetConfiguration(int argc, char* argv[])
 
 	/* Post configuration. */
 
+    std::string level("debug");
+    SetLogLevel(level);
+    
+    logTags.push_back("info");
+    logTags.push_back("ice");
+    logTags.push_back("message");
+    
 	// Set logTags.
 	if (!logTags.empty())
 	{

@@ -24,7 +24,7 @@ using namespace std::chrono_literals;
 
 namespace srv {
 
-    static const std::string WORKER_VERSION("3.12.13");
+    static const std::string WORKER_VERSION("3.13.6");
     
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)

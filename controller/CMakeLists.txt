@@ -31,7 +31,6 @@ set(headers
   worker_controller.h
   rtp_stream.h
   parameters.h
-  rtp_dictionaries.h
   srtp_parameters.h
   sctp_parameters.h
   scalability_mode.h
@@ -63,7 +62,6 @@ set(sources
   worker_controller.cpp
   rtp_stream.cpp
   parameters.cpp
-  rtp_dictionaries.cpp
   srtp_parameters.cpp
   sctp_parameters.cpp
   scalability_mode.cpp

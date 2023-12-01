@@ -283,30 +283,6 @@ namespace srv {
             }
         }
         
-        // nlohmann::json reqData;
-        // reqData["transportId"] = internal.transportId;
-        // reqData["webRtcServerId"] =  webRtcServer ? webRtcServer->id() : "";
-        // reqData["listenIps"] = listenIps;
-        // reqData["port"] = port;
-        // reqData["enableUdp"] = enableUdp;
-        // reqData["enableTcp"] = enableTcp;
-        // reqData["preferUdp"] = preferUdp;
-        // reqData["preferTcp"] = preferTcp;
-        // reqData["initialAvailableOutgoingBitrate"] = initialAvailableOutgoingBitrate;
-        // reqData["enableSctp"] = enableSctp;
-        // reqData["numSctpStreams"] = numSctpStreams;
-        // reqData["maxSctpMessageSize"] = maxSctpMessageSize;
-        // reqData["sctpSendBufferSize"] = sctpSendBufferSize;
-        // reqData["isDataChannel"] = true;
-        //
-        // nlohmann::json jsData;
-        // if (webRtcServer) {
-        //     jsData = channel->request("router.createWebRtcTransportWithServer", _internal.routerId, reqData.dump());
-        // }
-        // else {
-        //     jsData = channel->request("router.createWebRtcTransport", _internal.routerId, reqData.dump());
-        // }
-        
         flatbuffers::Offset<void> listenOffset;
         
         if (webRtcServer) {
@@ -464,22 +440,6 @@ namespace srv {
         TransportInternal internal;
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
-
-        // nlohmann::json reqData;
-        // reqData["transportId"] = internal.transportId;
-        // reqData["listenIps"] = listenIps;
-        // reqData["port"] = port;
-        // reqData["rtcpMux"] = rtcpMux;
-        // reqData["comedia"] = comedia;
-        // reqData["enableSctp"] = enableSctp;
-        // reqData["numSctpStreams"] = numSctpStreams;
-        // reqData["maxSctpMessageSize"] = maxSctpMessageSize;
-        // reqData["sctpSendBufferSize"] = sctpSendBufferSize;
-        // reqData["isDataChannel"] = true;
-        // reqData["enableSrtp"] = enableSrtp;
-        // reqData["srtpCryptoSuite"] = srtpCryptoSuite;
-        //
-        // nlohmann::json jsData = channel->request("router.createPlainTransport", _internal.routerId, reqData.dump());
         
         auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(channel->builder(), numSctpStreams.OS, numSctpStreams.MIS);
         bool isDataChannel = false;
@@ -615,13 +575,6 @@ namespace srv {
         
         auto dump = parseDirectTransportDumpResponse(dumpResponse);
             
-        // nlohmann::json reqData;
-        // reqData["transportId"] = internal.transportId;
-        // reqData["direct"] = true;
-        // reqData["maxMessageSize"] = maxMessageSize;
-        //
-        // nlohmann::json jsData = channel->request("router.createDirectTransport", _internal.routerId, reqData.dump());
-        
         auto directTransportData = std::make_shared<DirectTransportData>();
         directTransportData->sctpParameters = dump->sctpParameters;
         
@@ -795,12 +748,6 @@ namespace srv {
         RtpObserverObserverInternal internal;
         internal.routerId = _internal.routerId;
         internal.rtpObserverId = uuid::uuidv4();
-
-        // nlohmann::json reqData;
-        // reqData["rtpObserverId"] = internal.rtpObserverId;
-        // reqData["interval"] = interval;
-        //
-        // channel->request("router.createActiveSpeakerObserver", _internal.routerId, reqData.dump());
         
         auto activeRtpObserverOptionsOffset = FBS::ActiveSpeakerObserver::CreateActiveSpeakerObserverOptions(channel->builder(), interval);
         
@@ -878,14 +825,6 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.rtpObserverId = uuid::uuidv4();
 
-        // nlohmann::json reqData;
-        // reqData["rtpObserverId"] = internal.rtpObserverId;
-        // reqData["maxEntries"] = maxEntries;
-        // reqData["threshold"] = threshold;
-        // reqData["interval"] = interval;
-        //
-        // channel->request("router.createAudioLevelObserver", _internal.routerId, reqData.dump());
-        
         auto audioLevelObserverOptionsOffset = FBS::AudioLevelObserver::CreateAudioLevelObserverOptions(channel->builder(), maxEntries, threshold, interval);
         
         auto reqOffset = FBS::Router::CreateCreateAudioLevelObserverRequestDirect(channel->builder(), internal.rtpObserverId.c_str(), audioLevelObserverOptionsOffset);

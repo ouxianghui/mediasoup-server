@@ -73,14 +73,13 @@ namespace srv {
             rtcpFeedback.emplace_back(fb.serialize(builder));
         }
 
-        return FBS::RtpParameters::CreateRtpCodecParametersDirect(
-          builder,
-          this->mimeType.c_str(),
-          this->payloadType,
-          this->clockRate,
-          this->channels > 1 ? flatbuffers::Optional<uint8_t>(this->channels) : flatbuffers::nullopt,
-          &parameters,
-          &rtcpFeedback);
+        return FBS::RtpParameters::CreateRtpCodecParametersDirect(builder,
+                                                                  this->mimeType.c_str(),
+                                                                  this->payloadType,
+                                                                  this->clockRate,
+                                                                  this->channels > 1 ? flatbuffers::Optional<uint8_t>(this->channels) : flatbuffers::nullopt,
+                                                                  &parameters,
+                                                                  &rtcpFeedback);
     }
     
     flatbuffers::Offset<FBS::RtpParameters::RtpHeaderExtensionParameters> RtpHeaderExtensionParameters::serialize(flatbuffers::FlatBufferBuilder& builder) const
@@ -97,15 +96,13 @@ namespace srv {
 
     flatbuffers::Offset<FBS::RtpParameters::RtpEncodingParameters> RtpEncodingParameters::serialize(flatbuffers::FlatBufferBuilder& builder) const
     {
-        return FBS::RtpParameters::CreateRtpEncodingParametersDirect(
-          builder,
-          this->ssrc != 0u ? flatbuffers::Optional<uint32_t>(this->ssrc) : flatbuffers::nullopt,
-          this->rid.size() > 0 ? this->rid.c_str() : nullptr,
-          this->hasCodecPayloadType ? flatbuffers::Optional<uint8_t>(this->codecPayloadType)
-                                    : flatbuffers::nullopt,
-          this->hasRtx ? this->rtx.serialize(builder) : 0u,
-          this->dtx,
-          this->scalabilityMode.c_str());
+        return FBS::RtpParameters::CreateRtpEncodingParametersDirect(builder,
+                                                                     this->ssrc != 0u ? flatbuffers::Optional<uint32_t>(this->ssrc) : flatbuffers::nullopt,
+                                                                     this->rid.size() > 0 ? this->rid.c_str() : nullptr,
+                                                                     this->hasCodecPayloadType ? flatbuffers::Optional<uint8_t>(this->codecPayloadType) : flatbuffers::nullopt,
+                                                                     this->hasRtx ? this->rtx.serialize(builder) : 0u,
+                                                                     this->dtx,
+                                                                     this->scalabilityMode.c_str());
     }
 
     flatbuffers::Offset<FBS::RtpParameters::RtcpParameters> RtcpParameters::serialize(flatbuffers::FlatBufferBuilder& builder) const

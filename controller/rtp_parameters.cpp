@@ -59,7 +59,7 @@ namespace srv {
 
     flatbuffers::Offset<FBS::RtpParameters::RtcpFeedback> RtcpFeedback::serialize(flatbuffers::FlatBufferBuilder& builder) const
     {
-        return FBS::RtpParameters::CreateRtcpFeedbackDirect(builder, this->type.c_str(), this->parameter.empty() ? nullptr : this->parameter.c_str());
+        return FBS::RtpParameters::CreateRtcpFeedbackDirect(builder, this->type.c_str(), this->parameter.c_str());
     }
 
     flatbuffers::Offset<FBS::RtpParameters::RtpCodecParameters> RtpCodecParameters::serialize(flatbuffers::FlatBufferBuilder& builder) const

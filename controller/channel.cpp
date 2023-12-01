@@ -46,7 +46,7 @@ namespace srv {
     {
         auto channel = static_cast<Channel*>(ctx);
         if (channel && message && messageLen > 0) {
-            // NOTE: Worker use builder.FinishSizePrefixed()
+            // NOTE: Because the Worker used builder.FinishSizePrefixed(), we need to add sizeof(int32_t) to skip the prefix
             std::vector<uint8_t> msg(message + sizeof(int32_t), message + messageLen);
             channel->onMessage(msg);
         }

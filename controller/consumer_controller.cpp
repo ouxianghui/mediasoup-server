@@ -268,9 +268,6 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         
-        nlohmann::json reqData;
-        reqData["priority"] = priority;
-        
         auto reqOffset = FBS::Consumer::CreateSetPriorityRequest(channel->builder(), priority);
         
         auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PRIORITY, FBS::Request::Body::Consumer_SetPriorityRequest, reqOffset, _internal.consumerId);

@@ -112,6 +112,7 @@ namespace srv {
         
         uv_async_t* _handle = nullptr;
         
+        std::mutex _builderMutex;
         flatbuffers::FlatBufferBuilder _builder {8192};
     };
 
@@ -128,35 +129,39 @@ namespace srv {
             return;
         }
         
-        flatbuffers::Offset<FBS::Notification::Notification> notificationOffset;
-        if (bodyType != FBS::Notification::Body::NONE) {
-            notificationOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, bodyType, bodyOffset.Union());
-        }
-        else {
-            notificationOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, FBS::Notification::Body::NONE, 0);
-        }
-        
-        auto messageOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Notification, notificationOffset.Union());
-        
-        _builder.Finish(messageOffset);
-
-        if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-            SRV_LOGD("Channel request too big");
-            return;
-        }
-        
-        auto msg = std::make_shared<Message>();
-        msg->messageLen = (uint32_t)_builder.GetSize();
-        msg->message = new uint8_t[msg->messageLen];
-        std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
-        
-        _builder.Clear();
-        
-        if (_requestQueue.try_enqueue(msg)) {
-            notifyRead();
-        }
-        else {
-            SRV_LOGD("Channel request enqueue failed");
+        {
+            std::lock_guard<std::mutex> lock(_idMutex);
+            
+            flatbuffers::Offset<FBS::Notification::Notification> nfOffset;
+            if (bodyType != FBS::Notification::Body::NONE) {
+                nfOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, bodyType, bodyOffset.Union());
+            }
+            else {
+                nfOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, FBS::Notification::Body::NONE, 0);
+            }
+            
+            auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Notification, nfOffset.Union());
+            
+            _builder.Finish(msgOffset);
+            
+            if (_builder.GetSize() > MESSAGE_MAX_LEN) {
+                SRV_LOGD("Channel request too big");
+                return;
+            }
+            
+            auto msg = std::make_shared<Message>();
+            msg->messageLen = (uint32_t)_builder.GetSize();
+            msg->message = new uint8_t[msg->messageLen];
+            std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
+            
+            _builder.Clear();
+            
+            if (_requestQueue.try_enqueue(msg)) {
+                notifyRead();
+            }
+            else {
+                SRV_LOGD("Channel request enqueue failed");
+            }
         }
     }
 
@@ -231,37 +236,41 @@ namespace srv {
         
         SRV_LOGD("request() [method:%d, id:%u]", (uint8_t)method, id);
         
-        flatbuffers::Offset<FBS::Request::Request> reqOffset;
-        if (bodyType != FBS::Request::Body::NONE) {
-            reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset.Union());
-        }
-        else {
-            reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), FBS::Request::Body::NONE, 0);
-        }
-        
-        auto messageOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
-        
-        _builder.Finish(messageOffset);
-        
-        if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-            SRV_LOGD("Channel request too big");
-            return {};
-        }
-        
-        auto msg = std::make_shared<Message>();
-        msg->messageLen = (uint32_t)_builder.GetSize();
-        msg->message = new uint8_t[msg->messageLen];
-        std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
-        
-        _builder.Clear();
-        
-        SRV_LOGD("--> end request");
-        
-        if (_requestQueue.try_enqueue(msg)) {
-            notifyRead();
-        }
-        else {
-            SRV_LOGD("Channel request enqueue failed");
+        {
+            std::lock_guard<std::mutex> lock(_idMutex);
+            
+            flatbuffers::Offset<FBS::Request::Request> reqOffset;
+            if (bodyType != FBS::Request::Body::NONE) {
+                reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset.Union());
+            }
+            else {
+                reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), FBS::Request::Body::NONE, 0);
+            }
+            
+            auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
+            
+            _builder.Finish(msgOffset);
+            
+            if (_builder.GetSize() > MESSAGE_MAX_LEN) {
+                SRV_LOGD("Channel request too big");
+                return {};
+            }
+            
+            auto msg = std::make_shared<Message>();
+            msg->messageLen = (uint32_t)_builder.GetSize();
+            msg->message = new uint8_t[msg->messageLen];
+            std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
+            
+            _builder.Clear();
+            
+            SRV_LOGD("--> end request");
+            
+            if (_requestQueue.try_enqueue(msg)) {
+                notifyRead();
+            }
+            else {
+                SRV_LOGD("Channel request enqueue failed");
+            }
         }
         
         return result.get();

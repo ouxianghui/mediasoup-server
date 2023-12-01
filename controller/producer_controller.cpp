@@ -199,9 +199,9 @@ namespace srv {
             return;
         }
         
-        auto notificationOffset = FBS::Producer::CreateSendNotificationDirect(channel->builder(), &data);
+        auto nfOffset = FBS::Producer::CreateSendNotificationDirect(channel->builder(), &data);
         
-        channel->notify(FBS::Notification::Event::PRODUCER_SEND, FBS::Notification::Body::Producer_SendNotification, notificationOffset, _internal.producerId);
+        channel->notify(FBS::Notification::Event::PRODUCER_SEND, FBS::Notification::Body::Producer_SendNotification, nfOffset, _internal.producerId);
     }
 
     void ProducerController::handleWorkerNotifications()

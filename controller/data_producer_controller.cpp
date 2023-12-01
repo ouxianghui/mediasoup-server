@@ -201,9 +201,9 @@ namespace srv {
 
         uint32_t ppid = !isBinary ? (data.size() > 0 ? 51 : 56) : (data.size() > 0 ? 53 : 57);
 
-        auto notificationOffset = FBS::DataProducer::CreateSendNotificationDirect(channel->builder(), ppid, &data, &subchannels, requiredSubchannel);
+        auto nfOffset = FBS::DataProducer::CreateSendNotificationDirect(channel->builder(), ppid, &data, &subchannels, requiredSubchannel);
 
-        channel->notify(FBS::Notification::Event::DATAPRODUCER_SEND, FBS::Notification::Body::DataProducer_SendNotification, notificationOffset, _internal.dataProducerId);
+        channel->notify(FBS::Notification::Event::DATAPRODUCER_SEND, FBS::Notification::Body::DataProducer_SendNotification, nfOffset, _internal.dataProducerId);
     }
 
     void DataProducerController::handleWorkerNotifications()

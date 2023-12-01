@@ -241,7 +241,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         auto bodyOffset = FBS::Consumer::CreateSetPreferredLayersRequest(channel->builder(), preferredLayersOffset);
         
-        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PREFERRED_LAYERS, FBS::Request::Body::NONE, bodyOffset, _internal.consumerId);
+        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PREFERRED_LAYERS, FBS::Request::Body::Consumer_SetPreferredLayersRequest, bodyOffset, _internal.consumerId);
         
         auto message = FBS::Message::GetMessage(data.data());
         

@@ -452,8 +452,10 @@ namespace srv {
         }
         
         ConsumerLayers preferredLayers_;
-        preferredLayers_.spatialLayer = stats->preferredLayers()->spatialLayer();
-        preferredLayers_.temporalLayer = stats->preferredLayers()->temporalLayer().value_or(0);
+        if (auto layers = stats->preferredLayers()) {
+            preferredLayers_.spatialLayer = layers->spatialLayer();
+            preferredLayers_.temporalLayer = layers->temporalLayer().value_or(0);
+        }
         
         ConsumerInternal internal;
         internal.transportId = _internal.transportId;

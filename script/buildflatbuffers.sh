@@ -3,7 +3,7 @@ parent_dir=$(dirname $(pwd))
 
 cd ${parent_dir}/deps/flatbuffers
 
-# ./build.sh
+./build.sh
 
 mkdir ${parent_dir}/release/include/fbs
 

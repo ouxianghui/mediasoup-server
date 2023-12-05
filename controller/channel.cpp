@@ -57,6 +57,12 @@ namespace srv {
         SRV_LOGD("Channel()");
     }
 
+    Channel::Channel(uv_loop_t* loop, int consumerFd, int producerFd)
+    : _channelSocket(std::make_shared<ChannelSocket>(loop, consumerFd, producerFd))
+    {
+        
+    }
+
     Channel::~Channel()
     {
         SRV_LOGD("~Channel()");
@@ -234,4 +240,24 @@ namespace srv {
                 SRV_LOGW("worker:%ull unexpected data:%s", pid, logData->c_str());
         }
     }
+
+    void Channel::OnChannelMessage(char* msg, size_t msgLen)
+    {
+        std::vector<uint8_t> message(msg, msg + msgLen);
+        asio::post(_threadPool.get_executor(), [wself = std::weak_ptr<Channel>(shared_from_this()), message]() {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            self->processMessage(message);
+        });
+    }
+
+    void Channel::OnChannelClosed(ChannelSocket* channel)
+    {
+        SRV_LOGD("OnChannelClosed()");
+        
+        close();
+    }
+
 }

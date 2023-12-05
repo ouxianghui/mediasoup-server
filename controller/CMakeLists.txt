@@ -35,7 +35,9 @@ set(headers
   h264_profile_level_id.h
   ortc.h
   engine.h
+  unix_stream_socket_handle.h
   srv_logger.h
+  channel_socket.h
   channel.h
   worker_controller.h
   rtp_stream.h
@@ -62,11 +64,14 @@ set(headers
 )
 
 set(sources
+  types.cpp
   config.cpp
   uuid.cpp
   h264_profile_level_id.cc
   ortc.cpp
   engine.cpp
+  unix_stream_socket_handle.cpp
+  channel_socket.cpp
   channel.cpp
   worker_controller.cpp
   rtp_stream.cpp

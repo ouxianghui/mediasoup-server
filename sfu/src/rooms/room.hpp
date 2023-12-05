@@ -155,10 +155,6 @@ private:
     
     std::shared_ptr<srv::IRtpObserverController> _activeSpeakerObserverController;
     
-//    std::shared_ptr<srv::AudioLevelObserverController> _audioLevelObserverController;
-//    
-//    std::shared_ptr<srv::ActiveSpeakerObserverController> _activeSpeakerObserverController;
-    
     std::atomic_int32_t _consumerReplicas {0};
     
     std::atomic_bool _closed {false};

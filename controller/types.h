@@ -141,18 +141,18 @@ namespace srv {
     class MediaSoupError : public std::runtime_error
     {
     public:
-        explicit MediaSoupError(const char* description);
-    };
+        explicit MediaSoupError(const char* description) : std::runtime_error(description) {}
 
-    inline MediaSoupError::MediaSoupError(const char* description) : std::runtime_error(description) {}
+    public:
+        static const size_t bufferSize { 2000 };
+        thread_local static char buffer[];
+    };
 
     class MediaSoupTypeError : public MediaSoupError
     {
     public:
-        explicit MediaSoupTypeError(const char* description);
+        explicit MediaSoupTypeError(const char* description) : MediaSoupError(description) {}
     };
-
-    inline MediaSoupTypeError::MediaSoupTypeError(const char* description) : MediaSoupError(description) {}
 
     class WebsocketRequest : public std::enable_shared_from_this<WebsocketRequest>
     {
@@ -268,20 +268,48 @@ namespace srv {
 #endif
 
 #define SRV_ERROR(desc, ...) \
-do { \
-    printf("[ERROR]" _SRV_LOG_STR_DESC desc, _SRV_LOG_ARG, ##__VA_ARGS__); \
-} \
-while (false)
+    do { \
+        printf("[ERROR]" _SRV_LOG_STR_DESC desc, _SRV_LOG_ARG, ##__VA_ARGS__); \
+    } while (false)
+
+#define SRV_ERROR_STD(desc, ...) \
+    do { \
+            std::fprintf(stderr, _SRV_LOG_STR_DESC desc _SRV_LOG_SEPARATOR_CHAR_STD, _SRV_LOG_ARG, ##__VA_ARGS__); \
+            std::fflush(stderr); \
+    } while (false)
+
+#define SRV_THROW_ERROR(desc, ...) \
+    do \
+    { \
+        SRV_ERROR("throwing MediaSoupError: " desc, ##__VA_ARGS__); \
+        std::snprintf(srv::MediaSoupError::buffer, srv::MediaSoupError::bufferSize, desc, ##__VA_ARGS__); \
+        throw MediaSoupError(srv::MediaSoupError::buffer); \
+    } while (false)
+
+#define SRV_THROW_ERROR_STD(desc, ...) \
+    do \
+    { \
+        SRV_ERROR_STD("throwing MediaSoupError: " desc, ##__VA_ARGS__); \
+        std::snprintf(srv::MediaSoupError::buffer, srv::MediaSoupError::bufferSize, desc, ##__VA_ARGS__); \
+        throw MediaSoupError(srv::MediaSoupError::buffer); \
+    } while (false)
 
 #define SRV_THROW_TYPE_ERROR(desc, ...) \
-do { \
-    SRV_ERROR("throwing MediaSoupTypeError: " desc, ##__VA_ARGS__); \
-    \
-    static char buffer[2000]; \
-    \
-    std::snprintf(buffer, 2000, desc, ##__VA_ARGS__); \
-    throw srv::MediaSoupTypeError(buffer); \
-} while (false)
+    do \
+    { \
+        SRV_ERROR("throwing MediaSoupTypeError: " desc, ##__VA_ARGS__); \
+        std::snprintf(srv::MediaSoupError::buffer, srv::MediaSoupError::bufferSize, desc, ##__VA_ARGS__); \
+        throw MediaSoupTypeError(srv::MediaSoupError::buffer); \
+    } while (false)
+
+#define SRV_THROW_TYPE_ERROR_STD(desc, ...) \
+    do \
+    { \
+        SRV_ERROR_STD("throwing MediaSoupTypeError: " desc, ##__VA_ARGS__); \
+        std::snprintf(srv::MediaSoupError::buffer, srv::MediaSoupError::bufferSize, desc, ##__VA_ARGS__); \
+        throw MediaSoupTypeError(srv::MediaSoupError::buffer); \
+    } while (false)
+
 
 #define SRV_ABORT(desc, ...) \
     do \

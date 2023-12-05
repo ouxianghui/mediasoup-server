@@ -16,6 +16,7 @@
 #include "sigslot/signal.hpp"
 #include "types.h"
 #include "moodycamel/concurrentqueue.h"
+#include "channel_socket.h"
 #include "nlohmann/json.hpp"
 #include "common.hpp"
 #include "uv.h"
@@ -31,7 +32,7 @@ namespace srv {
     static const int32_t MESSAGE_MAX_LEN = 4194308;
     static const int32_t PAYLOAD_MAX_LEN = 4194304; // 4MB
 
-    class Channel : public std::enable_shared_from_this<Channel>
+    class Channel : public ChannelSocket::Listener, public std::enable_shared_from_this<Channel>
     {
     public:
         struct Message {
@@ -41,10 +42,14 @@ namespace srv {
         };
         
     public:
+        // direct callback
         Channel();
         
+        // pipe
+        Channel(uv_loop_t* loop, int consumerFd, int producerFd);
+        
         ~Channel();
-
+        
         void notify(FBS::Notification::Event event, const std::string& handlerId);
         
         template<typename T>
@@ -71,6 +76,12 @@ namespace srv {
         static ChannelReadFreeFn channelRead(uint8_t** message, uint32_t* messageLen, size_t* messageCtx, const void* handle, ChannelReadCtx ctx);
 
         static void channelWrite(const uint8_t* message, uint32_t messageLen, ChannelWriteCtx ctx);
+        
+    private:
+        // ChannelSocket::Listener
+        void OnChannelMessage(char* msg, size_t msgLen) override;
+        
+        void OnChannelClosed(ChannelSocket* channel) override;
         
     private:
         void setHandle(uv_async_t* handle) { _handle = handle; }
@@ -104,9 +115,9 @@ namespace srv {
         std::unordered_map<uint64_t, std::shared_ptr<Callback>> _callbackMap;
         
         std::mutex _idMutex;
-        uint32_t _nextId { 0 };
+        uint32_t _nextId {0};
         
-        std::atomic_bool _closed { false };
+        std::atomic_bool _closed {false};
         
         moodycamel::ConcurrentQueue<std::shared_ptr<Message>> _requestQueue;
         
@@ -114,6 +125,8 @@ namespace srv {
         
         std::mutex _builderMutex;
         flatbuffers::FlatBufferBuilder _builder {8192};
+        
+        std::shared_ptr<ChannelSocket> _channelSocket;
     };
 
     template<typename T>
@@ -143,18 +156,23 @@ namespace srv {
                 return;
             }
             
-            auto msg = std::make_shared<Message>();
-            msg->messageLen = (uint32_t)_builder.GetSize();
-            msg->message = new uint8_t[msg->messageLen];
-            std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
-            
-            _builder.Clear();
-            
-            if (_requestQueue.try_enqueue(msg)) {
-                notifyRead();
+            if (!_channelSocket) {
+                auto msg = std::make_shared<Message>();
+                msg->messageLen = (uint32_t)_builder.GetSize();
+                msg->message = new uint8_t[msg->messageLen];
+                std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
+                
+                _builder.Clear();
+                
+                if (_requestQueue.try_enqueue(msg)) {
+                    notifyRead();
+                }
+                else {
+                    SRV_LOGD("Channel request enqueue failed");
+                }
             }
             else {
-                SRV_LOGD("Channel request enqueue failed");
+                _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
         }
     }
@@ -242,18 +260,23 @@ namespace srv {
                 return {};
             }
             
-            auto msg = std::make_shared<Message>();
-            msg->messageLen = (uint32_t)_builder.GetSize();
-            msg->message = new uint8_t[msg->messageLen];
-            std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
-            
-            _builder.Clear();
-            
-            if (_requestQueue.try_enqueue(msg)) {
-                notifyRead();
+            if (!_channelSocket) {
+                auto msg = std::make_shared<Message>();
+                msg->messageLen = (uint32_t)_builder.GetSize();
+                msg->message = new uint8_t[msg->messageLen];
+                std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
+                
+                _builder.Clear();
+                
+                if (_requestQueue.try_enqueue(msg)) {
+                    notifyRead();
+                }
+                else {
+                    SRV_LOGD("Channel request enqueue failed");
+                }
             }
             else {
-                SRV_LOGD("Channel request enqueue failed");
+                _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
         }
         

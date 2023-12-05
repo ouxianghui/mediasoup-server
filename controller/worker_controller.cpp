@@ -24,12 +24,21 @@ using namespace std::chrono_literals;
 
 namespace srv {
 
+    static int _consumerChannelFd[2] = {3, 4};
+    static int _producerChannelFd[2] = {5, 6};
+
     static const std::string WORKER_VERSION("3.13.6");
     
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)
     {
-        _channel = std::make_shared<Channel>();
+        //_channel = std::make_shared<Channel>();
+        _loop = new uv_loop_t;
+        assert(_loop);
+        
+        uv_loop_init(_loop);
+        
+        _channel = std::make_shared<Channel>(_loop, _producerChannelFd[0], _consumerChannelFd[1]);
     }
 
     WorkerController::~WorkerController()
@@ -46,6 +55,12 @@ namespace srv {
     void WorkerController::destroy()
     {
         SRV_LOGD("destroy()");
+        
+        if (_loop) {
+            uv_loop_close(_loop);
+            delete _loop;
+            _loop = nullptr;
+        }
     }
 
     std::vector<std::string> WorkerController::getArgs(const std::shared_ptr<WorkerSettings>& settings)
@@ -112,10 +127,17 @@ namespace srv {
             argv[i] = const_cast<char*>(args[i].c_str());
         }
         
+        auto channelThread = std::thread([this](){
+            uv_run(this->_loop, uv_run_mode::UV_RUN_DEFAULT);
+        });
+        
         mediasoup_worker_run(argc,
                              &argv[0],
                              WORKER_VERSION.c_str(),
-                             0, 0, 0, 0,
+                             _consumerChannelFd[0],
+                             _producerChannelFd[1],
+                             0,
+                             0,
                              &Channel::channelRead,
                              (void*)_channel.get(),
                              &Channel::channelWrite,
@@ -123,6 +145,7 @@ namespace srv {
                              );
         
         close();
+        channelThread.join();
     }
 
     bool WorkerController::closed()
@@ -141,6 +164,12 @@ namespace srv {
         _closed = true;
         
         _channel->close();
+        
+        if (_loop) {
+            uv_loop_close(_loop);
+            delete _loop;
+            _loop = nullptr;
+        }
         
         {
             std::lock_guard<std::mutex> lock(_webRtcServersMutex);

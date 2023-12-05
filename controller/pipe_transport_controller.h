@@ -17,41 +17,13 @@
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
-#include "transport_controller.h"
+#include "abstract_transport_controller.h"
 #include "sctp_parameters.h"
 #include "srtp_parameters.h"
 #include "rtp_parameters.h"
+#include "FBS/notification.h"
 
 namespace srv {
-
-    // struct PipeTransportListenInfo
-    // {
-    //     /**
-    //      * Listening info.
-    //      */
-    //     TransportListenInfo listenInfo;
-    // };
-    //
-    // struct PipeTransportListenIp
-    // {
-    //     /**
-    //      * Listening IP address.
-    //      */
-    //     std::string listenIp;
-    //
-    //     /**
-    //      * Fixed port to listen on instead of selecting automatically from Worker's port
-    //      * range.
-    //      */
-    //     uint16_t port;
-    // };
-    //
-    // struct PipeTransportListen
-    // {
-    //     // Either
-    //     std::shared_ptr<PipeTransportListenInfo> pipeTransportListenInfo;
-    //     std::shared_ptr<PipeTransportListenIp> pipeTransportListenIp;
-    // };
 
     struct PipeTransportOptions
     {
@@ -138,18 +110,20 @@ namespace srv {
 
     struct PipeTransportConstructorOptions : TransportConstructorOptions {};
 
-    class ProducerController;
+    struct ConsumerOptions;
+    class IProducerController;
+    class IConsumerController;
 
-    class PipeTransportController : public TransportController
+    class PipeTransportController : public AbstractTransportController
     {
     public:
         PipeTransportController(const std::shared_ptr<PipeTransportConstructorOptions>& options);
         
         ~PipeTransportController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
         TransportTuple tuple() { return transportData()->tuple; }
 
@@ -159,15 +133,15 @@ namespace srv {
 
         SrtpParameters srtpParameters() { return transportData()->srtpParameters; }
         
-        void close();
+        void close() override;
         
-        void onRouterClosed();
+        void onRouterClosed() override;
     
         std::shared_ptr<BaseTransportStats> getStats() override;
         
         void connect(const std::shared_ptr<ConnectParams>& data) override;
         
-        std::shared_ptr<ConsumerController> consume(const std::shared_ptr<ConsumerOptions>& options) override;
+        std::shared_ptr<IConsumerController> consume(const std::shared_ptr<ConsumerOptions>& options) override;
         
     public:
         sigslot::signal<const std::string&> sctpStateChangeSignal;
@@ -188,7 +162,7 @@ namespace srv {
 
     flatbuffers::Offset<FBS::Transport::ConsumeRequest> createConsumeRequest(flatbuffers::FlatBufferBuilder& builder,
                                                                              const std::string& consumerId,
-                                                                             std::shared_ptr<ProducerController> producer,
+                                                                             std::shared_ptr<IProducerController> producer,
                                                                              const RtpParameters& rtpParameters);
 
 }

@@ -16,7 +16,7 @@
 namespace srv {
 
     PlainTransportController::PlainTransportController(const std::shared_ptr<PlainTransportConstructorOptions>& options)
-    : TransportController(options)
+    : AbstractTransportController(options)
     {
         SRV_LOGD("PlainTransportController()");
     }
@@ -47,7 +47,7 @@ namespace srv {
         
         transportData()->sctpState = "closed";
 
-        TransportController::close();
+        AbstractTransportController::close();
     }
 
     void PlainTransportController::onRouterClosed()
@@ -60,7 +60,7 @@ namespace srv {
         
         transportData()->sctpState = "closed";
 
-        TransportController::onRouterClosed();
+        AbstractTransportController::onRouterClosed();
     }
 
     std::shared_ptr<BaseTransportDump> PlainTransportController::dump()
@@ -75,7 +75,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_DUMP, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_PlainTransport_DumpResponse();
         
         return parsePlainTransportDumpResponse(dumpResponse);
@@ -93,7 +95,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto getStatsResponse = response->body_as_PlainTransport_GetStatsResponse();
         
         return parseGetStatsResponse(getStatsResponse);
@@ -120,9 +124,10 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::PLAINTRANSPORT_CONNECT, FBS::Request::Body::PlainTransport_ConnectRequest, reqOffset, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
-        auto response = message->data_as_Response();
-        auto connectResponse = response->body_as_PlainTransport_ConnectResponse();
         
+        auto response = message->data_as_Response();
+        
+        auto connectResponse = response->body_as_PlainTransport_ConnectResponse();
         transportData()->tuple = *parseTuple(connectResponse->tuple());
         transportData()->rtcpTuple = *parseTuple(connectResponse->rtcpTuple());
         transportData()->srtpParameters = *parseSrtpParameters(connectResponse->srtpParameters());
@@ -137,7 +142,7 @@ namespace srv {
             return;
         }
         
-        auto self = std::dynamic_pointer_cast<PlainTransportController>(TransportController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<PlainTransportController>(AbstractTransportController::shared_from_this());
         channel->notificationSignal.connect(&PlainTransportController::onChannel, self);
     }
 

@@ -21,10 +21,9 @@
 #include "oatpp-websocket/AsyncConnectionHandler.hpp"
 
 namespace srv {
-    class WebRtcServerController;
-    class RouterController;
-    class AudioLevelObserverController;
-    class ActiveSpeakerObserverController;
+    class IWebRtcServerController;
+    class IRouterController;
+    class IRtpObserverController;
     class AudioLevelObserverVolume;
     class ActiveSpeakerObserverDominantSpeaker;
 }
@@ -37,10 +36,10 @@ public:
     static std::shared_ptr<Room> create(const std::string& roomId, int32_t consumerReplicas = 0);
     
     Room(const std::string& roomId,
-         const std::shared_ptr<srv::WebRtcServerController>& webRtcServerController,
-         const std::shared_ptr<srv::RouterController>& routerController,
-         const std::shared_ptr<srv::AudioLevelObserverController>& audioLevelObserverController,
-         const std::shared_ptr<srv::ActiveSpeakerObserverController>& activeSpeakerObserverController,
+         const std::shared_ptr<srv::IWebRtcServerController>& webRtcServerController,
+         const std::shared_ptr<srv::IRouterController>& routerController,
+         const std::shared_ptr<srv::IRtpObserverController>& audioLevelObserverController,
+         const std::shared_ptr<srv::IRtpObserverController>& activeSpeakerObserverController,
          int32_t consumerReplicas);
 
     ~Room();
@@ -82,9 +81,9 @@ private:
     
     std::unordered_map<std::string, std::shared_ptr<Peer>> getJoinedPeers(const std::string& excludePeerId = "");
     
-    void createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::shared_ptr<Peer>& producerPeer, const std::shared_ptr<srv::ProducerController>& producerController);
+    void createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::shared_ptr<Peer>& producerPeer, const std::shared_ptr<srv::IProducerController>& producerController);
     
-    void createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, const std::shared_ptr<Peer>& dataProducerPeer, const std::shared_ptr<srv::DataProducerController>& dataProducerController);
+    void createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, const std::shared_ptr<Peer>& dataProducerPeer, const std::shared_ptr<srv::IDataProducerController>& dataProducerController);
 
     void onAudioVolumes(const std::vector<srv::AudioLevelObserverVolume>& volumes);
     
@@ -148,13 +147,17 @@ private:
     
     std::unordered_map<std::string, std::shared_ptr<Peer>> _peerMap;
     
-    std::shared_ptr<srv::WebRtcServerController> _webRtcServerController;
+    std::shared_ptr<srv::IWebRtcServerController> _webRtcServerController;
     
-    std::shared_ptr<srv::RouterController> _routerController;
+    std::shared_ptr<srv::IRouterController> _routerController;
     
-    std::shared_ptr<srv::AudioLevelObserverController> _audioLevelObserverController;
+    std::shared_ptr<srv::IRtpObserverController> _audioLevelObserverController;
     
-    std::shared_ptr<srv::ActiveSpeakerObserverController> _activeSpeakerObserverController;
+    std::shared_ptr<srv::IRtpObserverController> _activeSpeakerObserverController;
+    
+//    std::shared_ptr<srv::AudioLevelObserverController> _audioLevelObserverController;
+//    
+//    std::shared_ptr<srv::ActiveSpeakerObserverController> _activeSpeakerObserverController;
     
     std::atomic_int32_t _consumerReplicas {0};
     

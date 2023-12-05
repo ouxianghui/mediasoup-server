@@ -132,13 +132,7 @@ namespace srv {
         {
             std::lock_guard<std::mutex> lock(_idMutex);
             
-            flatbuffers::Offset<FBS::Notification::Notification> nfOffset;
-            if (bodyType != FBS::Notification::Body::NONE) {
-                nfOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, bodyType, bodyOffset.Union());
-            }
-            else {
-                nfOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, FBS::Notification::Body::NONE, 0);
-            }
+            auto nfOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, bodyType, bodyOffset.Union());
             
             auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Notification, nfOffset.Union());
             
@@ -237,13 +231,7 @@ namespace srv {
         {
             std::lock_guard<std::mutex> lock(_idMutex);
             
-            flatbuffers::Offset<FBS::Request::Request> reqOffset;
-            if (bodyType != FBS::Request::Body::NONE) {
-                reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset.Union());
-            }
-            else {
-                reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), FBS::Request::Body::NONE, 0);
-            }
+            auto reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset.Union());
             
             auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
             

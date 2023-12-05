@@ -26,12 +26,14 @@ namespace srv {
         nlohmann::json appData;
     };
 
+    class IProducerController;
+
     struct ActiveSpeakerObserverDominantSpeaker
     {
         /**
          * The audio Producer instance.
          */
-        std::shared_ptr<ProducerController> producerController;
+        std::shared_ptr<IProducerController> producerController;
     };
 
     struct RtpObserverObserverConstructorOptions : RtpObserverConstructorOptions {};

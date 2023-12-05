@@ -10,16 +10,7 @@
 #pragma once
 
 #include <memory>
-#include <vector>
-#include <atomic>
-#include <string>
-#include <unordered_map>
-#include "nlohmann/json.hpp"
-#include "sigslot/signal.hpp"
-#include "types.h"
-#include "rtp_parameters.h"
-#include "transport_controller.h"
-#include "sctp_parameters.h"
+#include "interface/i_router_controller.h"
 #include "FBS/router.h"
 
 namespace srv {
@@ -45,26 +36,6 @@ namespace srv {
     class AudioLevelObserverController;
     class PipeTransportController;
 
-    // struct PipeToRouterListenInfo
-    // {
-    //     TransportListenInfo listenInfo;
-    // };
-
-    // struct PipeToRouterListenIp
-    // {
-    //     /**
-    //      * IP used in the PipeTransport pair. Default '127.0.0.1'.
-    //      */
-    //     std::string listenIp;
-    // };
-
-    // struct PipeToRouterListen
-    // {
-    //     // Either
-    //     std::shared_ptr<PipeToRouterListenInfo> PpipeToRouterListenInfo;
-    //     std::shared_ptr<PipeToRouterListenIp> PpipeToRouterListenIp;
-    // };
-
     struct RouterData
     {
         RtpCapabilities rtpCapabilities;
@@ -86,119 +57,6 @@ namespace srv {
     void to_json(nlohmann::json& j, const RouterOptions& st);
     void from_json(const nlohmann::json& j, RouterOptions& st);
 
-    struct PipeToRouterOptions
-    {
-        /**
-         * Listening info.
-         */
-        TransportListenInfo listenInfo;
-        
-        /**
-         * Listening IP address.
-         */
-        TransportListenIp listenIp;
-        
-        /**
-         * Fixed port to listen on instead of selecting automatically from Worker's port
-         * range.
-         */
-        uint16_t port;
-        
-        /**
-         * The id of the Producer to consume.
-         */
-        std::string producerId;
-
-        /**
-         * The id of the DataProducer to consume.
-         */
-        std::string dataProducerId;
-
-        /**
-         * Target Router instance.
-         */
-        std::shared_ptr<RouterController> routerController;
-
-        /**
-         * Create a SCTP association. Default true.
-         */
-        bool enableSctp;
-
-        /**
-         * SCTP streams number.
-         */
-        NumSctpStreams numSctpStreams;
-
-        /**
-         * Enable RTX and NACK for RTP retransmission.
-         */
-        bool enableRtx;
-
-        /**
-         * Enable SRTP.
-         */
-        bool enableSrtp;
-    };
-
-    struct PipeToRouterResult
-    {
-        /**
-         * The Consumer created in the current Router.
-         */
-        std::shared_ptr<ConsumerController> pipeConsumerController;
-
-        /**
-         * The Producer created in the target Router.
-         */
-        std::shared_ptr<ProducerController> pipeProducerController;
-
-        /**
-         * The DataConsumer created in the current Router.
-         */
-        std::shared_ptr<DataConsumerController> pipeDataConsumerController;
-
-        /**
-         * The DataProducer created in the target Router.
-         */
-        std::shared_ptr<DataProducerController> pipeDataProducerController;
-    };
-
-    struct RouterDump
-    {
-        /**
-         * The Router id.
-         */
-        std::string id;
-        /**
-         * Id of Transports.
-         */
-        std::vector<std::string> transportIds;
-        /**
-         * Id of RtpObservers.
-         */
-        std::vector<std::string> rtpObserverIds;
-        /**
-         * Array of Producer id and its respective Consumer ids.
-         */
-        std::vector<std::pair<std::string, std::vector<std::string>>> mapProducerIdConsumerIds;
-        /**
-         * Array of Consumer id and its Producer id.
-         */
-        std::vector<std::pair<std::string, std::string>> mapConsumerIdProducerId;
-        /**
-         * Array of Producer id and its respective Observer ids.
-         */
-        std::vector<std::pair<std::string, std::vector<std::string>>> mapProducerIdObserverIds;
-        /**
-         * Array of Producer id and its respective DataConsumer ids.
-         */
-        std::vector<std::pair<std::string, std::vector<std::string>>> mapDataProducerIdDataConsumerIds;
-        /**
-         * Array of DataConsumer id and its DataProducer id.
-         */
-        std::vector<std::pair<std::string, std::string>> mapDataConsumerIdDataProducerId;
-    };
-
     using PipeTransportControllerPair = std::unordered_map<std::string, std::shared_ptr<PipeTransportController>>;
 
     struct RouterInternal
@@ -206,7 +64,7 @@ namespace srv {
         std::string routerId;
     };
 
-    class RouterController : public std::enable_shared_from_this<RouterController> {
+    class RouterController : public IRouterController, public std::enable_shared_from_this<RouterController> {
     public:
         RouterController(const RouterInternal& internal,
                          const RouterData& data,
@@ -215,63 +73,53 @@ namespace srv {
         
         ~RouterController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
-        const std::string& id() { return _internal.routerId; }
+        const std::string& id() override { return _internal.routerId; }
         
-        bool closed() { return _closed; }
+        const RtpCapabilities& rtpCapabilities() override { return _data.rtpCapabilities; }
         
-        const RtpCapabilities& rtpCapabilities() { return _data.rtpCapabilities; }
+        void setAppData(const nlohmann::json& data) override { _appData = data; }
         
-        void setAppData(const nlohmann::json& data) { _appData = data; }
+        const nlohmann::json& appData() override { return _appData; }
         
-        const nlohmann::json& appData() { return _appData; }
+        std::shared_ptr<RouterDump> dump() override;
         
-        std::shared_ptr<RouterDump> dump();
+        void close() override;
         
-        void close();
+        bool closed() override { return _closed; }
+
+        void onWorkerClosed() override;
         
-        void onWorkerClosed();
-        
-        bool canConsume(const std::string& producerId, const RtpCapabilities& rtpCapabilities);
+        bool canConsume(const std::string& producerId, const RtpCapabilities& rtpCapabilities) override;
             
-        std::shared_ptr<WebRtcTransportController> createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options);
+        std::shared_ptr<WebRtcTransportController> createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options) override;
         
-        std::shared_ptr<PlainTransportController> createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options);
+        std::shared_ptr<PlainTransportController> createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options) override;
         
-        std::shared_ptr<DirectTransportController> createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options);
+        std::shared_ptr<DirectTransportController> createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options) override;
         
-        std::shared_ptr<PipeTransportController> createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options);
+        std::shared_ptr<PipeTransportController> createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options) override;
         
-        std::shared_ptr<ActiveSpeakerObserverController> createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options);
+        std::shared_ptr<ActiveSpeakerObserverController> createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options) override;
         
-        std::shared_ptr<AudioLevelObserverController> createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options);
+        std::shared_ptr<AudioLevelObserverController> createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options) override;
         
-        std::shared_ptr<PipeToRouterResult> pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options);
-        
-    public:
-        // signals
-        sigslot::signal<std::shared_ptr<RouterController>> closeSignal;
-        
-        sigslot::signal<> workerCloseSignal;
-        
-        sigslot::signal<std::shared_ptr<TransportController>> newTransportSignal;
-        
-        sigslot::signal<std::shared_ptr<RtpObserverController>> newRtpObserverSignal;
+        std::shared_ptr<PipeToRouterResult> pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options) override;
         
     private:
         void clear();
         
-        std::shared_ptr<ProducerController> getProducerController(const std::string& producerId);
+        std::shared_ptr<IProducerController> getProducerController(const std::string& producerId);
 
-        std::shared_ptr<DataProducerController> getDataProducerController(const std::string& dataProducerId);
+        std::shared_ptr<IDataProducerController> getDataProducerController(const std::string& dataProducerId);
         
-        void connectSignals(const std::shared_ptr<TransportController>& transportController);
+        void connectSignals(const std::shared_ptr<ITransportController>& transportController);
         
         // key: router.id
-        void addPipeTransportPair(const std::string& key, PipeTransportControllerPair& pair);
+        void addPipeTransportPair(const std::string& key, PipeTransportControllerPair& pair) override;
         
     private:
         // Internal data.
@@ -291,23 +139,23 @@ namespace srv {
 
         std::mutex _transportsMutex;
         // Transports map.
-        std::unordered_map<std::string, std::shared_ptr<TransportController>> _transportControllers;
+        std::unordered_map<std::string, std::shared_ptr<ITransportController>> _transportControllers;
 
         std::mutex _producersMutex;
         // Producers map.
-        std::unordered_map<std::string, std::shared_ptr<ProducerController>> _producerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IProducerController>> _producerControllers;
 
         std::mutex _rtpObserversMutex;
         // RtpObservers map.
-        std::unordered_map<std::string, std::shared_ptr<RtpObserverController>> _rtpObserverControllers;
+        std::unordered_map<std::string, std::shared_ptr<IRtpObserverController>> _rtpObserverControllers;
 
         std::mutex _dataProducersMutex;
         // DataProducers map.
-        std::unordered_map<std::string, std::shared_ptr<DataProducerController>> _dataProducerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IDataProducerController>> _dataProducerControllers;
 
-        std::function<std::shared_ptr<ProducerController>(const std::string&)> _getProducerController;
+        std::function<std::shared_ptr<IProducerController>(const std::string&)> _getProducerController;
         
-        std::function<std::shared_ptr<DataProducerController>(const std::string&)> _getDataProducerController;
+        std::function<std::shared_ptr<IDataProducerController>(const std::string&)> _getDataProducerController;
         
         std::function<RtpCapabilities()> _getRouterRtpCapabilities;
         

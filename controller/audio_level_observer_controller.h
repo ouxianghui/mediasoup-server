@@ -45,7 +45,7 @@ namespace srv {
         /**
          * The audio Producer instance.
          */
-        std::shared_ptr<ProducerController> producerController;
+        std::shared_ptr<IProducerController> producerController;
 
         /**
          * The average volume (in dBvo from -127 to 0) of the audio Producer in the

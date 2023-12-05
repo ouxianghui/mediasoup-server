@@ -17,6 +17,15 @@ message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(headers
+  interface/i_consumer_controller.h 
+  interface/i_data_consumer_controller.h 
+  interface/i_data_producer_controller.h 
+  interface/i_producer_controller.h 
+  interface/i_transport_controller.h 
+  interface/i_router_controller.h 
+  interface/i_rtp_observer_controller.h 
+  interface/i_webrtc_server_controller.h 
+  interface/i_worker_controller.h 
   config.h
   rtc_export.h
   common_types.h
@@ -41,7 +50,7 @@ set(headers
   active_speaker_observer_controller.h
   router_controller.h
   webrtc_server_controller.h
-  transport_controller.h
+  abstract_transport_controller.h
   direct_transport_controller.h
   plain_transport_controller.h
   pipe_transport_controller.h
@@ -72,7 +81,7 @@ set(sources
   active_speaker_observer_controller.cpp
   router_controller.cpp
   webrtc_server_controller.cpp
-  transport_controller.cpp
+  abstract_transport_controller.cpp
   direct_transport_controller.cpp
   plain_transport_controller.cpp
   pipe_transport_controller.cpp

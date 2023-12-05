@@ -17,46 +17,13 @@
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
-#include "transport_controller.h"
+#include "abstract_transport_controller.h"
 #include "sctp_parameters.h"
 #include "srtp_parameters.h"
 #include "rtp_parameters.h"
+#include "FBS/notification.h"
 
 namespace srv {
-
-    // struct PlainTransportListenInfo
-    // {
-    //     /**
-    //      * Listening info.
-    //      */
-    //     TransportListenInfo listenInfo;
-    //
-    //     /**
-    //      * Optional listening info for RTCP.
-    //      */
-    //     TransportListenInfo rtcpListenInfo;
-    // };
-    //
-    // struct PlainTransportListenIp
-    // {
-    //     /**
-    //      * Listening IP address.
-    //      */
-    //     std::string listenIp;
-    //
-    //     /**
-    //      * Fixed port to listen on instead of selecting automatically from Worker's port
-    //      * range.
-    //      */
-    //     uint16_t port;
-    // };
-    //
-    // struct PlainTransportListen
-    // {
-    //     // Either
-    //     std::shared_ptr<PlainTransportListenInfo> plainTransportListenInfo;
-    //     std::shared_ptr<PlainTransportListenIp> plainTransportListenIp;
-    // };
 
     struct PlainTransportOptions
     {
@@ -173,16 +140,16 @@ namespace srv {
 
     struct PlainTransportConstructorOptions : TransportConstructorOptions {};
 
-    class PlainTransportController : public TransportController
+    class PlainTransportController : public AbstractTransportController
     {
     public:
         PlainTransportController(const std::shared_ptr<PlainTransportConstructorOptions>& options);
         
         ~PlainTransportController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
         TransportTuple tuple() { return transportData()->tuple; }
 
@@ -194,9 +161,9 @@ namespace srv {
 
         SrtpParameters srtpParameters() { return transportData()->srtpParameters; }
 
-        void close();
+        void close() override;
         
-        void onRouterClosed();
+        void onRouterClosed() override;
         
         std::shared_ptr<BaseTransportDump> dump() override;
         

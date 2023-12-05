@@ -17,7 +17,7 @@
 namespace srv {
 
     DirectTransportController::DirectTransportController(const std::shared_ptr<DirectTransportConstructorOptions>& options)
-    : TransportController(options)
+    : AbstractTransportController(options)
     {
         SRV_LOGD("DirectTransportController()");
     }
@@ -46,7 +46,7 @@ namespace srv {
 
         SRV_LOGD("close()");
         
-        TransportController::close();
+        AbstractTransportController::close();
     }
 
     void DirectTransportController::onRouterClosed()
@@ -57,7 +57,7 @@ namespace srv {
 
         SRV_LOGD("onRouterClosed()");
 
-        TransportController::onRouterClosed();
+        AbstractTransportController::onRouterClosed();
     }
 
     std::shared_ptr<BaseTransportDump> DirectTransportController::dump()
@@ -70,7 +70,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_DUMP, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_DirectTransport_DumpResponse();
         
         return parseDirectTransportDumpResponse(dumpResponse);
@@ -88,7 +90,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto getStatsResponse = response->body_as_DirectTransport_GetStatsResponse();
         
         return parseGetStatsResponse(getStatsResponse);
@@ -133,14 +137,17 @@ namespace srv {
 
         auto dataOffset = FBS::Transport::CreateSendRtcpNotificationDirect(channel->builder(), &data);
         
-        channel->notify(FBS::Notification::Event::TRANSPORT_SEND_RTCP, FBS::Notification::Body::Transport_SendRtcpNotification, dataOffset, _internal.transportId);
+        channel->notify(FBS::Notification::Event::TRANSPORT_SEND_RTCP,
+                        FBS::Notification::Body::Transport_SendRtcpNotification,
+                        dataOffset,
+                        _internal.transportId);
     }
 
     void DirectTransportController::handleWorkerNotifications()
     {
         SRV_LOGD("handleWorkerNotifications()");
         
-        auto self = std::dynamic_pointer_cast<DirectTransportController>(TransportController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<DirectTransportController>(AbstractTransportController::shared_from_this());
         
         auto channel = _channel.lock();
         if (!channel) {

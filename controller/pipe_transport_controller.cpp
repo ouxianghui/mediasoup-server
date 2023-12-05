@@ -16,11 +16,13 @@
 #include "ortc.h"
 #include "channel.h"
 #include "utils.h"
+#include "consumer_controller.h"
+#include "producer_controller.h"
 
 namespace srv {
 
     PipeTransportController::PipeTransportController(const std::shared_ptr<PipeTransportConstructorOptions>& options)
-    : TransportController(options)
+    : AbstractTransportController(options)
     {
         SRV_LOGD("PipeTransportController()");
     }
@@ -51,7 +53,7 @@ namespace srv {
         
         transportData()->sctpState = "closed";
 
-        TransportController::close();
+        AbstractTransportController::close();
     }
 
     void PipeTransportController::onRouterClosed()
@@ -64,7 +66,7 @@ namespace srv {
         
         transportData()->sctpState = "closed";
 
-        TransportController::onRouterClosed();
+        AbstractTransportController::onRouterClosed();
     }
 
     std::shared_ptr<BaseTransportStats> PipeTransportController::getStats()
@@ -79,7 +81,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto getStatsResponse = response->body_as_PipeTransport_GetStatsResponse();
         
         return parseGetStatsResponse(getStatsResponse);
@@ -102,20 +106,25 @@ namespace srv {
                                                                         reqData->srtpParameters.serialize(channel->builder())
                                                                         );
         
-        auto respData = channel->request(FBS::Request::Method::PIPETRANSPORT_CONNECT, FBS::Request::Body::PipeTransport_ConnectRequest, reqOffset, _internal.transportId);
+        auto respData = channel->request(FBS::Request::Method::PIPETRANSPORT_CONNECT,
+                                         FBS::Request::Body::PipeTransport_ConnectRequest,
+                                         reqOffset,
+                                         _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto connectResponse = response->body_as_PipeTransport_ConnectResponse();
         
         transportData()->tuple = *parseTuple(connectResponse->tuple());
     }
 
-    std::shared_ptr<ConsumerController> PipeTransportController::consume(const std::shared_ptr<ConsumerOptions>& options)
+    std::shared_ptr<IConsumerController> PipeTransportController::consume(const std::shared_ptr<ConsumerOptions>& options)
     {
         SRV_LOGD("consume()");
         
-        std::shared_ptr<ConsumerController> consumerController;
+        std::shared_ptr<IConsumerController> consumerController;
         
         auto channel = _channel.lock();
         if (!channel) {
@@ -151,10 +160,15 @@ namespace srv {
                                               rtpParameters
                                               );
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME, FBS::Request::Body::Transport_ConsumeRequest, reqOffset, _internal.transportId);
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME,
+                                         FBS::Request::Body::Transport_ConsumeRequest,
+                                         reqOffset,
+                                         _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto consumeResponse = response->body_as_Transport_ConsumeResponse();
         
         bool paused_ = consumeResponse->paused();
@@ -184,7 +198,7 @@ namespace srv {
             
             _consumerControllers[consumerController->id()] = consumerController;
             
-            auto wself = std::weak_ptr<TransportController>(TransportController::shared_from_this());
+            auto wself = std::weak_ptr<ITransportController>(AbstractTransportController::shared_from_this());
             auto removeLambda = [id = consumerController->id(), wself]() {
                 auto self = wself.lock();
                 if (!self) {
@@ -224,7 +238,7 @@ namespace srv {
             return;
         }
         
-        auto self = std::dynamic_pointer_cast<PipeTransportController>(TransportController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<PipeTransportController>(AbstractTransportController::shared_from_this());
         channel->notificationSignal.connect(&PipeTransportController::onChannel, self);
     }
 
@@ -324,7 +338,7 @@ namespace srv {
 
     flatbuffers::Offset<FBS::Transport::ConsumeRequest> createConsumeRequest(flatbuffers::FlatBufferBuilder& builder,
                                                                              const std::string& consumerId,
-                                                                             std::shared_ptr<ProducerController> producer,
+                                                                             std::shared_ptr<IProducerController> producer,
                                                                              const RtpParameters& rtpParameters)
     {
         auto rtpParametersOffset = rtpParameters.serialize(builder);

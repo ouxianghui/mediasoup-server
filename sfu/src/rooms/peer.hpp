@@ -26,15 +26,16 @@
 #include "moodycamel/concurrentqueue.h"
 #include "types.h"
 
+
 using AcceptFunc = std::function<void(const nlohmann::json& request, const nlohmann::json& data)>;
 using RejectFunc = std::function<void(const nlohmann::json& request, int errorCode, const std::string& errorReason)>;
 
 namespace srv {
-    class TransportController;
-    class ProducerController;
-    class ConsumerController;
-    class DataProducerController;
-    class DataConsumerController;
+    class ITransportController;
+    class IProducerController;
+    class IConsumerController;
+    class IDataProducerController;
+    class IDataConsumerController;
 }
 
 class Room;
@@ -66,11 +67,11 @@ public:
     nlohmann::json rtpCapabilities;
     nlohmann::json sctpCapabilities;
     
-    std::unordered_map<std::string, std::shared_ptr<srv::TransportController>> transportControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::ProducerController>> producerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::ConsumerController>> consumerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::DataProducerController>> dataProducerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::DataConsumerController>> dataConsumerControllers;
+    std::unordered_map<std::string, std::shared_ptr<srv::ITransportController>> transportControllers;
+    std::unordered_map<std::string, std::shared_ptr<srv::IProducerController>> producerControllers;
+    std::unordered_map<std::string, std::shared_ptr<srv::IConsumerController>> consumerControllers;
+    std::unordered_map<std::string, std::shared_ptr<srv::IDataProducerController>> dataProducerControllers;
+    std::unordered_map<std::string, std::shared_ptr<srv::IDataConsumerController>> dataConsumerControllers;
 };
 
 class Peer : public oatpp::websocket::AsyncWebSocket::Listener, public std::enable_shared_from_this<Peer>

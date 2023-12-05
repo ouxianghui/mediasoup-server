@@ -10,19 +10,12 @@
 #pragma once
 
 #include <memory>
-#include <vector>
-#include <atomic>
-#include <unordered_map>
-#include <mutex>
-#include "nlohmann/json.hpp"
-#include "sigslot/signal.hpp"
-#include "types.h"
-#include "transport_controller.h"
+#include "interface/i_transport_controller.h"
+#include "interface/i_webrtc_server_controller.h"
 #include "FBS/webRtcServer.h"
 
 namespace srv {
 
-    class Channel;
     class WebRtcTransportController;
 
     struct WebRtcServerOptions
@@ -41,77 +34,33 @@ namespace srv {
     void to_json(nlohmann::json& j, const WebRtcServerOptions& st);
     void from_json(const nlohmann::json& j, WebRtcServerOptions& st);
 
-    struct WebRtcServerListenInfo : TransportListenInfo {};
-
-    struct IpPort
-    {
-        std::string ip;
-        uint16_t port;
-    };
-
-    struct IceUserNameFragment
-    {
-        std::string localIceUsernameFragment;
-        std::string webRtcTransportId;
-    };
-
-    struct TupleHash
-    {
-        uint64_t tupleHash;
-        std::string webRtcTransportId;
-    };
-
-    struct WebRtcServerDump
-    {
-        std::string id;
-        std::vector<IpPort> udpSockets;
-        std::vector<IpPort> tcpServers;
-        std::vector<std::string> webRtcTransportIds;
-        std::vector<IceUserNameFragment> localIceUsernameFragments;
-        std::vector<TupleHash> tupleHashes;
-    };
-
-    struct WebRtcServerInternal
-    {
-        std::string webRtcServerId;
-    };
-
-    class WebRtcServerController : public std::enable_shared_from_this<WebRtcServerController> {
+    class WebRtcServerController : public IWebRtcServerController, public std::enable_shared_from_this<WebRtcServerController> {
     public:
         WebRtcServerController(const WebRtcServerInternal& internal, std::weak_ptr<Channel> channel, const nlohmann::json& appData);
         
         ~WebRtcServerController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
-        const std::string& id() { return _id; }
+        const std::string& id() override { return _id; }
         
-        bool closed() { return _closed; }
+        void setAppData(const nlohmann::json& data) override { _appData = data; }
         
-        void setAppData(const nlohmann::json& data) { _appData = data; }
+        const nlohmann::json& appData() override { return _appData; }
+    
+        void close() override;
+
+        bool closed() override { return _closed; }
+
+        void handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& controller) override;
         
-        const nlohmann::json& appData() { return _appData; }
+        std::shared_ptr<WebRtcServerDump> dump() override;
         
-        void handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& controller);
-        
-        std::shared_ptr<WebRtcServerDump> dump();
-        
-        void onWorkerClosed();
-        
-    public:
-        sigslot::signal<> workerCloseSignal;
-        
-        sigslot::signal<std::shared_ptr<WebRtcServerController>> closeSignal;
-        
-        sigslot::signal<std::shared_ptr<WebRtcTransportController>> webrtcTransportHandledSignal;
-        
-        sigslot::signal<std::shared_ptr<WebRtcTransportController>> webrtcTransportUnhandledSignal;
-        
+        void onWorkerClosed() override;
+
     private:
-        void close();
-        
         void onWebRtcTransportClose(const std::string& id_);
         
     private:

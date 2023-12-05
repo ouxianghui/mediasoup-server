@@ -49,11 +49,12 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::WEBRTCSERVER_DUMP, _id);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_WebRtcServer_DumpResponse();
         
         return parseWebRtcServerDump(dumpResponse);
-        
     }
 
     void WebRtcServerController::onWorkerClosed()
@@ -105,7 +106,7 @@ namespace srv {
             for (const auto& webRtcTransport : _webRtcTransportMap) {
                 auto transport = webRtcTransport.second;
                 
-                transport->onListenServerClosed();
+                transport->onWebRtcServerClosed();
                 
                 this->webrtcTransportUnhandledSignal(transport);
             }

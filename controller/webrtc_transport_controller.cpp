@@ -16,7 +16,7 @@
 namespace srv {
 
     WebRtcTransportController::WebRtcTransportController(const std::shared_ptr<WebRtcTransportConstructorOptions>& options)
-    : TransportController(options)
+    : AbstractTransportController(options)
     {
         SRV_LOGD("WebRtcTransportController()");
     }
@@ -55,12 +55,12 @@ namespace srv {
         
         cleanData();
 
-        TransportController::close();
+        AbstractTransportController::close();
     }
 
-    void WebRtcTransportController::onListenServerClosed()
+    void WebRtcTransportController::onWebRtcServerClosed()
     {
-        SRV_LOGD("onListenServerClosed()");
+        SRV_LOGD("onWebRtcServerClosed()");
         
         if (_closed) {
             return;
@@ -70,7 +70,7 @@ namespace srv {
 
         cleanData();
 
-        TransportController::onListenServerClosed();
+        AbstractTransportController::onWebRtcServerClosed();
     }
 
     void WebRtcTransportController::onRouterClosed()
@@ -85,7 +85,7 @@ namespace srv {
 
         cleanData();
         
-        TransportController::onRouterClosed();
+        AbstractTransportController::onRouterClosed();
     }
 
     std::shared_ptr<BaseTransportDump> WebRtcTransportController::dump()
@@ -100,7 +100,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_DUMP, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_WebRtcTransport_DumpResponse();
         
         return parseWebRtcTransportDumpResponse(dumpResponse);
@@ -118,7 +120,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto getStatsResponse = response->body_as_WebRtcTransport_GetStatsResponse();
         
         return parseGetStatsResponse(getStatsResponse);
@@ -140,10 +144,15 @@ namespace srv {
     
         auto reqOffset = createConnectRequest(channel->builder(), reqData->dtlsParameters);
         
-        auto respData = channel->request(FBS::Request::Method::WEBRTCTRANSPORT_CONNECT, FBS::Request::Body::WebRtcTransport_ConnectRequest, reqOffset, _internal.transportId);
+        auto respData = channel->request(FBS::Request::Method::WEBRTCTRANSPORT_CONNECT,
+                                         FBS::Request::Body::WebRtcTransport_ConnectRequest,
+                                         reqOffset,
+                                         _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto connectResponse = response->body_as_WebRtcTransport_ConnectResponse();
         
         this->transportData()->dtlsParameters.role = dtlsRoleFromFbs(connectResponse->dtlsLocalRole());
@@ -161,7 +170,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::TRANSPORT_RESTART_ICE, _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto restartIceResponse = response->body_as_Transport_RestartIceResponse();
         
         auto iceParameters = std::make_shared<IceParameters>();
@@ -182,7 +193,7 @@ namespace srv {
             return;
         }
         
-        auto self = std::dynamic_pointer_cast<WebRtcTransportController>(TransportController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<WebRtcTransportController>(AbstractTransportController::shared_from_this());
         channel->notificationSignal.connect(&WebRtcTransportController::onChannel, self);
     }
 

@@ -13,6 +13,8 @@
 #include "DepLibUV.hpp"
 #include "srv_logger.h"
 #include "config.h"
+#include "interface/i_worker_controller.h"
+#include "worker_controller.h"
 
 namespace srv {
     std::shared_ptr<Engine>& Engine::sharedInstance()
@@ -69,10 +71,10 @@ namespace srv {
         MSConfig->destroy();
     }
 
-    std::shared_ptr<WorkerController> Engine::getWorkerController()
+    std::shared_ptr<IWorkerController> Engine::getWorkerController()
     {
         std::lock_guard<std::mutex> lock(_workerControllersMutex);
-        std::shared_ptr<WorkerController> worker = _workerControllers[_nextWorkerIdx];
+        std::shared_ptr<IWorkerController> worker = _workerControllers[_nextWorkerIdx];
 
         if (++_nextWorkerIdx == _workerControllers.size()) {
             _nextWorkerIdx = 0;
@@ -81,11 +83,11 @@ namespace srv {
         return worker;
     }
 
-    std::shared_ptr<WorkerController> Engine::createWorkerController()
+    std::shared_ptr<IWorkerController> Engine::createWorkerController()
     {
         SRV_LOGD("createWorker()");
         
-        std::shared_ptr<WorkerController> workerController;
+        std::shared_ptr<IWorkerController> workerController;
         
         if (!_workerSettings) {
             return workerController;
@@ -98,7 +100,7 @@ namespace srv {
             _workerControllers.emplace_back(workerController);
         }
         
-        workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()), wWorkerController = std::weak_ptr<WorkerController>(workerController)]() {
+        workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()), wWorkerController = std::weak_ptr<IWorkerController>(workerController)]() {
             auto self = wself.lock();
             if (!self) {
                 return;

@@ -7,7 +7,7 @@
 * @CreateTime: 2023-10-30
 *************************************************************************/
 
-#include "transport_controller.h"
+#include "abstract_transport_controller.h"
 #include "srv_logger.h"
 #include "types.h"
 #include "uuid.h"
@@ -17,10 +17,14 @@
 #include "FBS/request.h"
 #include "FBS/response.h"
 #include "FBS/transport.h"
+#include "producer_controller.h"
+#include "consumer_controller.h"
+#include "data_consumer_controller.h"
+#include "data_producer_controller.h"
 
 namespace srv {
 
-    TransportController::TransportController(const std::shared_ptr<TransportConstructorOptions>& options)
+    AbstractTransportController::AbstractTransportController(const std::shared_ptr<TransportConstructorOptions>& options)
     : _internal(options->internal)
     , _data(options->data)
     , _channel(options->channel)
@@ -29,15 +33,15 @@ namespace srv {
     , _getProducerController(options->getProducerController)
     , _getDataProducerController(options->getDataProducerController)
     {
-        SRV_LOGD("TransportController()");
+        SRV_LOGD("AbstractTransportController()");
     }
 
-    TransportController::~TransportController()
+    AbstractTransportController::~AbstractTransportController()
     {
-        SRV_LOGD("~TransportController()");
+        SRV_LOGD("~AbstractTransportController()");
     }
 
-    void TransportController::close()
+    void AbstractTransportController::close()
     {
         if (_closed) {
             return;
@@ -58,7 +62,7 @@ namespace srv {
         
         channel->request(FBS::Request::Method::ROUTER_CLOSE_TRANSPORT, FBS::Request::Body::Router_CloseTransportRequest, reqOffset, _internal.routerId);
         
-        std::unordered_map<std::string, std::shared_ptr<ProducerController>> producerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IProducerController>> producerControllers;
         {
             std::lock_guard<std::mutex> lock(_producersMutex);
             producerControllers = _producerControllers;
@@ -70,7 +74,7 @@ namespace srv {
         }
         //_producerControllers.clear();
         
-        std::unordered_map<std::string, std::shared_ptr<ConsumerController>> consumerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IConsumerController>> consumerControllers;
         {
             std::lock_guard<std::mutex> lock(_consumersMutex);
             consumerControllers = _consumerControllers;
@@ -81,7 +85,7 @@ namespace srv {
         }
         //_consumerControllers.clear();
         
-        std::unordered_map<std::string, std::shared_ptr<DataProducerController>> dataProducerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IDataProducerController>> dataProducerControllers;
         {
             std::lock_guard<std::mutex> lock(_dataProducersMutex);
             dataProducerControllers = _dataProducerControllers;
@@ -93,7 +97,7 @@ namespace srv {
         }
         //_dataProducerControllers.clear();
         
-        std::unordered_map<std::string, std::shared_ptr<DataConsumerController>> dataConsumerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IDataConsumerController>> dataConsumerControllers;
         {
             std::lock_guard<std::mutex> lock(_dataConsumersMutex);
             dataConsumerControllers = _dataConsumerControllers;
@@ -107,7 +111,7 @@ namespace srv {
         this->closeSignal(id());
     }
 
-    void TransportController::onRouterClosed()
+    void AbstractTransportController::onRouterClosed()
     {
         if (_closed) {
             return;
@@ -131,13 +135,13 @@ namespace srv {
         this->closeSignal(id());
     }
 
-    void TransportController::onListenServerClosed()
+    void AbstractTransportController::onWebRtcServerClosed()
     {
         if (_closed) {
             return;
         }
         
-        SRV_LOGD("onListenServerClosed()");
+        SRV_LOGD("onWebRtcServerClosed()");
 
         _closed = true;
 
@@ -150,29 +154,29 @@ namespace srv {
         
         clearControllers();
         
-        this->listenServerCloseSignal();
+        this->webRtcServerCloseSignal();
         
         this->closeSignal(id());
     }
 
-    std::shared_ptr<BaseTransportDump> TransportController::dump()
+    std::shared_ptr<BaseTransportDump> AbstractTransportController::dump()
     {
         assert(0);
         return nullptr;
     }
 
-    std::shared_ptr<BaseTransportStats> TransportController::getStats()
+    std::shared_ptr<BaseTransportStats> AbstractTransportController::getStats()
     {
         assert(0);
         return nullptr;
     }
 
-    void TransportController::connect(const std::shared_ptr<ConnectParams>& data)
+    void AbstractTransportController::connect(const std::shared_ptr<ConnectParams>& data)
     {
         assert(0);
     }
 
-    void TransportController::setMaxIncomingBitrate(int32_t bitrate)
+    void AbstractTransportController::setMaxIncomingBitrate(int32_t bitrate)
     {
         SRV_LOGD("setMaxIncomingBitrate() [bitrate:%d]", bitrate);
 
@@ -183,10 +187,13 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateSetMaxIncomingBitrateRequest(channel->builder(), bitrate);
         
-        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_INCOMING_BITRATE, FBS::Request::Body::Transport_SetMaxIncomingBitrateRequest, reqOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_INCOMING_BITRATE,
+                         FBS::Request::Body::Transport_SetMaxIncomingBitrateRequest,
+                         reqOffset,
+                         _internal.transportId);
     }
 
-    void TransportController::setMaxOutgoingBitrate(int32_t bitrate)
+    void AbstractTransportController::setMaxOutgoingBitrate(int32_t bitrate)
     {
         SRV_LOGD("setMaxOutgoingBitrate() [bitrate:%d]", bitrate);
 
@@ -197,10 +204,13 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateSetMaxOutgoingBitrateRequest(channel->builder(), bitrate);
         
-        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_OUTGOING_BITRATE, FBS::Request::Body::Transport_SetMaxOutgoingBitrateRequest, reqOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_OUTGOING_BITRATE,
+                         FBS::Request::Body::Transport_SetMaxOutgoingBitrateRequest,
+                         reqOffset,
+                         _internal.transportId);
     }
 
-    void TransportController::setMinOutgoingBitrate(int32_t bitrate)
+    void AbstractTransportController::setMinOutgoingBitrate(int32_t bitrate)
     {
         SRV_LOGD("setMinOutgoingBitrate() [bitrate:%d]", bitrate);
 
@@ -211,10 +221,13 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateSetMinOutgoingBitrateRequest(channel->builder(), bitrate);
         
-        channel->request(FBS::Request::Method::TRANSPORT_SET_MIN_OUTGOING_BITRATE, FBS::Request::Body::Transport_SetMinOutgoingBitrateRequest, reqOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_SET_MIN_OUTGOING_BITRATE,
+                         FBS::Request::Body::Transport_SetMinOutgoingBitrateRequest,
+                         reqOffset,
+                         _internal.transportId);
     }
 
-    void TransportController::enableTraceEvent(const std::vector<std::string>& types)
+    void AbstractTransportController::enableTraceEvent(const std::vector<std::string>& types)
     {
         SRV_LOGD("enableTraceEvent()");
 
@@ -231,10 +244,13 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateEnableTraceEventRequestDirect(channel->builder(), &events);
         
-        channel->request(FBS::Request::Method::TRANSPORT_ENABLE_TRACE_EVENT, FBS::Request::Body::Transport_EnableTraceEventRequest, reqOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_ENABLE_TRACE_EVENT,
+                         FBS::Request::Body::Transport_EnableTraceEventRequest,
+                         reqOffset,
+                         _internal.transportId);
     }
 
-    std::shared_ptr<ProducerController> TransportController::produce(const std::shared_ptr<ProducerOptions>& options)
+    std::shared_ptr<IProducerController> AbstractTransportController::produce(const std::shared_ptr<ProducerOptions>& options)
     {
         SRV_LOGD("produce()");
         
@@ -321,10 +337,15 @@ namespace srv {
         
         auto reqOffset = createProduceRequest(channel->builder(), producerId, kind, rtpParameters, rtpMappingFbs, keyFrameRequestDelay, paused);
 
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE, FBS::Request::Body::Transport_ProduceRequest, reqOffset, _internal.transportId);
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE,
+                                         FBS::Request::Body::Transport_ProduceRequest,
+                                         reqOffset,
+                                         _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto stats = response->body_as_Transport_ProduceResponse();
         
         ProducerData producerData;
@@ -349,7 +370,7 @@ namespace srv {
             _producerControllers[producerController->id()] = producerController;
         }
 
-        producerController->closeSignal.connect([id = producerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this())]() {
+        producerController->closeSignal.connect([id = producerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -367,7 +388,7 @@ namespace srv {
         return producerController;
     }
 
-    std::shared_ptr<ConsumerController> TransportController::consume(const std::shared_ptr<ConsumerOptions>& options)
+    std::shared_ptr<IConsumerController> AbstractTransportController::consume(const std::shared_ptr<ConsumerOptions>& options)
     {
         SRV_LOGD("consume()");
         
@@ -434,10 +455,15 @@ namespace srv {
         
         auto reqOffset = createConsumeRequest(channel->builder(), producerController, consumerId, rtpParameters, paused, preferredLayers, ignoreDtx, pipe);
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME, FBS::Request::Body::Transport_ConsumeRequest, reqOffset, _internal.transportId);
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME,
+                                         FBS::Request::Body::Transport_ConsumeRequest,
+                                         reqOffset,
+                                         _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto stats = response->body_as_Transport_ConsumeResponse();
         
         bool paused_ = stats->paused();
@@ -478,7 +504,7 @@ namespace srv {
             consumerController->init();
             _consumerControllers[consumerController->id()] = consumerController;
             
-            auto removeLambda = [id = consumerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this())]() {
+            auto removeLambda = [id = consumerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
                 auto self = wself.lock();
                 if (!self) {
                     return;
@@ -498,7 +524,7 @@ namespace srv {
         return consumerController;
     }
 
-    std::shared_ptr<DataProducerController> TransportController::produceData(const std::shared_ptr<DataProducerOptions>& options)
+    std::shared_ptr<IDataProducerController> AbstractTransportController::produceData(const std::shared_ptr<DataProducerOptions>& options)
     {
         SRV_LOGD("produceData()");
         
@@ -547,10 +573,15 @@ namespace srv {
         
         auto reqOffset = createProduceDataRequest(channel->builder(), dataProducerId, type, sctpStreamParameters, label, protocol, paused);
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE_DATA, FBS::Request::Body::Transport_ProduceDataRequest, reqOffset, _internal.transportId);
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE_DATA,
+                                         FBS::Request::Body::Transport_ProduceDataRequest,
+                                         reqOffset,
+                                         _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dump = response->body_as_DataProducer_DumpResponse();
         
         DataProducerInternal internal;
@@ -573,7 +604,7 @@ namespace srv {
             dataProducerController->init();
             _dataProducerControllers[dataProducerController->id()] = dataProducerController;
             
-            dataProducerController->closeSignal.connect([id = dataProducerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this())]() {
+            dataProducerController->closeSignal.connect([id = dataProducerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
                 auto self = wself.lock();
                 if (!self) {
                     return;
@@ -592,7 +623,7 @@ namespace srv {
         return dataProducerController;
     }
 
-    std::shared_ptr<DataConsumerController> TransportController::consumeData(const std::shared_ptr<DataConsumerOptions>& options)
+    std::shared_ptr<IDataConsumerController> AbstractTransportController::consumeData(const std::shared_ptr<DataConsumerOptions>& options)
     {
         SRV_LOGD("consumeData()");
         
@@ -667,10 +698,15 @@ namespace srv {
         
         auto reqOffset = createConsumeDataRequest(channel->builder(), dataConsumerId, dataProducerId, type, sctpStreamParameters, label, protocol, paused, subchannels);
 
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME_DATA, FBS::Request::Body::Transport_ConsumeDataRequest, reqOffset, _internal.transportId);
+        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME_DATA,
+                                         FBS::Request::Body::Transport_ConsumeDataRequest,
+                                         reqOffset,
+                                         _internal.transportId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dump = response->body_as_DataConsumer_DumpResponse();
         
         auto dataConsumerDump = parseDataConsumerDumpResponse(dump);
@@ -695,7 +731,7 @@ namespace srv {
             dataConsumerController->init();
             _dataConsumerControllers[dataConsumerController->id()] = dataConsumerController;
             
-            auto removeLambda = [id = dataConsumerController->id(), wself = std::weak_ptr<TransportController>(shared_from_this()), sctpStreamId]() {
+            auto removeLambda = [id = dataConsumerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this()), sctpStreamId]() {
                 auto self = wself.lock();
                 if (!self) {
                     return;
@@ -718,7 +754,7 @@ namespace srv {
         return dataConsumerController;
     }
 
-    int32_t TransportController::getNextSctpStreamId()
+    int32_t AbstractTransportController::getNextSctpStreamId()
     {
         if (!this->_data || this->_data->sctpParameters.MIS == 0) {
             SRV_LOGD("TransportData is null");
@@ -747,9 +783,9 @@ namespace srv {
         return 0;
     }
 
-    void TransportController::clearControllers()
+    void AbstractTransportController::clearControllers()
     {
-        std::unordered_map<std::string, std::shared_ptr<ProducerController>> producerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IProducerController>> producerControllers;
         {
             std::lock_guard<std::mutex> lock(_producersMutex);
             producerControllers = _producerControllers;
@@ -760,7 +796,7 @@ namespace srv {
             ctrl->onTransportClosed();
         }
         
-        std::unordered_map<std::string, std::shared_ptr<ConsumerController>> consumerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IConsumerController>> consumerControllers;
         {
             std::lock_guard<std::mutex> lock(_consumersMutex);
             consumerControllers = _consumerControllers;
@@ -771,7 +807,7 @@ namespace srv {
             ctrl->onTransportClosed();
         }
         
-        std::unordered_map<std::string, std::shared_ptr<DataProducerController>> dataProducerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IDataProducerController>> dataProducerControllers;
         {
             std::lock_guard<std::mutex> lock(_dataProducersMutex);
             dataProducerControllers = _dataProducerControllers;
@@ -782,7 +818,7 @@ namespace srv {
             ctrl->onTransportClosed();
         }
         
-        std::unordered_map<std::string, std::shared_ptr<DataConsumerController>> dataConsumerControllers;
+        std::unordered_map<std::string, std::shared_ptr<IDataConsumerController>> dataConsumerControllers;
         {
             std::lock_guard<std::mutex> lock(_dataConsumersMutex);
             dataConsumerControllers = _dataConsumerControllers;
@@ -1043,7 +1079,7 @@ namespace srv {
     }
 
     flatbuffers::Offset<FBS::Transport::ConsumeRequest> createConsumeRequest(flatbuffers::FlatBufferBuilder& builder,
-                                                                             const std::shared_ptr<ProducerController>& producer,
+                                                                             const std::shared_ptr<IProducerController>& producer,
                                                                              const std::string& consumerId,
                                                                              const RtpParameters& rtpParameters,
                                                                              bool paused,

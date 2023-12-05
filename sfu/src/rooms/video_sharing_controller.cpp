@@ -8,7 +8,7 @@
 *************************************************************************/
 
 #include "video_sharing_controller.hpp"
-#include "producer_controller.h"
+#include "interface/i_producer_controller.h"
 #include "peer.hpp"
 
 VideoSharingController::VideoSharingController()
@@ -36,7 +36,7 @@ std::string VideoSharingController::id()
     return _producerController ? _producerController->id() : "";
 }
 
-void VideoSharingController::attach(const std::shared_ptr<Peer>& peer, const std::shared_ptr<srv::ProducerController>& producerController)
+void VideoSharingController::attach(const std::shared_ptr<Peer>& peer, const std::shared_ptr<srv::IProducerController>& producerController)
 {
     _peer = peer;
     _producerController = producerController;
@@ -89,7 +89,7 @@ const std::shared_ptr<Peer>& VideoSharingController::peer()
     return _peer;
 }
 
-const std::shared_ptr<srv::ProducerController>& VideoSharingController::producerController()
+const std::shared_ptr<srv::IProducerController>& VideoSharingController::producerController()
 {
     return _producerController;
 }

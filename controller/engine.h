@@ -15,10 +15,13 @@
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
-#include "worker_controller.h"
 
 namespace srv {
     
+    struct WorkerSettings;
+    struct WebRtcServerOptions;
+    class IWorkerController;
+
     class Engine : public std::enable_shared_from_this<Engine>
     {
     public:
@@ -32,10 +35,10 @@ namespace srv {
         
         void destroy();
         
-        std::shared_ptr<WorkerController> getWorkerController();
+        std::shared_ptr<IWorkerController> getWorkerController();
         
     public:
-        sigslot::signal<std::shared_ptr<WorkerController>> newWorkerSignal;
+        sigslot::signal<std::shared_ptr<IWorkerController>> newWorkerSignal;
         
     private:
         Engine();
@@ -49,7 +52,7 @@ namespace srv {
         Engine& operator=(Engine&&) = delete;
         
     private:
-        std::shared_ptr<WorkerController> createWorkerController();
+        std::shared_ptr<IWorkerController> createWorkerController();
 
     private:
         asio::static_thread_pool _threadPool {1};
@@ -64,7 +67,7 @@ namespace srv {
         
         std::size_t _nextWorkerIdx = 0;
         
-        std::vector<std::shared_ptr<WorkerController>> _workerControllers;
+        std::vector<std::shared_ptr<IWorkerController>> _workerControllers;
     };
 
 }

@@ -10,173 +10,16 @@
 #pragma once
 
 #include <memory>
-#include <vector>
-#include <atomic>
-#include <string>
-#include <unordered_map>
-#include "nlohmann/json.hpp"
-#include "sigslot/signal.hpp"
-#include "types.h"
-#include "rtp_stream.h"
-#include "rtp_parameters.h"
+#include "interface/i_producer_controller.h"
 #include "FBS/notification.h"
 #include "FBS/producer.h"
 #include "ortc.h"
 
-
 namespace srv {
-
-    struct ProducerOptions
-    {
-        /**
-         * Producer id (just for Router.pipeToRouter() method).
-         */
-        std::string id;
-
-        /**
-         * Media kind ('audio' or 'video').
-         */
-        std::string kind;
-
-        /**
-         * RTP parameters defining what the endpoint is sending.
-         */
-        RtpParameters rtpParameters;
-
-        /**
-         * Whether the producer must start in paused mode. Default false.
-         */
-        bool paused = false;
-
-        /**
-         * Just for video. Time (in ms) before asking the sender for a new key frame
-         * after having asked a previous one. Default 0.
-         */
-       int32_t keyFrameRequestDelay;
-
-        /**
-         * Custom application data.
-         */
-        nlohmann::json appData;
-    };
-
-    /**
-     * Valid types for 'trace' event.
-     */
-    // export type ProducerTraceEventType = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir';
-
-    /**
-     * 'trace' event data.
-     */
-    struct ProducerTraceEventData
-    {
-        /**
-         * Trace type.
-         * Options: 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir'
-         */
-        std::string type;
-
-        /**
-         * Event timestamp.
-         */
-        int64_t timestamp;
-
-        /**
-         * Event direction.
-         * Options: 'in' | 'out'
-         */
-        std::string direction;
-
-        /**
-         * Per type information.
-         */
-        std::shared_ptr<TraceInfo> info;
-    };
-
-    void to_json(nlohmann::json& j, const ProducerTraceEventData& st);
-    void from_json(const nlohmann::json& j, ProducerTraceEventData& st);
-
-    struct ProducerScore
-    {
-        /**
-         * SSRC of the RTP stream.
-         */
-        uint32_t ssrc;
-
-        /**
-         * RID of the RTP stream.
-         */
-        std::string rid;
-
-        /**
-         * The score of the RTP stream.
-         */
-        uint8_t score;
-    };
-
-    void to_json(nlohmann::json& j, const ProducerScore& st);
-    void from_json(const nlohmann::json& j, ProducerScore& st);
-
-    struct ProducerVideoOrientation
-    {
-        /**
-         * Whether the source is a video camera.
-         */
-        bool camera;
-
-        /**
-         * Whether the video source is flipped.
-         */
-        bool flip;
-
-        /**
-         * Rotation degrees (0, 90, 180 or 270).
-         */
-        uint16_t rotation;
-    };
-
-    void to_json(nlohmann::json& j, const ProducerVideoOrientation& st);
-    void from_json(const nlohmann::json& j, ProducerVideoOrientation& st);
-
-    struct ProducerStat : RtpStreamRecvStats {};
-
-    void to_json(nlohmann::json& j, const ProducerStat& st);
-    void from_json(const nlohmann::json& j, ProducerStat& st);
-
-    /**
-     * Producer type.
-     */
-    // export type ProducerType = 'simple' | 'simulcast' | 'svc';
-
-    struct ProducerInternal
-    {
-        std::string transportId;
-        std::string producerId;
-    };
-
-    struct ProducerData
-    {
-        std::string kind;
-        RtpParameters rtpParameters;
-        std::string type;
-        RtpParameters consumableRtpParameters;
-    };
-
-    struct ProducerDump
-    {
-        std::string id;
-        std::string kind;
-        std::string type;
-        RtpParameters rtpParameters;
-        RtpMappingFbs rtpMapping;
-        std::vector<RtpStreamDump> rtpStreams;
-        std::vector<std::string> traceEventTypes;
-        bool paused;
-    };
 
     class Channel;
 
-    class ProducerController : public std::enable_shared_from_this<ProducerController>
+    class ProducerController : public IProducerController, public std::enable_shared_from_this<ProducerController>
     {
     public:
         ProducerController(const ProducerInternal& internal,
@@ -187,64 +30,49 @@ namespace srv {
         
         virtual ~ProducerController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
-        const std::string& id() { return _internal.producerId; }
+        const std::string& id() override { return _internal.producerId; }
 
-        const std::string& kind() { return _data.kind; }
+        const std::string& kind() override { return _data.kind; }
 
-        const RtpParameters& rtpParameters() { return _data.rtpParameters; }
+        const RtpParameters& rtpParameters() override { return _data.rtpParameters; }
 
-        const std::string& type() { return _data.type; }
+        const std::string& type() override { return _data.type; }
 
-        const RtpParameters& consumableRtpParameters() { return _data.consumableRtpParameters; }
-        
-        bool paused() { return _paused; }
+        const RtpParameters& consumableRtpParameters() override { return _data.consumableRtpParameters; }
 
-        const std::vector<ProducerScore>& score() {
+        const std::vector<ProducerScore>& score() override {
             std::lock_guard<std::mutex> lock(_scoreMutex);
             return _score;
         }
+        
+        void setAppData(const nlohmann::json& data) override { _appData = data; }
+        
+        const nlohmann::json& appData() override { return _appData; }
+        
+        void close() override;
+        
+        bool closed() override { return _closed; }
 
-        bool closed() { return _closed; }
+        void onTransportClosed() override;
         
-        void setAppData(const nlohmann::json& data) { _appData = data; }
+        std::shared_ptr<ProducerDump> dump() override;
         
-        const nlohmann::json& appData() { return _appData; }
+        std::vector<std::shared_ptr<ProducerStat>> getStats() override;
         
-        void close();
+        void pause() override;
         
-        void onTransportClosed();
-        
-        std::shared_ptr<ProducerDump> dump();
-        
-        std::vector<std::shared_ptr<ProducerStat>> getStats();
-        
-        void pause();
-        
-        void resume();
+        void resume() override;
+
+        bool paused() override { return _paused; }
 
         // types = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir';
-        void enableTraceEvent(const std::vector<std::string>& types);
+        void enableTraceEvent(const std::vector<std::string>& types) override;
         
-        void send(const std::vector<uint8_t>& data);
-        
-    public:
-        sigslot::signal<> transportCloseSignal;
-        
-        sigslot::signal<const std::vector<ProducerScore>&> scoreSignal;
-        
-        sigslot::signal<const ProducerVideoOrientation&> videoOrientationChangeSignal;
-        
-        sigslot::signal<const ProducerTraceEventData&> traceSignal;
-        
-        sigslot::signal<> closeSignal;
-        
-        sigslot::signal<> pauseSignal;
-        
-        sigslot::signal<> resumeSignal;
+        void send(const std::vector<uint8_t>& data) override;
         
     private:
         void handleWorkerNotifications();

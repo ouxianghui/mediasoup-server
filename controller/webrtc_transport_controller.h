@@ -17,54 +17,16 @@
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
-#include "transport_controller.h"
-#include "webrtc_server_controller.h"
+#include "abstract_transport_controller.h"
 #include "sctp_parameters.h"
 #include "rtp_parameters.h"
 #include "srv_logger.h"
 #include "FBS/webRtcTransport.h"
+#include "FBS/notification.h"
 
 namespace srv {
 
-    // struct WebRtcTransportListenIndividualListenInfo
-    // {
-    //     /**
-    //      * Listening info.
-    //      */
-    //     std::vector<TransportListenInfo> listenInfos;
-    // };
-    //
-    // struct WebRtcTransportListenIndividualListenIp
-    // {
-    //     /**
-    //      * Listening IP address or addresses in order of preference (first one is the
-    //      * preferred one).
-    //      */
-    //     std::vector<std::string> listenIps;
-    //
-    //     /**
-    //      * Fixed port to listen on instead of selecting automatically from Worker's port
-    //      * range.
-    //      */
-    //     uint16_t port;
-    // };
-    //
-    // class WebRtcServerController;
-    //
-    // struct WebRtcTransportListenServer
-    // {
-    //     /**
-    //      * Instance of WebRtcServer.
-    //      */
-    //     std::shared_ptr<WebRtcServerController> webRtcServer;
-    // };
-    //
-    // struct WebRtcTransportListen
-    // {
-    //     std::shared_ptr<WebRtcTransportListenIndividualListenInfo> webRtcTransportListenIndividualListenInfo;
-    //     std::shared_ptr<WebRtcTransportListenIndividualListenIp> webRtcTransportListenIndividualListenIp;
-    //     std::shared_ptr<WebRtcTransportListenServer> webRtcTransportListenServer;
-    // };
+    class IWebRtcServerController;
 
     struct WebRtcTransportOptions
     {
@@ -85,7 +47,7 @@ namespace srv {
          */
         uint16_t port;
         
-        std::shared_ptr<WebRtcServerController> webRtcServer;
+        std::shared_ptr<IWebRtcServerController> webRtcServer;
         
         /**
          * Listen in UDP. Default true.
@@ -217,16 +179,16 @@ namespace srv {
 
     struct WebRtcTransportConstructorOptions : TransportConstructorOptions {};
 
-    class WebRtcTransportController : public TransportController
+    class WebRtcTransportController : public AbstractTransportController
     {
     public:
         WebRtcTransportController(const std::shared_ptr<WebRtcTransportConstructorOptions>& options);
         
         ~WebRtcTransportController();
  
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
         std::string iceRole() { return transportData()->iceRole; }
 
@@ -248,11 +210,11 @@ namespace srv {
 
         std::string sctpState() { return transportData()->sctpState; }
 
-        void close();
+        void close() override;
         
-        void onListenServerClosed();
+        void onWebRtcServerClosed() override;
         
-        void onRouterClosed();
+        void onRouterClosed() override;
         
         std::shared_ptr<BaseTransportDump> dump() override;
         

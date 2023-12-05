@@ -46,7 +46,10 @@ namespace srv {
     
         auto reqOffset = FBS::Router::CreateCloseRtpObserverRequestDirect(channel->builder(), _internal.rtpObserverId.c_str());
         
-        channel->request(FBS::Request::Method::ROUTER_CLOSE_RTPOBSERVER, FBS::Request::Body::Router_CloseRtpObserverRequest, reqOffset, _internal.routerId);
+        channel->request(FBS::Request::Method::ROUTER_CLOSE_RTPOBSERVER,
+                         FBS::Request::Body::Router_CloseRtpObserverRequest,
+                         reqOffset,
+                         _internal.routerId);
         
         this->closeSignal();
     }
@@ -142,7 +145,10 @@ namespace srv {
 
         auto reqOffset = FBS::RtpObserver::CreateAddProducerRequestDirect(channel->builder(), producerId.c_str());
         
-        channel->request(FBS::Request::Method::RTPOBSERVER_ADD_PRODUCER, FBS::Request::Body::RtpObserver_AddProducerRequest, reqOffset, _internal.rtpObserverId);
+        channel->request(FBS::Request::Method::RTPOBSERVER_ADD_PRODUCER,
+                         FBS::Request::Body::RtpObserver_AddProducerRequest,
+                         reqOffset,
+                         _internal.rtpObserverId);
         
         this->addProducerSignal(producer);
     }
@@ -174,7 +180,10 @@ namespace srv {
 
         auto reqOffset = FBS::RtpObserver::CreateRemoveProducerRequestDirect(channel->builder(), producerId.c_str());
         
-        channel->request(FBS::Request::Method::RTPOBSERVER_REMOVE_PRODUCER, FBS::Request::Body::RtpObserver_RemoveProducerRequest, reqOffset, _internal.rtpObserverId);
+        channel->request(FBS::Request::Method::RTPOBSERVER_REMOVE_PRODUCER,
+                         FBS::Request::Body::RtpObserver_RemoveProducerRequest,
+                         reqOffset,
+                         _internal.rtpObserverId);
         
         this->removeProducerSignal(producer);
     }

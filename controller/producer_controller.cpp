@@ -63,7 +63,10 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateCloseProducerRequestDirect(channel->builder(), _internal.producerId.c_str());
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_PRODUCER, FBS::Request::Body::Transport_CloseProducerRequest, reqOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_PRODUCER,
+                         FBS::Request::Body::Transport_CloseProducerRequest,
+                         reqOffset,
+                         _internal.transportId);
         
         this->closeSignal();
     }
@@ -185,7 +188,10 @@ namespace srv {
         
         auto reqOffset = FBS::Producer::CreateEnableTraceEventRequestDirect(channel->builder(), &eventTypes);
         
-        channel->request(FBS::Request::Method::PRODUCER_ENABLE_TRACE_EVENT, FBS::Request::Body::Producer_EnableTraceEventRequest, reqOffset, _internal.producerId);
+        channel->request(FBS::Request::Method::PRODUCER_ENABLE_TRACE_EVENT,
+                         FBS::Request::Body::Producer_EnableTraceEventRequest,
+                         reqOffset,
+                         _internal.producerId);
     }
 
     void ProducerController::send(const std::vector<uint8_t>& data)
@@ -201,7 +207,10 @@ namespace srv {
         
         auto nfOffset = FBS::Producer::CreateSendNotificationDirect(channel->builder(), &data);
         
-        channel->notify(FBS::Notification::Event::PRODUCER_SEND, FBS::Notification::Body::Producer_SendNotification, nfOffset, _internal.producerId);
+        channel->notify(FBS::Notification::Event::PRODUCER_SEND,
+                        FBS::Notification::Body::Producer_SendNotification,
+                        nfOffset,
+                        _internal.producerId);
     }
 
     void ProducerController::handleWorkerNotifications()

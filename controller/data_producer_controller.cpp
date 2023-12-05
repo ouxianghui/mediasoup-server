@@ -104,7 +104,10 @@ namespace srv {
      
         auto reqOffset = FBS::Transport::CreateCloseDataProducerRequestDirect(channel->builder(), _internal.dataProducerId.c_str());
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATAPRODUCER, FBS::Request::Body::Transport_CloseDataProducerRequest, reqOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATAPRODUCER,
+                         FBS::Request::Body::Transport_CloseDataProducerRequest,
+                         reqOffset,
+                         _internal.transportId);
         
         this->closeSignal();
     }
@@ -203,7 +206,10 @@ namespace srv {
 
         auto nfOffset = FBS::DataProducer::CreateSendNotificationDirect(channel->builder(), ppid, &data, &subchannels, requiredSubchannel);
 
-        channel->notify(FBS::Notification::Event::DATAPRODUCER_SEND, FBS::Notification::Body::DataProducer_SendNotification, nfOffset, _internal.dataProducerId);
+        channel->notify(FBS::Notification::Event::DATAPRODUCER_SEND,
+                        FBS::Notification::Body::DataProducer_SendNotification,
+                        nfOffset,
+                        _internal.dataProducerId);
     }
 
     void DataProducerController::handleWorkerNotifications()

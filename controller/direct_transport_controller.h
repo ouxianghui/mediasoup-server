@@ -17,8 +17,9 @@
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
-#include "transport_controller.h"
+#include "abstract_transport_controller.h"
 #include "sctp_parameters.h"
+#include "FBS/notification.h"
 
 namespace srv {
 
@@ -50,20 +51,20 @@ namespace srv {
 
     struct DirectTransportConstructorOptions : TransportConstructorOptions {};
 
-    class DirectTransportController : public TransportController
+    class DirectTransportController : public AbstractTransportController
     {
     public:
         DirectTransportController(const std::shared_ptr<DirectTransportConstructorOptions>& options);
         
         ~DirectTransportController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
-        void close();
+        void close() override;
 
-        void onRouterClosed();
+        void onRouterClosed() override;
 
         std::shared_ptr<BaseTransportDump> dump() override;
         

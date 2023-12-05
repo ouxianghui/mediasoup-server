@@ -221,10 +221,13 @@ namespace srv {
         
         auto reqOffset = FBS::Worker::CreateUpdateSettingsRequestDirect(_channel->builder(), logLevel.c_str(), &logTags_);
         
-        _channel->request(FBS::Request::Method::WORKER_UPDATE_SETTINGS, FBS::Request::Body::Worker_UpdateSettingsRequest, reqOffset, "");
+        _channel->request(FBS::Request::Method::WORKER_UPDATE_SETTINGS,
+                          FBS::Request::Body::Worker_UpdateSettingsRequest,
+                          reqOffset,
+                          "");
     }
 
-    std::shared_ptr<WebRtcServerController> WorkerController::createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData)
+    std::shared_ptr<IWebRtcServerController> WorkerController::createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData)
     {
         SRV_LOGD("createWebRtcServer()");
 
@@ -260,7 +263,10 @@ namespace srv {
         
         auto reqOffset = FBS::Worker::CreateCreateWebRtcServerRequestDirect(_channel->builder(), webRtcServerId.c_str(), &infos);
         
-        _channel->request(FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER, FBS::Request::Body::Worker_CreateWebRtcServerRequest, reqOffset, "");
+        _channel->request(FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER,
+                          FBS::Request::Body::Worker_CreateWebRtcServerRequest,
+                          reqOffset,
+                          "");
 
         std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         WebRtcServerInternal internal { webRtcServerId };
@@ -278,7 +284,7 @@ namespace srv {
         return webRtcServerController;
     }
 
-    std::shared_ptr<RouterController> WorkerController::createRouterController(const std::vector<RtpCodecCapability>& mediaCodecs, const nlohmann::json& appData)
+    std::shared_ptr<IRouterController> WorkerController::createRouterController(const std::vector<RtpCodecCapability>& mediaCodecs, const nlohmann::json& appData)
     {
         SRV_LOGD("createRouter()");
         
@@ -315,13 +321,13 @@ namespace srv {
         return routerController;
     }
 
-    void WorkerController::onWebRtcServerClose(std::shared_ptr<WebRtcServerController> controller)
+    void WorkerController::onWebRtcServerClose(std::shared_ptr<IWebRtcServerController> controller)
     {
         std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         _webRtcServerControllers.erase(controller);
     }
 
-    void WorkerController::onRouterClose(std::shared_ptr<RouterController> controller)
+    void WorkerController::onRouterClose(std::shared_ptr<IRouterController> controller)
     {
         std::lock_guard<std::mutex> lock(_routersMutex);
         _routerControllers.erase(controller);

@@ -21,6 +21,10 @@
 #include "pipe_transport_controller.h"
 #include "audio_level_observer_controller.h"
 #include "active_speaker_observer_controller.h"
+#include "consumer_controller.h"
+#include "producer_controller.h"
+#include "data_consumer_controller.h"
+#include "data_producer_controller.h"
 #include "FBS/worker.h"
 
 namespace srv {
@@ -65,9 +69,9 @@ namespace srv {
         SRV_LOGD("destroy()");
     }
 
-    std::shared_ptr<ProducerController> RouterController::getProducerController(const std::string& producerId)
+    std::shared_ptr<IProducerController> RouterController::getProducerController(const std::string& producerId)
     {
-        std::shared_ptr<ProducerController> controller;
+        std::shared_ptr<IProducerController> controller;
         {
             std::lock_guard<std::mutex> lock(_producersMutex);
             if (_producerControllers.find(producerId) != _producerControllers.end()) {
@@ -77,9 +81,9 @@ namespace srv {
         return controller;
     }
 
-    std::shared_ptr<DataProducerController> RouterController::getDataProducerController(const std::string& dataProducerId)
+    std::shared_ptr<IDataProducerController> RouterController::getDataProducerController(const std::string& dataProducerId)
     {
-        std::shared_ptr<DataProducerController> controller;
+        std::shared_ptr<IDataProducerController> controller;
         {
             std::lock_guard<std::mutex> lock(_dataProducersMutex);
             if (_dataProducerControllers.find(dataProducerId) != _dataProducerControllers.end()) {
@@ -91,7 +95,7 @@ namespace srv {
 
     void RouterController::clear()
     {
-        std::unordered_map<std::string, std::shared_ptr<TransportController>> transportControllers;
+        std::unordered_map<std::string, std::shared_ptr<ITransportController>> transportControllers;
         {
             std::lock_guard<std::mutex> lock(_transportsMutex);
             transportControllers = _transportControllers;
@@ -108,7 +112,7 @@ namespace srv {
             _producerControllers.clear();
         }
 
-        std::unordered_map<std::string, std::shared_ptr<RtpObserverController>> rtpObserverControllers;
+        std::unordered_map<std::string, std::shared_ptr<IRtpObserverController>> rtpObserverControllers;
         {
             std::lock_guard<std::mutex> lock(_rtpObserversMutex);
             rtpObserverControllers = _rtpObserverControllers;
@@ -180,7 +184,9 @@ namespace srv {
         auto respData = channel->request(FBS::Request::Method::ROUTER_DUMP, _internal.routerId);
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_Router_DumpResponse();
         
         return parseRouterDumpResponse(dumpResponse);
@@ -336,7 +342,9 @@ namespace srv {
                                          );
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_WebRtcTransport_DumpResponse();
         
         auto dump = parseWebRtcTransportDumpResponse(dumpResponse);
@@ -491,7 +499,9 @@ namespace srv {
                                          );
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_PlainTransport_DumpResponse();
         
         auto dump = parsePlainTransportDumpResponse(dumpResponse);
@@ -570,7 +580,9 @@ namespace srv {
                                          );
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_DirectTransport_DumpResponse();
         
         auto dump = parseDirectTransportDumpResponse(dumpResponse);
@@ -689,7 +701,9 @@ namespace srv {
                                          );
         
         auto message = FBS::Message::GetMessage(respData.data());
+        
         auto response = message->data_as_Response();
+        
         auto dumpResponse = response->body_as_PipeTransport_DumpResponse();
         
         auto dump = parsePipeTransportDumpResponse(dumpResponse);
@@ -888,7 +902,7 @@ namespace srv {
         }
     }
 
-    void RouterController::connectSignals(const std::shared_ptr<TransportController>& transportController)
+    void RouterController::connectSignals(const std::shared_ptr<ITransportController>& transportController)
     {
         transportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](const std::string& transportId) {
             auto self = wself.lock();
@@ -901,7 +915,7 @@ namespace srv {
             }
         });
         
-        transportController->listenServerCloseSignal.connect([id = transportController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
+        transportController->webRtcServerCloseSignal.connect([id = transportController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -912,7 +926,7 @@ namespace srv {
             }
         });
         
-        transportController->newProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<ProducerController> producerController) {
+        transportController->newProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<IProducerController> producerController) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -926,7 +940,7 @@ namespace srv {
             }
         });
         
-        transportController->producerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<ProducerController> producerController) {
+        transportController->producerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<IProducerController> producerController) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -940,7 +954,7 @@ namespace srv {
             }
         });
         
-        transportController->newDataProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<DataProducerController> dataProducerController) {
+        transportController->newDataProducerSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<IDataProducerController> dataProducerController) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -954,7 +968,7 @@ namespace srv {
             }
         });
         
-        transportController->dataProducerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<DataProducerController> dataProducerController) {
+        transportController->dataProducerCloseSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this())](std::shared_ptr<IDataProducerController> dataProducerController) {
             auto self = wself.lock();
             if (!self) {
                 return;
@@ -985,7 +999,7 @@ namespace srv {
         const auto port = options->port;
         const auto& producerId = options->producerId;
         const auto& dataProducerId = options->dataProducerId;
-        std::shared_ptr<RouterController> routerController = options->routerController;
+        std::shared_ptr<IRouterController> routerController = options->routerController;
         bool enableSctp = options->enableSctp;
         const auto& numSctpStreams = options->numSctpStreams;
         bool enableRtx = options->enableRtx;
@@ -1026,8 +1040,8 @@ namespace srv {
             listenInfo.announcedIp = listenIp.announcedIp;
         }
         
-        std::shared_ptr<ProducerController> producerController;
-        std::shared_ptr<DataProducerController> dataProducerController;
+        std::shared_ptr<IProducerController> producerController;
+        std::shared_ptr<IDataProducerController> dataProducerController;
 
         if (!producerId.empty()) {
             if (this->_producerControllers.find(producerId) == this->_producerControllers.end()) {
@@ -1113,8 +1127,8 @@ namespace srv {
         }
         
         if (producerController) {
-            std::shared_ptr<ConsumerController> pipeConsumerController;
-            std::shared_ptr<ProducerController> pipeProducerController;
+            std::shared_ptr<IConsumerController> pipeConsumerController;
+            std::shared_ptr<IProducerController> pipeProducerController;
             
             try {
                 auto cOptions = std::make_shared<ConsumerOptions>();
@@ -1145,26 +1159,26 @@ namespace srv {
                 }
                 
                 // Pipe events from the pipe Consumer to the pipe Producer.
-                pipeConsumerController->closeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                pipeConsumerController->closeSignal.connect([weakPipeProducerController = std::weak_ptr<IProducerController>(pipeProducerController)](){
                     if (auto pipeProducerController = weakPipeProducerController.lock()) {
                         pipeProducerController->close();
                     }
                 });
                 
-                pipeConsumerController->pauseSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                pipeConsumerController->pauseSignal.connect([weakPipeProducerController = std::weak_ptr<IProducerController>(pipeProducerController)](){
                     if (auto pipeProducerController = weakPipeProducerController.lock()) {
                         pipeProducerController->pause();
                     }
                 });
                 
-                pipeConsumerController->resumeSignal.connect([weakPipeProducerController = std::weak_ptr<ProducerController>(pipeProducerController)](){
+                pipeConsumerController->resumeSignal.connect([weakPipeProducerController = std::weak_ptr<IProducerController>(pipeProducerController)](){
                     if (auto pipeProducerController = weakPipeProducerController.lock()) {
                         pipeProducerController->resume();
                     }
                 });
                 
                 // Pipe events from the pipe Producer to the pipe Consumer.
-                pipeProducerController->closeSignal.connect([weakPipeConsumerController = std::weak_ptr<ConsumerController>(pipeConsumerController)](){
+                pipeProducerController->closeSignal.connect([weakPipeConsumerController = std::weak_ptr<IConsumerController>(pipeConsumerController)](){
                     if (auto pipeConsumerController = weakPipeConsumerController.lock()) {
                         pipeConsumerController->close();
                     }
@@ -1188,8 +1202,8 @@ namespace srv {
             }
         }
         else if (dataProducerController) {
-            std::shared_ptr<DataConsumerController> pipeDataConsumerController;
-            std::shared_ptr<DataProducerController> pipeDataProducerController;
+            std::shared_ptr<IDataConsumerController> pipeDataConsumerController;
+            std::shared_ptr<IDataProducerController> pipeDataProducerController;
             try {
                 auto cOptions = std::make_shared<DataConsumerOptions>();
                 cOptions->dataProducerId = dataProducerId;
@@ -1208,14 +1222,14 @@ namespace srv {
                 }
                 
                 // Pipe events from the pipe DataConsumer to the pipe DataProducer.
-                pipeDataConsumerController->closeSignal.connect([weakPipeDataProducerController = std::weak_ptr<DataProducerController>(pipeDataProducerController)](){
+                pipeDataConsumerController->closeSignal.connect([weakPipeDataProducerController = std::weak_ptr<IDataProducerController>(pipeDataProducerController)](){
                     if (auto pipeDataProducerController = weakPipeDataProducerController.lock()) {
                         pipeDataProducerController->close();
                     }
                 });
                 
                 // Pipe events from the pipe DataProducer to the pipe DataConsumer.
-                pipeDataProducerController->closeSignal.connect([weakPipeDataConsumerController = std::weak_ptr<DataConsumerController>(pipeDataConsumerController)](){
+                pipeDataProducerController->closeSignal.connect([weakPipeDataConsumerController = std::weak_ptr<IDataConsumerController>(pipeDataConsumerController)](){
                     if (auto pipeDataConsumerController = weakPipeDataConsumerController.lock()) {
                         pipeDataConsumerController->close();
                     }

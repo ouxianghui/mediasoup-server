@@ -15,7 +15,7 @@
 #include "nlohmann/json.hpp"
 
 namespace srv {
-    class ProducerController;
+    class IProducerController;
 }
 
 class Peer;
@@ -32,7 +32,7 @@ public:
     
     std::string id();
     
-    void attach(const std::shared_ptr<Peer>& peer, const std::shared_ptr<srv::ProducerController>& producerController);
+    void attach(const std::shared_ptr<Peer>& peer, const std::shared_ptr<srv::IProducerController>& producerController);
     
     void detach();
     
@@ -50,10 +50,10 @@ public:
     
     const std::shared_ptr<Peer>& peer();
     
-    const std::shared_ptr<srv::ProducerController>& producerController();
+    const std::shared_ptr<srv::IProducerController>& producerController();
     
 private:
     std::shared_ptr<Peer> _peer;
     
-    std::shared_ptr<srv::ProducerController> _producerController;
+    std::shared_ptr<srv::IProducerController> _producerController;
 };

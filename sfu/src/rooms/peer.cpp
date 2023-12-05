@@ -28,10 +28,15 @@
 #include "oatpp/core/utils/ConversionUtils.hpp"
 #include "utils/message.hpp"
 #include "srv_logger.h"
-#include "consumer_controller.h"
-#include "producer_controller.h"
-#include "data_consumer_controller.h"
-#include "data_producer_controller.h"
+#include "interface/i_consumer_controller.h"
+#include "interface/i_data_consumer_controller.h"
+#include "interface/i_data_producer_controller.h"
+#include "interface/i_producer_controller.h"
+#include "interface/i_transport_controller.h"
+#include "interface/i_router_controller.h"
+#include "interface/i_rtp_observer_controller.h"
+#include "interface/i_webrtc_server_controller.h"
+#include "interface/i_worker_controller.h"
 
 namespace
 {

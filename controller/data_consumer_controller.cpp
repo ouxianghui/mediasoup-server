@@ -67,7 +67,10 @@ namespace srv {
 
         auto reqOffset = FBS::Transport::CreateCloseDataConsumerRequestDirect(channel->builder(), _internal.dataConsumerId.c_str());
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATACONSUMER, FBS::Request::Body::Transport_CloseDataConsumerRequest, reqOffset, _internal.transportId);
+        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATACONSUMER,
+                         FBS::Request::Body::Transport_CloseDataConsumerRequest,
+                         reqOffset,
+                         _internal.transportId);
         
         this->closeSignal();
     }
@@ -188,7 +191,10 @@ namespace srv {
         
         auto reqOffset = FBS::DataConsumer::CreateSetBufferedAmountLowThresholdRequest(channel->builder(), threshold);
         
-        channel->request(FBS::Request::Method::DATACONSUMER_SET_BUFFERED_AMOUNT_LOW_THRESHOLD, FBS::Request::Body::DataConsumer_SetBufferedAmountLowThresholdRequest, reqOffset, _internal.dataConsumerId);
+        channel->request(FBS::Request::Method::DATACONSUMER_SET_BUFFERED_AMOUNT_LOW_THRESHOLD,
+                         FBS::Request::Body::DataConsumer_SetBufferedAmountLowThresholdRequest,
+                         reqOffset,
+                         _internal.dataConsumerId);
     }
 
     void DataConsumerController::setSubchannels(const std::vector<uint16_t>& subchannels)
@@ -202,7 +208,10 @@ namespace srv {
         
         auto reqOffset = FBS::DataConsumer::CreateSetSubchannelsRequestDirect(channel->builder(), &subchannels);
         
-        auto data = channel->request(FBS::Request::Method::DATACONSUMER_SET_SUBCHANNELS, FBS::Request::Body::DataConsumer_SetSubchannelsRequest, reqOffset, _internal.dataConsumerId);
+        auto data = channel->request(FBS::Request::Method::DATACONSUMER_SET_SUBCHANNELS,
+                                     FBS::Request::Body::DataConsumer_SetSubchannelsRequest,
+                                     reqOffset,
+                                     _internal.dataConsumerId);
         
         auto message = FBS::Message::GetMessage(data.data());
         
@@ -249,7 +258,10 @@ namespace srv {
         
         auto reqOffset = FBS::DataConsumer::CreateSendRequestDirect(channel->builder(), ppid, &data);
 
-        channel->request(FBS::Request::Method::DATACONSUMER_SEND, FBS::Request::Body::DataConsumer_SendRequest, reqOffset, _internal.dataConsumerId);
+        channel->request(FBS::Request::Method::DATACONSUMER_SEND,
+                         FBS::Request::Body::DataConsumer_SendRequest,
+                         reqOffset,
+                         _internal.dataConsumerId);
     }
 
     uint32_t DataConsumerController::getBufferedAmount()

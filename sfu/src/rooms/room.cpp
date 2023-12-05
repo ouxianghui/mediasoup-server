@@ -17,7 +17,13 @@
 #include "pipe_transport_controller.h"
 #include "audio_level_observer_controller.h"
 #include "active_speaker_observer_controller.h"
-#include "transport_controller.h"
+#include "interface/i_transport_controller.h"
+#include "interface/i_consumer_controller.h"
+#include "interface/i_producer_controller.h"
+#include "interface/i_data_consumer_controller.h"
+#include "interface/i_data_producer_controller.h"
+#include "interface/i_rtp_observer_controller.h"
+
 #include "video_sharing_controller.hpp"
 
 std::shared_ptr<Room> Room::create(const std::string& roomId, int32_t consumerReplicas)
@@ -72,10 +78,10 @@ std::shared_ptr<Room> Room::create(const std::string& roomId, int32_t consumerRe
 }
 
 Room::Room(const std::string& roomId,
-           const std::shared_ptr<srv::WebRtcServerController>& webRtcServerController,
-           const std::shared_ptr<srv::RouterController>& routerController,
-           const std::shared_ptr<srv::AudioLevelObserverController>& audioLevelObserverController,
-           const std::shared_ptr<srv::ActiveSpeakerObserverController>& activeSpeakerObserverController,
+           const std::shared_ptr<srv::IWebRtcServerController>& webRtcServerController,
+           const std::shared_ptr<srv::IRouterController>& routerController,
+           const std::shared_ptr<srv::IRtpObserverController>& audioLevelObserverController,
+           const std::shared_ptr<srv::IRtpObserverController>& activeSpeakerObserverController,
            int32_t consumerReplicas)
 : _id(roomId)
 , _webRtcServerController(webRtcServerController)
@@ -222,13 +228,15 @@ void Room::onPeerClose(const std::string& peerId)
 
 void Room::handleAudioLevelObserver()
 {
-    _audioLevelObserverController->volumesSignal.connect(&Room::onAudioVolumes, shared_from_this());
-    _audioLevelObserverController->silenceSignal.connect(&Room::onAudioSilence, shared_from_this());
+    auto audioLevelObserverController = std::dynamic_pointer_cast<srv::AudioLevelObserverController>(_audioLevelObserverController);
+    audioLevelObserverController->volumesSignal.connect(&Room::onAudioVolumes, shared_from_this());
+    audioLevelObserverController->silenceSignal.connect(&Room::onAudioSilence, shared_from_this());
 }
 
 void Room::handleActiveSpeakerObserver()
 {
-    _activeSpeakerObserverController->dominantSpeakerSignal.connect(&Room::onDominantSpeaker, shared_from_this());
+    auto activeSpeakerObserverController = std::dynamic_pointer_cast<srv::ActiveSpeakerObserverController>(_activeSpeakerObserverController);
+    activeSpeakerObserverController->dominantSpeakerSignal.connect(&Room::onDominantSpeaker, shared_from_this());
 }
 
 std::unordered_map<std::string, std::shared_ptr<Peer>> Room::getJoinedPeers(const std::string& excludePeerId)
@@ -243,7 +251,7 @@ std::unordered_map<std::string, std::shared_ptr<Peer>> Room::getJoinedPeers(cons
     return peers;
 }
 
-void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::shared_ptr<Peer>& producerPeer, const std::shared_ptr<srv::ProducerController>& producerController)
+void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::shared_ptr<Peer>& producerPeer, const std::shared_ptr<srv::IProducerController>& producerController)
 {
     // Optimization:
     // - Create the server-side Consumer in paused mode.
@@ -264,7 +272,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
     }
 
     // Must take the Transport the remote Peer is using for consuming.
-    std::shared_ptr<srv::TransportController> transportController;
+    std::shared_ptr<srv::ITransportController> transportController;
     for(auto &kv : consumerPeer->data()->transportControllers) {
         auto &t = kv.second;
         if(t->appData()["consuming"].get<bool>() == true) {
@@ -281,7 +289,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
     const int32_t consumerCount = 1 + _consumerReplicas;
 
     for (int32_t i = 0; i < consumerCount; ++i) {
-        std::shared_ptr<srv::ConsumerController> consumerController;
+        std::shared_ptr<srv::IConsumerController> consumerController;
         try {
             auto options = std::make_shared<srv::ConsumerOptions>();
             options->producerId = producerController->id();
@@ -409,7 +417,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
     }
 }
 
-void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, const std::shared_ptr<Peer>& dataProducerPeer, const std::shared_ptr<srv::DataProducerController>& dataProducerController)
+void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, const std::shared_ptr<Peer>& dataProducerPeer, const std::shared_ptr<srv::IDataProducerController>& dataProducerController)
 {
     
     if (!dataConsumerPeer->data()->sctpCapabilities.dump().empty()) {
@@ -417,7 +425,7 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
     }
 
     // Must take the Transport the remote Peer is using for consuming.
-    std::shared_ptr<srv::TransportController> transportController;
+    std::shared_ptr<srv::ITransportController> transportController;
     for(auto &kv : dataConsumerPeer->data()->transportControllers)
     {
         auto t = kv.second;
@@ -433,7 +441,7 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
     }
 
     // Create the Dataconsumer->
-    std::shared_ptr<srv::DataConsumerController> dataConsumerController;
+    std::shared_ptr<srv::IDataConsumerController> dataConsumerController;
 
     try {
         auto options = std::make_shared<srv::DataConsumerOptions>();
@@ -1100,7 +1108,7 @@ void Room::onHandleCloseProducer(const std::shared_ptr<Peer>& peer, const nlohma
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    std::shared_ptr<srv::ProducerController> producerConstroller;
+    std::shared_ptr<srv::IProducerController> producerConstroller;
     if (peer->data()->producerControllers.find(producerId) != peer->data()->producerControllers.end()) {
         producerConstroller = peer->data()->producerControllers[producerId];
         producerConstroller->close();

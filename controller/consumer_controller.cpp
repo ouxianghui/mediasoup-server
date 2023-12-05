@@ -401,11 +401,13 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             auto message = FBS::Message::GetMessage(data.data());
             auto notification = message->data_as_Notification();
             if (auto nf = notification->body_as_Consumer_LayersChangeNotification()) {
-                ConsumerLayers layers;
-                layers.spatialLayer = nf->layers()->spatialLayer();
-                layers.temporalLayer = nf->layers()->temporalLayer().value_or(0);
-                 _currentLayers = layers;
-                 this->layersChangeSignal(layers);
+                if (const auto& l = nf->layers())  {
+                    ConsumerLayers layers;
+                    layers.spatialLayer =  l->spatialLayer();
+                    layers.temporalLayer = l->temporalLayer().value_or(0);
+                    _currentLayers = layers;
+                    this->layersChangeSignal(layers);
+                }
             }
         }
         else if (event == FBS::Notification::Event::CONSUMER_TRACE) {

@@ -34,7 +34,6 @@ namespace srv {
     class ActiveSpeakerObserverController;
     struct AudioLevelObserverOptions;
     class AudioLevelObserverController;
-    class PipeTransportController;
 
     struct RouterData
     {

@@ -46,8 +46,8 @@ namespace srv {
     {
         auto channel = static_cast<Channel*>(ctx);
         if (channel && message && messageLen > 0) {
-            // NOTE: Because the Worker used builder.FinishSizePrefixed(), we need to add sizeof(int32_t) to skip the prefix
-            std::vector<uint8_t> msg(message + sizeof(int32_t), message + messageLen);
+            // NOTE: Because the Worker used builder.FinishSizePrefixed(), we need to add sizeof(uint32_t) to skip the prefix
+            std::vector<uint8_t> msg(message + sizeof(uint32_t), message + messageLen);
             channel->onMessage(msg);
         }
     }
@@ -243,7 +243,7 @@ namespace srv {
 
     void Channel::OnChannelMessage(char* msg, size_t msgLen)
     {
-        std::vector<uint8_t> message(msg + sizeof(int32_t), msg + msgLen);
+        std::vector<uint8_t> message(msg + sizeof(uint32_t), msg + msgLen);
         asio::post(_threadPool.get_executor(), [wself = std::weak_ptr<Channel>(shared_from_this()), message]() {
             auto self = wself.lock();
             if (!self) {

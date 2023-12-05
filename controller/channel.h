@@ -149,14 +149,14 @@ namespace srv {
             
             auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Notification, nfOffset.Union());
             
-            _builder.Finish(msgOffset);
-            
             if (_builder.GetSize() > MESSAGE_MAX_LEN) {
                 SRV_LOGD("Channel request too big");
                 return;
             }
             
             if (!_channelSocket) {
+                _builder.Finish(msgOffset);
+                
                 auto msg = std::make_shared<Message>();
                 msg->messageLen = (uint32_t)_builder.GetSize();
                 msg->message = new uint8_t[msg->messageLen];
@@ -172,6 +172,7 @@ namespace srv {
                 }
             }
             else {
+                _builder.FinishSizePrefixed(msgOffset);
                 _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
         }
@@ -253,14 +254,14 @@ namespace srv {
             
             auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
             
-            _builder.Finish(msgOffset);
-            
             if (_builder.GetSize() > MESSAGE_MAX_LEN) {
                 SRV_LOGD("Channel request too big");
                 return {};
             }
             
             if (!_channelSocket) {
+                _builder.Finish(msgOffset);
+                
                 auto msg = std::make_shared<Message>();
                 msg->messageLen = (uint32_t)_builder.GetSize();
                 msg->message = new uint8_t[msg->messageLen];
@@ -276,6 +277,7 @@ namespace srv {
                 }
             }
             else {
+                _builder.FinishSizePrefixed(msgOffset);
                 _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
         }

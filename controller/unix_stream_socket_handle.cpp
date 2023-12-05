@@ -229,7 +229,7 @@ namespace srv
     {
         SRV_LOGD("GetSendBufferSize");
         
-        int size{ 0 };
+        int size { 0 };
         int err = uv_send_buffer_size(reinterpret_cast<uv_handle_t*>(this->uvHandle), std::addressof(size));
         
         if (err) {
@@ -249,8 +249,7 @@ namespace srv
             SRV_THROW_TYPE_ERROR_STD("invalid size: %d", size_int);
         }
         
-        int err =
-        uv_send_buffer_size(reinterpret_cast<uv_handle_t*>(this->uvHandle), std::addressof(size_int));
+        int err = uv_send_buffer_size(reinterpret_cast<uv_handle_t*>(this->uvHandle), std::addressof(size_int));
         
         if (err) {
             SRV_THROW_ERROR_STD("uv_send_buffer_size() failed: %s", uv_strerror(err));
@@ -261,7 +260,7 @@ namespace srv
     {
         SRV_LOGD("GetRecvBufferSize");
         
-        int size{ 0 };
+        int size { 0 };
         int err = uv_recv_buffer_size(reinterpret_cast<uv_handle_t*>(this->uvHandle), std::addressof(size));
         
         if (err)  {
@@ -281,8 +280,7 @@ namespace srv
             SRV_THROW_TYPE_ERROR_STD("invalid size: %d", size_int);
         }
         
-        int err =
-        uv_recv_buffer_size(reinterpret_cast<uv_handle_t*>(this->uvHandle), std::addressof(size_int));
+        int err = uv_recv_buffer_size(reinterpret_cast<uv_handle_t*>(this->uvHandle), std::addressof(size_int));
         
         if (err) {
             SRV_THROW_ERROR_STD("uv_recv_buffer_size() failed: %s", uv_strerror(err));

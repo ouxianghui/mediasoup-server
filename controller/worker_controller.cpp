@@ -38,6 +38,16 @@ namespace srv {
         
         uv_loop_init(_loop);
         
+        std::promise<void> promise;
+        std::future<void> result = promise.get_future();
+        
+        _uvThread = std::thread([this, &promise](){
+            promise.set_value();
+            uv_run(this->_loop, uv_run_mode::UV_RUN_DEFAULT);
+        });
+        
+        result.get();
+        
         _channel = std::make_shared<Channel>(_loop, _producerChannelFd[0], _consumerChannelFd[1]);
     }
 
@@ -127,10 +137,6 @@ namespace srv {
             argv[i] = const_cast<char*>(args[i].c_str());
         }
         
-        auto channelThread = std::thread([this](){
-            uv_run(this->_loop, uv_run_mode::UV_RUN_DEFAULT);
-        });
-        
         mediasoup_worker_run(argc,
                              &argv[0],
                              WORKER_VERSION.c_str(),
@@ -145,7 +151,7 @@ namespace srv {
                              );
         
         close();
-        channelThread.join();
+        _uvThread.join();
     }
 
     bool WorkerController::closed()

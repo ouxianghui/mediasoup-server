@@ -148,6 +148,8 @@ namespace srv {
         std::thread _thread;
         
         uv_loop_t* _loop = nullptr;
+        
+        std::thread _uvThread;
     };
     
     std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response);

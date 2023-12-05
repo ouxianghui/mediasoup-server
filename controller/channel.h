@@ -149,13 +149,13 @@ namespace srv {
             
             auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Notification, nfOffset.Union());
             
-            if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-                SRV_LOGD("Channel request too big");
-                return;
-            }
-            
             if (!_channelSocket) {
                 _builder.Finish(msgOffset);
+                
+                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
+                    SRV_LOGD("Channel request too big");
+                    return;
+                }
                 
                 auto msg = std::make_shared<Message>();
                 msg->messageLen = (uint32_t)_builder.GetSize();
@@ -171,10 +171,16 @@ namespace srv {
             }
             else {
                 _builder.FinishSizePrefixed(msgOffset);
+                
+                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
+                    SRV_LOGD("Channel request too big");
+                    return;
+                }
+                
                 _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
 
-            _builder.Clear();
+            _builder.Reset();
         }
     }
 
@@ -254,13 +260,13 @@ namespace srv {
             
             auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
             
-            if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-                SRV_LOGD("Channel request too big");
-                return {};
-            }
-            
             if (!_channelSocket) {
                 _builder.Finish(msgOffset);
+                
+                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
+                    SRV_LOGD("Channel request too big");
+                    return {};
+                }
                 
                 auto msg = std::make_shared<Message>();
                 msg->messageLen = (uint32_t)_builder.GetSize();
@@ -276,10 +282,16 @@ namespace srv {
             }
             else {
                 _builder.FinishSizePrefixed(msgOffset);
+                
+                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
+                    SRV_LOGD("Channel request too big");
+                    return {};
+                }
+                
                 _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
             
-            _builder.Clear();
+            _builder.Reset();
         }
         
         return result.get();

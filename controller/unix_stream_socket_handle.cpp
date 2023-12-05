@@ -176,9 +176,13 @@ namespace srv
             return;
         }
         
+        SRV_LOGD("Write1");
+        
         if (len == 0) {
             return;
         }
+        
+        SRV_LOGD("Write2");
         
         // First try uv_try_write(). In case it can not directly send all the given data
         // then build a uv_req_t and use uv_write().
@@ -188,12 +192,14 @@ namespace srv
         
         // All the data was written. Done.
         if (written == static_cast<int>(len)) {
+            SRV_LOGD("Write3");
             return;
         }
         // Cannot write any data at first time. Use uv_write().
         else if (written == UV_EAGAIN || written == UV_ENOSYS) {
             // Set written to 0 so pendingLen can be properly calculated.
             written = 0;
+            SRV_LOGD("Write4");
         }
         // Any other error.
         else if (written < 0) {
@@ -201,8 +207,10 @@ namespace srv
             
             // Set written to 0 so pendingLen can be properly calculated.
             written = 0;
+            SRV_LOGD("Write5");
         }
         
+        SRV_LOGD("Write6");
         const size_t pendingLen = len - written;
         auto* writeData         = new UvWriteData(pendingLen);
         
@@ -219,10 +227,11 @@ namespace srv
         
         if (err != 0) {
             SRV_ERROR_STD("uv_write() failed: %s", uv_strerror(err));
-            
+            SRV_LOGD("Write7");
             // Delete the UvSendData struct.
             delete writeData;
         }
+        SRV_LOGD("Write8");
     }
 
     uint32_t UnixStreamSocketHandle::GetSendBufferSize() const

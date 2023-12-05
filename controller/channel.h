@@ -162,8 +162,6 @@ namespace srv {
                 msg->message = new uint8_t[msg->messageLen];
                 std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
                 
-                _builder.Clear();
-                
                 if (_requestQueue.try_enqueue(msg)) {
                     notifyRead();
                 }
@@ -175,6 +173,8 @@ namespace srv {
                 _builder.FinishSizePrefixed(msgOffset);
                 _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
+
+            _builder.Clear();
         }
     }
 
@@ -266,9 +266,7 @@ namespace srv {
                 msg->messageLen = (uint32_t)_builder.GetSize();
                 msg->message = new uint8_t[msg->messageLen];
                 std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
-                
-                _builder.Clear();
-                
+                                
                 if (_requestQueue.try_enqueue(msg)) {
                     notifyRead();
                 }
@@ -280,6 +278,8 @@ namespace srv {
                 _builder.FinishSizePrefixed(msgOffset);
                 _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
             }
+            
+            _builder.Clear();
         }
         
         return result.get();

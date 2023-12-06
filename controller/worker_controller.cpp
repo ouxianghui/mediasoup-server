@@ -23,26 +23,11 @@
 
 using namespace std::chrono_literals;
 
-#define USE_PIPE 0
+#define USE_PIPE 1
 
 namespace
 {
-
-    inline static void onCloseLoop(uv_handle_t* handle)
-    {
-        delete reinterpret_cast<uv_loop_t*>(handle);
-    }
-
-    inline static void onWalk(uv_handle_t* handle, void* /*arg*/)
-    {
-        // Must use MS_ERROR_STD since at this point the Channel is already closed.
-        SRV_LOGD("alive UV handle found (this shouldn't happen) [type:%s, active:%d, closing:%d, has_ref:%d]", uv_handle_type_name(handle->type), uv_is_active(handle), uv_is_closing(handle), uv_has_ref(handle));
-        if (!uv_is_closing(handle)) {
-            uv_close(handle, onCloseLoop);
-        }
-    }
-
-    static int openPipe(int* fds)
+    static int createPipe(int* fds)
     {
         if (pipe(fds) == -1) {
             SRV_LOGE("pipe failed");
@@ -58,9 +43,7 @@ namespace
 
         return 0;
     }
-
 }
-
 
 namespace srv {
 
@@ -74,19 +57,11 @@ namespace srv {
     {
         
 #if USE_PIPE
-        openPipe(_consumerChannelFd);
-        openPipe(_producerChannelFd);
+        createPipe(_consumerChannelFd);
+        createPipe(_producerChannelFd);
         
-        _loop = new uv_loop_t;
-        assert(_loop);
+        _channel = std::make_shared<Channel>(_producerChannelFd[0], _consumerChannelFd[1]);
         
-        uv_loop_init(_loop);
-    
-        _channel = std::make_shared<Channel>(_loop, _producerChannelFd[0], _consumerChannelFd[1]);
-        
-        _uvThread = std::thread([this](){
-            uv_run(this->_loop, uv_run_mode::UV_RUN_DEFAULT);
-        });
 #else
         _channel = std::make_shared<Channel>();
 #endif
@@ -106,32 +81,6 @@ namespace srv {
     void WorkerController::destroy()
     {
         SRV_LOGD("destroy()");
-        
-        if (_loop) {
-            int err;
-
-            uv_stop(_loop);
-            uv_walk(_loop, onWalk, nullptr);
-
-            while (true) {
-                err = uv_loop_close(_loop);
-
-                if (err != UV_EBUSY) {
-                        break;
-                }
-
-                uv_run(_loop, UV_RUN_NOWAIT);
-            }
-
-            if (err != 0) {
-                SRV_LOGE("failed to close libuv loop: %s", uv_err_name(err));
-            }
-
-            delete _loop;
-            _loop = nullptr;
-            
-            _uvThread.join();
-        }
     }
 
     std::vector<std::string> WorkerController::getArgs(const std::shared_ptr<WorkerSettings>& settings)
@@ -245,9 +194,6 @@ namespace srv {
         _closed = true;
         
         _channel->close();
-        
-        // TODO:
-        destroy();
         
         {
             std::lock_guard<std::mutex> lock(_webRtcServersMutex);

@@ -46,7 +46,7 @@ namespace srv {
         Channel();
         
         // pipe
-        Channel(uv_loop_t* loop, int consumerFd, int producerFd);
+        Channel(int consumerFd, int producerFd);
         
         ~Channel();
         

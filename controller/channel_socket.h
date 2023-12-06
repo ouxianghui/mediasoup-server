@@ -1,9 +1,10 @@
 #pragma once
 
 #include <string>
-
+#include <thread>
 // deps the Worker project
 #include "common.hpp"
+#include "uv.h"
 #include "unix_stream_socket_handle.h"
 
 namespace srv
@@ -32,7 +33,7 @@ namespace srv
 
 	private:
 		// Passed by argument.
-		Listener* listener{ nullptr };
+		Listener* _listener{ nullptr };
 	};
 
 	class ProducerSocket : public UnixStreamSocketHandle
@@ -59,8 +60,24 @@ namespace srv
 			virtual void OnChannelClosed(srv::ChannelSocket* channel) = 0;
 		};
 
+        class Loop
+        {
+        public:
+            Loop();
+            
+            ~Loop();
+            
+            uv_loop_t* get() { return _loop; }
+            
+            void run();
+            
+        private:
+            uv_loop_t* _loop = nullptr;
+            std::thread _thread;
+        };
+        
 	public:
-		explicit ChannelSocket(uv_loop_t* loop, int consumerFd, int producerFd);
+		explicit ChannelSocket(int consumerFd, int producerFd);
 		virtual ~ChannelSocket();
 
 	public:
@@ -77,12 +94,14 @@ namespace srv
 		void OnConsumerSocketClosed(ConsumerSocket* consumerSocket) override;
 
 	private:
+        Loop _loop;
+        
 		// Passed by argument.
-		Listener* listener { nullptr };
+		Listener* _listener { nullptr };
         
 		// Others.
-		bool closed { false };
-		ConsumerSocket* consumerSocket{ nullptr };
-		ProducerSocket* producerSocket{ nullptr };
+		bool _closed { false };
+		ConsumerSocket* _consumerSocket{ nullptr };
+		ProducerSocket* _producerSocket{ nullptr };
 	};
 } // namespace srv

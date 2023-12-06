@@ -57,8 +57,8 @@ namespace srv {
         SRV_LOGD("Channel()");
     }
 
-    Channel::Channel(uv_loop_t* loop, int consumerFd, int producerFd)
-    : _channelSocket(std::make_shared<ChannelSocket>(loop, consumerFd, producerFd))
+    Channel::Channel(int consumerFd, int producerFd)
+    : _channelSocket(std::make_shared<ChannelSocket>(consumerFd, producerFd))
     {
         _channelSocket->SetListener(this);
     }

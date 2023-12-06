@@ -23,7 +23,7 @@
 
 using namespace std::chrono_literals;
 
-#define USE_PIPE 1
+#define USE_MULTIPLE_PROCESS 1
 
 namespace
 {
@@ -52,16 +52,16 @@ namespace
 
 namespace srv {
 
-    static int _consumerChannelFd[2] = {3, 4};
-    static int _producerChannelFd[2] = {5, 6};
+    static int _consumerChannelFd[2] = {3, 5};
+    static int _producerChannelFd[2] = {6, 4};
 
-    static const std::string WORKER_VERSION("3.13.6");
+    static const std::string MEDIASOUP_VERSION("3.13.6");
     
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)
     {
         
-#if USE_PIPE
+#if USE_MULTIPLE_PROCESS
         createPipe(_consumerChannelFd);
         createPipe(_producerChannelFd);
         
@@ -94,8 +94,10 @@ namespace srv {
 
         std::vector<std::string> args;
         		
-        std::string bin("/Users/jackie.ou/Desktop/Research/dev/mediasoup/worker/out/Release/mediasoup-worker");
+#if USE_MULTIPLE_PROCESS
+        std::string bin("mediasoup-worker");
         args.emplace_back(bin);
+#endif
         
         if (!settings->logLevel.empty()) {
             std::string level("--logLevel=");
@@ -148,6 +150,20 @@ namespace srv {
     {
         auto args = getArgs(_settings);
         
+#if USE_MULTIPLE_PROCESS
+        // ediasoup_worker_run(argc,
+        //                     &argv[0],
+        //                     MEDIASOUP_VERSION.c_str(),
+        //                     _consumerChannelFd[0],
+        //                     _producerChannelFd[1],
+        //                     0,
+        //                     0,
+        //                     0,
+        //                     0,
+        //                     0,
+        //                     0
+        //                     );
+        
         int argc = static_cast<int>(args.size() + 1);
         std::vector<char*> argv(argc);
         
@@ -157,26 +173,6 @@ namespace srv {
         
         argv[args.size()] = nullptr;
         
-#if USE_PIPE
-//        mediasoup_worker_run(argc,
-//                             &argv[0],
-//                             WORKER_VERSION.c_str(),
-//                             _consumerChannelFd[0],
-//                             _producerChannelFd[1],
-//                             0,
-//                             0,
-//                             0,
-//                             0,
-//                             0,
-//                             0
-//                             );
-        
-        uv_process_options_t options;
-        
-        memset(&options, 0, sizeof(uv_process_options_t));
-        
-        options.stdio_count = 5;
-        
         uv_stdio_container_t childStdio[5];
         
         // fd 0 (stdin)   : Just ignore it.
@@ -185,26 +181,36 @@ namespace srv {
         // fd 3 (channel) : Producer Channel fd.
         // fd 4 (channel) : Consumer Channel fd.
         
-        options.flags = UV_PROCESS_DETACHED;
+        std::string version("MEDIASOUP_VERSION");
+        version += "=";
+        version += MEDIASOUP_VERSION;
+        
+        char* env[2];
+        env[0] = (char*)version.c_str();
+        env[1] = nullptr;
         
         childStdio[0].flags = UV_IGNORE;
         
-        childStdio[1].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        childStdio[1].flags = UV_INHERIT_FD;
         childStdio[1].data.fd = 1;
         
-        childStdio[2].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        childStdio[2].flags = UV_INHERIT_FD;
         childStdio[2].data.fd = 2;
         
-        childStdio[3].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_READABLE_PIPE);
+        childStdio[3].flags = uv_stdio_flags(UV_INHERIT_FD | UV_READABLE_PIPE);
         childStdio[3].data.fd = _consumerChannelFd[0];
         
-        childStdio[4].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        childStdio[4].flags = uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);
         childStdio[4].data.fd = _producerChannelFd[1];
         
+        uv_process_options_t options;
+        memset(&options, 0, sizeof(uv_process_options_t));
+        
+        options.env = env;
+        options.stdio_count = 5;
         options.stdio = childStdio;
-        
+        //options.flags = UV_PROCESS_DETACHED;
         options.exit_cb = (uv_exit_cb)onExit;
-        
         options.file = "/Users/jackie.ou/Desktop/Research/dev/mediasoup/worker/out/Release/mediasoup-worker";
         options.args = &argv[0];
 
@@ -214,12 +220,25 @@ namespace srv {
             return;
         }
         
+        SRV_LOGD("launched mediasoup worker with PID %d\n", _process.pid);
+        
+        //uv_unref((uv_handle_t*)&_process);
+        
         _loop.run();
         
+        close();
+        
 #else
+        int argc = static_cast<int>(args.size());
+        std::vector<char*> argv(argc);
+        
+        for (size_t i = 0; i < args.size(); ++i) {
+            argv[i] = const_cast<char*>(args[i].c_str());
+        }
+        
         mediasoup_worker_run(argc,
                              &argv[0],
-                             WORKER_VERSION.c_str(),
+                             MEDIASOUP_VERSION.c_str(),
                              0,
                              0,
                              0,

@@ -10,7 +10,9 @@
 #pragma once
 
 #include <memory>
+#include <uv.h>
 #include "interface/i_worker_controller.h"
+#include "utils.h"
 #include "FBS/request.h"
 #include "FBS/response.h"
 #include "FBS/message.h"
@@ -143,6 +145,10 @@ namespace srv {
         std::mutex _routersMutex;
         // Routers set.
         std::unordered_set<std::shared_ptr<IRouterController>> _routerControllers;
+        
+        uv_process_t _process;
+        
+        Loop _loop;
     };
     
     std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response);

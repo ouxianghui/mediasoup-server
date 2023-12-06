@@ -66,6 +66,7 @@ set(headers
 set(sources
   types.cpp
   config.cpp
+  utils.cpp
   uuid.cpp
   h264_profile_level_id.cc
   ortc.cpp

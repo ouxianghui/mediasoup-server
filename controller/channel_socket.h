@@ -6,6 +6,7 @@
 #include "common.hpp"
 #include "uv.h"
 #include "unix_stream_socket_handle.h"
+#include "utils.h"
 
 namespace srv
 {
@@ -58,22 +59,6 @@ namespace srv
 		public:
             virtual void OnChannelMessage(char* msg, size_t msgLen) = 0;
 			virtual void OnChannelClosed(srv::ChannelSocket* channel) = 0;
-		};
-
-        class Loop
-        {
-        public:
-            Loop();
-            
-            ~Loop();
-            
-            uv_loop_t* get() { return _loop; }
-            
-            void run();
-            
-        private:
-            uv_loop_t* _loop = nullptr;
-            std::thread _thread;
         };
         
 	public:

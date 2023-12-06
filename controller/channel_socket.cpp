@@ -5,23 +5,6 @@
 #include "channel_socket.h"
 #include "srv_logger.h"
 
-namespace
-{
-    inline static void onCloseLoop(uv_handle_t* handle)
-    {
-        delete reinterpret_cast<uv_loop_t*>(handle);
-    }
-
-    inline static void onWalk(uv_handle_t* handle, void* /*arg*/)
-    {
-        // Must use MS_ERROR_STD since at this point the Channel is already closed.
-        SRV_LOGD("alive UV handle found (this shouldn't happen) [type:%s, active:%d, closing:%d, has_ref:%d]", uv_handle_type_name(handle->type), uv_is_active(handle), uv_is_closing(handle), uv_has_ref(handle));
-        if (!uv_is_closing(handle)) {
-            uv_close(handle, onCloseLoop);
-        }
-    }
-}
-
 namespace srv
 {
 	// Binary length for a 4194304 bytes payload.
@@ -30,54 +13,13 @@ namespace srv
 
 	/* Instance methods. */
 
-    ChannelSocket::Loop::Loop()
-    {
-        _loop = new uv_loop_t();
-        assert(_loop);
-        
-        uv_loop_init(_loop);
-    }
-
-    ChannelSocket::Loop::~Loop()
-    {
-        if (_loop) {
-            int err;
-            uv_stop(_loop);
-            uv_walk(_loop, onWalk, nullptr);
-            
-            while (true) {
-                err = uv_loop_close(_loop);
-                if (err != UV_EBUSY) {
-                    break;
-                }
-                uv_run(_loop, UV_RUN_NOWAIT);
-            }
-            
-            if (err != 0) {
-                SRV_LOGE("failed to close libuv loop: %s", uv_err_name(err));
-            }
-            
-            delete _loop;
-            _loop = nullptr;
-            
-            _thread.join();
-        }
-    }
-
-    void ChannelSocket::Loop::run()
-    {
-        _thread = std::thread([this](){
-            uv_run(this->_loop, uv_run_mode::UV_RUN_DEFAULT);
-        });
-    }
-
     ChannelSocket::ChannelSocket(int consumerFd, int producerFd)
     : _consumerSocket(new ConsumerSocket(_loop.get(), consumerFd, MessageMaxLen, this))
     , _producerSocket(new ProducerSocket(_loop.get(), producerFd, MessageMaxLen))
     {
         SRV_LOGD("ChannelSocket()");
         
-        _loop.run();
+        _loop.asyncRun();
     }
 
 	ChannelSocket::~ChannelSocket()

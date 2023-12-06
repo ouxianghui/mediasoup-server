@@ -43,6 +43,11 @@ namespace
 
         return 0;
     }
+
+    void onExit(uv_process_t*, int64_t exit_status, int term_signal)
+    {
+        
+    }
 }
 
 namespace srv {
@@ -89,6 +94,9 @@ namespace srv {
 
         std::vector<std::string> args;
         		
+        std::string bin("/Users/jackie.ou/Desktop/Research/dev/mediasoup/worker/out/Release/mediasoup-worker");
+        args.emplace_back(bin);
+        
         if (!settings->logLevel.empty()) {
             std::string level("--logLevel=");
             level += settings->logLevel;
@@ -140,42 +148,89 @@ namespace srv {
     {
         auto args = getArgs(_settings);
         
-        int argc = static_cast<int>(args.size());
+        int argc = static_cast<int>(args.size() + 1);
         std::vector<char*> argv(argc);
-        argv[0] = const_cast<char*>(args[0].c_str());
+        
         for (size_t i = 0; i < args.size(); ++i) {
             argv[i] = const_cast<char*>(args[i].c_str());
         }
         
+        argv[args.size()] = nullptr;
+        
 #if USE_PIPE
-        mediasoup_worker_run(argc,
-                             &argv[0],
-                             WORKER_VERSION.c_str(),
-                             _consumerChannelFd[0],
-                             _producerChannelFd[1],
-                             0,
-                             0,
-                             0,
-                             0,
-                             0,
-                             0
-                             );
+//        mediasoup_worker_run(argc,
+//                             &argv[0],
+//                             WORKER_VERSION.c_str(),
+//                             _consumerChannelFd[0],
+//                             _producerChannelFd[1],
+//                             0,
+//                             0,
+//                             0,
+//                             0,
+//                             0,
+//                             0
+//                             );
+        
+        uv_process_options_t options;
+        
+        memset(&options, 0, sizeof(uv_process_options_t));
+        
+        options.stdio_count = 5;
+        
+        uv_stdio_container_t childStdio[5];
+        
+        // fd 0 (stdin)   : Just ignore it.
+        // fd 1 (stdout)  : Pipe it for 3rd libraries that log their own stuff.
+        // fd 2 (stderr)  : Same as stdout.
+        // fd 3 (channel) : Producer Channel fd.
+        // fd 4 (channel) : Consumer Channel fd.
+        
+        options.flags = UV_PROCESS_DETACHED;
+        
+        childStdio[0].flags = UV_IGNORE;
+        
+        childStdio[1].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        childStdio[1].data.fd = 1;
+        
+        childStdio[2].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        childStdio[2].data.fd = 2;
+        
+        childStdio[3].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_READABLE_PIPE);
+        childStdio[3].data.fd = _consumerChannelFd[0];
+        
+        childStdio[4].flags = (uv_stdio_flags)(UV_CREATE_PIPE | UV_WRITABLE_PIPE);
+        childStdio[4].data.fd = _producerChannelFd[1];
+        
+        options.stdio = childStdio;
+        
+        options.exit_cb = (uv_exit_cb)onExit;
+        
+        options.file = "/Users/jackie.ou/Desktop/Research/dev/mediasoup/worker/out/Release/mediasoup-worker";
+        options.args = &argv[0];
+
+        auto ret = uv_spawn(_loop.get(), &_process, &options);
+        if (ret != 0) {
+            SRV_LOGE("%s", uv_strerror(ret));
+            return;
+        }
+        
+        _loop.run();
+        
 #else
         mediasoup_worker_run(argc,
                              &argv[0],
                              WORKER_VERSION.c_str(),
-                             _consumerChannelFd[0],
-                             _producerChannelFd[1],
+                             0,
+                             0,
                              0,
                              0,
                              &Channel::channelRead,
                              (void*)_channel.get(),
                              &Channel::channelWrite,
                              (void*)_channel.get()
-                             );
-#endif
-        
+                             );        
         close();
+#endif
     }
 
     bool WorkerController::closed()

@@ -145,8 +145,6 @@ namespace srv {
         // Routers set.
         std::unordered_set<std::shared_ptr<IRouterController>> _routerControllers;
         
-        std::thread _thread;
-        
         uv_loop_t* _loop = nullptr;
         
         std::thread _uvThread;

@@ -317,7 +317,7 @@ namespace srv {
         
         virtual std::shared_ptr<BaseTransportStats> getStats() = 0;
         
-        virtual void connect(const std::shared_ptr<ConnectParams>& data) = 0;
+        virtual void connect(const std::shared_ptr<ConnectParams>& params) = 0;
         
         virtual void setMaxIncomingBitrate(int32_t bitrate) = 0;
         

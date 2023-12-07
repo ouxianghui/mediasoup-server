@@ -12,6 +12,7 @@
 #include "types.h"
 #include "uuid.h"
 #include "channel.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -97,7 +98,16 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_DUMP, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -117,7 +127,16 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -128,12 +147,12 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void WebRtcTransportController::connect(const std::shared_ptr<ConnectParams>& reqData)
+    void WebRtcTransportController::connect(const std::shared_ptr<ConnectParams>& params)
     {
         SRV_LOGD("connect()");
         
-        if (!reqData) {
-            SRV_LOGE("reqData is null");
+        if (!params) {
+            SRV_LOGE("params is null");
             return;
         }
             
@@ -142,12 +161,20 @@ namespace srv {
             return;
         }
     
-        auto reqOffset = createConnectRequest(channel->builder(), reqData->dtlsParameters);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto respData = channel->request(FBS::Request::Method::WEBRTCTRANSPORT_CONNECT,
-                                         FBS::Request::Body::WebRtcTransport_ConnectRequest,
-                                         reqOffset,
-                                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqOffset = createConnectRequest(builder, params->dtlsParameters);
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::WEBRTCTRANSPORT_CONNECT,
+                                                     FBS::Request::Body::WebRtcTransport_ConnectRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -167,7 +194,16 @@ namespace srv {
             return nullptr;
         }
 
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_RESTART_ICE, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_RESTART_ICE);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         

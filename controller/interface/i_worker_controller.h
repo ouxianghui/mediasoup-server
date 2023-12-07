@@ -128,7 +128,7 @@ namespace srv {
 
     class IWebRtcServerController;
     class IRouterController;
-    class WebRtcServerOptions;
+    struct WebRtcServerOptions;
 
     class IWorkerController
     {
@@ -140,6 +140,8 @@ namespace srv {
         virtual void destroy() = 0;
         
         virtual void runWorker() = 0;
+        
+        virtual int pid() = 0;
         
         virtual void close() = 0;
 

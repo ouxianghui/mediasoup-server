@@ -169,7 +169,7 @@ namespace srv {
         
         std::shared_ptr<BaseTransportStats> getStats() override;
         
-        void connect(const std::shared_ptr<ConnectParams>& data) override;
+        void connect(const std::shared_ptr<ConnectParams>& params) override;
         
     public:
         sigslot::signal<const TransportTuple&> tupleSignal;

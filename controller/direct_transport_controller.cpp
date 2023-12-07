@@ -13,6 +13,7 @@
 #include "uuid.h"
 #include "ortc.h"
 #include "channel.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -67,7 +68,13 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_DUMP, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -87,7 +94,13 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -98,7 +111,7 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void DirectTransportController::connect(const std::shared_ptr<ConnectParams>& data)
+    void DirectTransportController::connect(const std::shared_ptr<ConnectParams>& params)
     {
         SRV_LOGD("connect()");
     }
@@ -135,12 +148,17 @@ namespace srv {
             return;
         }
 
-        auto dataOffset = FBS::Transport::CreateSendRtcpNotificationDirect(channel->builder(), &data);
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->notify(FBS::Notification::Event::TRANSPORT_SEND_RTCP,
-                        FBS::Notification::Body::Transport_SendRtcpNotification,
-                        dataOffset,
-                        _internal.transportId);
+        auto dataOffset = FBS::Transport::CreateSendRtcpNotificationDirect(builder, &data);
+        
+        auto nfData = MessageBuilder::createNotification(builder,
+                                                       _internal.transportId,
+                                                       FBS::Notification::Event::TRANSPORT_SEND_RTCP,
+                                                       FBS::Notification::Body::Transport_SendRtcpNotification,
+                                                       dataOffset);
+                                        
+        channel->notify(nfData);
     }
 
     void DirectTransportController::handleWorkerNotifications()
@@ -153,6 +171,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.connect(&DirectTransportController::onChannel, self);
     }
 

@@ -17,6 +17,7 @@
 #include "FBS/rtpStream.h"
 #include "FBS/rtxStream.h"
 #include "FBS/rtpParameters.h"
+#include "message_builder.h"
 
 namespace {
     FBS::Consumer::TraceEventType consumerTraceEventTypeToFbs(const std::string& eventType)
@@ -115,11 +116,18 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto reqOffset = FBS::Transport::CreateCloseConsumerRequestDirect(channel->builder(), _internal.consumerId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqOffset = FBS::Transport::CreateCloseConsumerRequestDirect(builder, _internal.consumerId.c_str());
 
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_CONSUMER, FBS::Request::Body::Transport_CloseConsumerRequest, reqOffset, _internal.transportId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_CLOSE_CONSUMER, FBS::Request::Body::Transport_CloseConsumerRequest, reqOffset);
+        
+        channel->request(reqId, reqData);
         
         this->closeSignal();
     }
@@ -139,6 +147,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
         this->transportCloseSignal();
@@ -155,9 +164,15 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return nullptr;
         }
         
-        auto data = channel->request(FBS::Request::Method::CONSUMER_DUMP, _internal.consumerId);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -175,9 +190,15 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return {};
         }
         
-        auto data = channel->request(FBS::Request::Method::CONSUMER_GET_STATS, _internal.consumerId);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(reqData.data());
         
         auto response = message->data_as_Response();
         
@@ -195,7 +216,13 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
 
-        channel->request(FBS::Request::Method::CONSUMER_PAUSE, _internal.consumerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_PAUSE);
+        
+        channel->request(reqId, reqData);
         
         bool wasPaused = _paused;
 
@@ -216,7 +243,13 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
 
-        channel->request(FBS::Request::Method::CONSUMER_RESUME, _internal.consumerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_RESUME);
+        
+        channel->request(reqId, reqData);
         
         bool wasPaused = _paused;
 
@@ -237,13 +270,19 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         
-        auto preferredLayersOffset = FBS::Consumer::CreateConsumerLayers(channel->builder(), layers.spatialLayer, layers.temporalLayer);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto bodyOffset = FBS::Consumer::CreateSetPreferredLayersRequest(channel->builder(), preferredLayersOffset);
+        auto preferredLayersOffset = FBS::Consumer::CreateConsumerLayers(builder, layers.spatialLayer, layers.temporalLayer);
         
-        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PREFERRED_LAYERS, FBS::Request::Body::Consumer_SetPreferredLayersRequest, bodyOffset, _internal.consumerId);
+        auto bodyOffset = FBS::Consumer::CreateSetPreferredLayersRequest(builder, preferredLayersOffset);
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_SET_PREFERRED_LAYERS, FBS::Request::Body::Consumer_SetPreferredLayersRequest, bodyOffset);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -268,11 +307,17 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         
-        auto reqOffset = FBS::Consumer::CreateSetPriorityRequest(channel->builder(), priority);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto data = channel->request(FBS::Request::Method::CONSUMER_SET_PRIORITY, FBS::Request::Body::Consumer_SetPriorityRequest, reqOffset, _internal.consumerId);
+        auto reqOffset = FBS::Consumer::CreateSetPriorityRequest(builder, priority);
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_SET_PRIORITY, FBS::Request::Body::Consumer_SetPriorityRequest, reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -302,7 +347,13 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             return;
         }
         
-        channel->request(FBS::Request::Method::CONSUMER_REQUEST_KEY_FRAME, _internal.consumerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_REQUEST_KEY_FRAME);
+        
+        channel->request(reqId, reqData);
     }
 
     // types = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir';
@@ -320,9 +371,15 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             events.emplace_back(consumerTraceEventTypeToFbs(type));
         }
         
-        auto reqOffset = FBS::Consumer::CreateEnableTraceEventRequestDirect(channel->builder(), &events);
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::CONSUMER_ENABLE_TRACE_EVENT, FBS::Request::Body::Consumer_EnableTraceEventRequest, reqOffset, _internal.consumerId);
+        auto reqOffset = FBS::Consumer::CreateEnableTraceEventRequestDirect(builder, &events);
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_ENABLE_TRACE_EVENT, FBS::Request::Body::Consumer_EnableTraceEventRequest, reqOffset);
+        
+        channel->request(reqId, reqData);
     }
 
     void ConsumerController::handleWorkerNotifications()
@@ -333,6 +390,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.connect(&ConsumerController::onChannel, shared_from_this());
     }
 
@@ -352,6 +410,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
             if (!channel) {
                 return;
             }
+            
             channel->notificationSignal.disconnect(shared_from_this());
             
             this->producerCloseSignal();

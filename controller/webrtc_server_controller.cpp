@@ -11,6 +11,7 @@
 #include "srv_logger.h"
 #include "channel.h"
 #include "webrtc_transport_controller.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -46,7 +47,16 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::WEBRTCSERVER_DUMP, _id);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _id,
+                                                     FBS::Request::Method::WEBRTCSERVER_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -95,10 +105,21 @@ namespace srv {
             return;
         }
      
-        auto reqOffset = FBS::Worker::CreateCloseWebRtcServerRequestDirect(channel->builder(), _id.c_str());
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::WORKER_WEBRTCSERVER_CLOSE, FBS::Request::Body::Worker_CloseWebRtcServerRequest, reqOffset, _id);
+        auto reqId = channel->getRequestId();
+        
+        auto reqOffset = FBS::Worker::CreateCloseWebRtcServerRequestDirect(builder, _id.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _id,
+                                                     FBS::Request::Method::WORKER_WEBRTCSERVER_CLOSE,
+                                                     FBS::Request::Body::Worker_CloseWebRtcServerRequest,
+                                                     reqOffset);
 
+        channel->request(reqId, reqData);
+        
         {
             std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
             

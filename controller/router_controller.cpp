@@ -26,6 +26,7 @@
 #include "data_consumer_controller.h"
 #include "data_producer_controller.h"
 #include "FBS/worker.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -146,9 +147,16 @@ namespace srv {
             return;
         }
         
-        auto reqOffset = FBS::Worker::CreateCloseRouterRequestDirect(channel->builder(), _internal.routerId.c_str());
-        channel->request(FBS::Request::Method::WORKER_CLOSE_ROUTER, FBS::Request::Body::Worker_CloseRouterRequest, reqOffset, "");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqOffset = FBS::Worker::CreateCloseRouterRequestDirect(builder, _internal.routerId.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, "", FBS::Request::Method::WORKER_CLOSE_ROUTER, FBS::Request::Body::Worker_CloseRouterRequest, reqOffset);
 
+        channel->request(reqId, reqData);
+        
         clear();
 
         this->closeSignal(shared_from_this());
@@ -181,7 +189,13 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::ROUTER_DUMP, _internal.routerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.routerId, FBS::Request::Method::ROUTER_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -289,15 +303,19 @@ namespace srv {
             }
         }
         
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
         flatbuffers::Offset<void> listenOffset;
         
         if (webRtcServer) {
-            listenOffset = FBS::WebRtcTransport::CreateListenServerDirect(channel->builder(), webRtcServer->id().c_str()).Union();
+            listenOffset = FBS::WebRtcTransport::CreateListenServerDirect(builder, webRtcServer->id().c_str()).Union();
         }
         else {
             std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> listenInfos_;
             for (const auto& item : listenInfos) {
-                auto infoOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+                auto infoOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                          item.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                          item.ip.c_str(),
                                                                          item.announcedIp.c_str(),
@@ -307,12 +325,12 @@ namespace srv {
                                                                          );
                 listenInfos_.emplace_back(infoOffset);
             }
-            listenOffset = FBS::WebRtcTransport::CreateListenIndividualDirect(channel->builder(), &listenInfos_).Union();
+            listenOffset = FBS::WebRtcTransport::CreateListenIndividualDirect(builder, &listenInfos_).Union();
         }
         
-        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(channel->builder(), numSctpStreams.OS, numSctpStreams.MIS);
+        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(builder, numSctpStreams.OS, numSctpStreams.MIS);
         bool isDataChannel = true;
-        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(),
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(builder,
                                                                         false,
                                                                         flatbuffers::nullopt,
                                                                         initialAvailableOutgoingBitrate,
@@ -323,7 +341,7 @@ namespace srv {
                                                                         isDataChannel
                                                                         );
         
-        auto webRtcTransportOptionsOffset = FBS::WebRtcTransport::CreateWebRtcTransportOptions(channel->builder(),
+        auto webRtcTransportOptionsOffset = FBS::WebRtcTransport::CreateWebRtcTransportOptions(builder,
                                                                                                baseTransportOptionsOffset,
                                                                                                webRtcServer ? FBS::WebRtcTransport::Listen::ListenServer : FBS::WebRtcTransport::Listen::ListenIndividual,
                                                                                                listenOffset,
@@ -333,13 +351,16 @@ namespace srv {
                                                                                                preferTcp
                                                                                                );
         
-        auto reqOffset = FBS::Router::CreateCreateWebRtcTransportRequestDirect(channel->builder(), internal.transportId.c_str(), webRtcTransportOptionsOffset);
+        auto reqOffset = FBS::Router::CreateCreateWebRtcTransportRequestDirect(builder, internal.transportId.c_str(), webRtcTransportOptionsOffset);
         
-        auto respData = channel->request(webRtcServer ? FBS::Request::Method::ROUTER_CREATE_WEBRTCTRANSPORT_WITH_SERVER : FBS::Request::Method::ROUTER_CREATE_WEBRTCTRANSPORT,
-                                         FBS::Request::Body::Router_CreateWebRtcTransportRequest,
-                                         reqOffset,
-                                         _internal.routerId
-                                         );
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     webRtcServer ? FBS::Request::Method::ROUTER_CREATE_WEBRTCTRANSPORT_WITH_SERVER : FBS::Request::Method::ROUTER_CREATE_WEBRTCTRANSPORT,
+                                                     FBS::Request::Body::Router_CreateWebRtcTransportRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -449,9 +470,13 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
         
-        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(channel->builder(), numSctpStreams.OS, numSctpStreams.MIS);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(builder, numSctpStreams.OS, numSctpStreams.MIS);
         bool isDataChannel = false;
-        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(),
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(builder,
                                                                         false,
                                                                         flatbuffers::nullopt,
                                                                         flatbuffers::nullopt,
@@ -462,7 +487,7 @@ namespace srv {
                                                                         isDataChannel
                                                                         );
         
-        auto listenOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+        auto listenOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                    listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                    listenInfo.ip.c_str(),
                                                                    listenInfo.announcedIp.c_str(),
@@ -471,7 +496,7 @@ namespace srv {
                                                                    listenInfo.recvBufferSize
                                                                    );
         
-        auto rtcpListenOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+        auto rtcpListenOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                        rtcpListenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                        rtcpListenInfo.ip.c_str(),
                                                                        rtcpListenInfo.announcedIp.c_str(),
@@ -480,7 +505,7 @@ namespace srv {
                                                                        rtcpListenInfo.recvBufferSize
                                                                    );
         
-        auto plainTransportOptionsOffset = FBS::PlainTransport::CreatePlainTransportOptions(channel->builder(),
+        auto plainTransportOptionsOffset = FBS::PlainTransport::CreatePlainTransportOptions(builder,
                                                                                             baseTransportOptionsOffset,
                                                                                             listenOffset,
                                                                                             rtcpListenOffset,
@@ -490,13 +515,16 @@ namespace srv {
                                                                                             cryptoSuiteToFbs(srtpCryptoSuite)
                                                                                             );
 
-        auto reqOffset = FBS::Router::CreateCreatePlainTransportRequestDirect(channel->builder(), internal.transportId.c_str(), plainTransportOptionsOffset);
+        auto reqOffset = FBS::Router::CreateCreatePlainTransportRequestDirect(builder, internal.transportId.c_str(), plainTransportOptionsOffset);
         
-        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_PLAINTRANSPORT,
-                                         FBS::Request::Body::Router_CreatePlainTransportRequest,
-                                         reqOffset,
-                                         _internal.routerId
-                                         );
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     FBS::Request::Method::ROUTER_CREATE_PLAINTRANSPORT,
+                                                     FBS::Request::Body::Router_CreatePlainTransportRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -567,17 +595,24 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
         
-        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(), true, maxMessageSize);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto directTransportOptionsOffset = FBS::DirectTransport::CreateDirectTransportOptions(channel->builder(), baseTransportOptionsOffset);
+        auto reqId = channel->getRequestId();
         
-        auto reqOffset = FBS::Router::CreateCreateDirectTransportRequestDirect(channel->builder(), internal.transportId.c_str(), directTransportOptionsOffset);
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(builder, true, maxMessageSize);
         
-        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_DIRECTTRANSPORT,
-                                         FBS::Request::Body::Router_CreateDirectTransportRequest,
-                                         reqOffset,
-                                         _internal.routerId
-                                         );
+        auto directTransportOptionsOffset = FBS::DirectTransport::CreateDirectTransportOptions(builder, baseTransportOptionsOffset);
+        
+        auto reqOffset = FBS::Router::CreateCreateDirectTransportRequestDirect(builder, internal.transportId.c_str(), directTransportOptionsOffset);
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     FBS::Request::Method::ROUTER_CREATE_DIRECTTRANSPORT,
+                                                     FBS::Request::Body::Router_CreateDirectTransportRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -663,9 +698,13 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
         
-        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(channel->builder(), numSctpStreams.OS, numSctpStreams.MIS);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(builder, numSctpStreams.OS, numSctpStreams.MIS);
         bool isDataChannel = false;
-        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(channel->builder(),
+        auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(builder,
                                                                         false,
                                                                         flatbuffers::nullopt,
                                                                         flatbuffers::nullopt,
@@ -676,7 +715,7 @@ namespace srv {
                                                                         isDataChannel
                                                                         );
         
-        auto listenOffset = FBS::Transport::CreateListenInfoDirect(channel->builder(),
+        auto listenOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                    listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                    listenInfo.ip.c_str(),
                                                                    listenInfo.announcedIp.c_str(),
@@ -685,20 +724,23 @@ namespace srv {
                                                                    listenInfo.recvBufferSize
                                                                    );
         
-        auto pipeTransportOptionsOffset = FBS::PipeTransport::CreatePipeTransportOptions(channel->builder(),
+        auto pipeTransportOptionsOffset = FBS::PipeTransport::CreatePipeTransportOptions(builder,
                                                                                          baseTransportOptionsOffset,
                                                                                          listenOffset,
                                                                                          enableRtx,
                                                                                          enableSrtp
                                                                                          );
         
-        auto reqOffset = FBS::Router::CreateCreatePipeTransportRequestDirect(channel->builder(), internal.transportId.c_str(), pipeTransportOptionsOffset);
+        auto reqOffset = FBS::Router::CreateCreatePipeTransportRequestDirect(builder, internal.transportId.c_str(), pipeTransportOptionsOffset);
         
-        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_PIPETRANSPORT,
-                                         FBS::Request::Body::Router_CreatePipeTransportRequest,
-                                         reqOffset,
-                                         _internal.routerId
-                                         );
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     FBS::Request::Method::ROUTER_CREATE_PIPETRANSPORT,
+                                                     FBS::Request::Body::Router_CreatePipeTransportRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -763,15 +805,22 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.rtpObserverId = uuid::uuidv4();
         
-        auto activeRtpObserverOptionsOffset = FBS::ActiveSpeakerObserver::CreateActiveSpeakerObserverOptions(channel->builder(), interval);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto reqOffset = FBS::Router::CreateCreateActiveSpeakerObserverRequestDirect(channel->builder(), internal.rtpObserverId.c_str(), activeRtpObserverOptionsOffset);
+        auto reqId = channel->getRequestId();
         
-        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_ACTIVESPEAKEROBSERVER,
-                                         FBS::Request::Body::Router_CreateActiveSpeakerObserverRequest,
-                                         reqOffset,
-                                         _internal.routerId
-                                         );
+        auto activeRtpObserverOptionsOffset = FBS::ActiveSpeakerObserver::CreateActiveSpeakerObserverOptions(builder, interval);
+        
+        auto reqOffset = FBS::Router::CreateCreateActiveSpeakerObserverRequestDirect(builder, internal.rtpObserverId.c_str(), activeRtpObserverOptionsOffset);
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     FBS::Request::Method::ROUTER_CREATE_ACTIVESPEAKEROBSERVER,
+                                                     FBS::Request::Body::Router_CreateActiveSpeakerObserverRequest,
+                                                     reqOffset);
+                    
+        channel->request(reqId, reqData);
         
         auto roocOptions = std::make_shared<RtpObserverObserverConstructorOptions>();
         roocOptions->internal = internal;
@@ -839,15 +888,22 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.rtpObserverId = uuid::uuidv4();
 
-        auto audioLevelObserverOptionsOffset = FBS::AudioLevelObserver::CreateAudioLevelObserverOptions(channel->builder(), maxEntries, threshold, interval);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto reqOffset = FBS::Router::CreateCreateAudioLevelObserverRequestDirect(channel->builder(), internal.rtpObserverId.c_str(), audioLevelObserverOptionsOffset);
+        auto reqId = channel->getRequestId();
+        
+        auto audioLevelObserverOptionsOffset = FBS::AudioLevelObserver::CreateAudioLevelObserverOptions(builder, maxEntries, threshold, interval);
+        
+        auto reqOffset = FBS::Router::CreateCreateAudioLevelObserverRequestDirect(builder, internal.rtpObserverId.c_str(), audioLevelObserverOptionsOffset);
     
-        auto respData = channel->request(FBS::Request::Method::ROUTER_CREATE_AUDIOLEVELOBSERVER,
-                                         FBS::Request::Body::Router_CreateAudioLevelObserverRequest,
-                                         reqOffset,
-                                         _internal.routerId
-                                         );
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     FBS::Request::Method::ROUTER_CREATE_AUDIOLEVELOBSERVER,
+                                                     FBS::Request::Body::Router_CreateAudioLevelObserverRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
         
         auto alocOptions = std::make_shared<AudioLevelObserverConstructorOptions>();
         alocOptions->internal = internal;

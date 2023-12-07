@@ -11,6 +11,7 @@
 #include "srv_logger.h"
 #include "channel.h"
 #include "FBS/transport.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -63,14 +64,23 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
 
-        auto reqOffset = FBS::Transport::CreateCloseDataConsumerRequestDirect(channel->builder(), _internal.dataConsumerId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATACONSUMER,
-                         FBS::Request::Body::Transport_CloseDataConsumerRequest,
-                         reqOffset,
-                         _internal.transportId);
+        auto reqOffset = FBS::Transport::CreateCloseDataConsumerRequestDirect(builder, _internal.dataConsumerId.c_str());
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_CLOSE_DATACONSUMER,
+                                                     FBS::Request::Body::Transport_CloseDataConsumerRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
         
         this->closeSignal();
     }
@@ -90,6 +100,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
         this->transportCloseSignal();
@@ -106,9 +117,15 @@ namespace srv {
             return nullptr;
         }
         
-        auto data = channel->request(FBS::Request::Method::DATACONSUMER_DUMP, _internal.dataConsumerId);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -127,9 +144,15 @@ namespace srv {
             return {};
         }
         
-        auto data = channel->request(FBS::Request::Method::DATACONSUMER_GET_STATS, _internal.dataConsumerId);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -147,7 +170,13 @@ namespace srv {
             return;
         }
         
-        channel->request(FBS::Request::Method::DATACONSUMER_PAUSE, _internal.dataConsumerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_PAUSE);
+        
+        channel->request(reqId, reqData);
         
         bool wasPaused = _paused;
 
@@ -168,7 +197,13 @@ namespace srv {
             return;
         }
         
-        channel->request(FBS::Request::Method::DATACONSUMER_RESUME, _internal.dataConsumerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_RESUME);
+        
+        channel->request(reqId, reqData);
         
         bool wasPaused = _paused;
 
@@ -189,12 +224,20 @@ namespace srv {
             return;
         }
         
-        auto reqOffset = FBS::DataConsumer::CreateSetBufferedAmountLowThresholdRequest(channel->builder(), threshold);
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::DATACONSUMER_SET_BUFFERED_AMOUNT_LOW_THRESHOLD,
-                         FBS::Request::Body::DataConsumer_SetBufferedAmountLowThresholdRequest,
-                         reqOffset,
-                         _internal.dataConsumerId);
+        auto reqOffset = FBS::DataConsumer::CreateSetBufferedAmountLowThresholdRequest(builder, threshold);
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.dataConsumerId,
+                                                     FBS::Request::Method::DATACONSUMER_SET_BUFFERED_AMOUNT_LOW_THRESHOLD,
+                                                     FBS::Request::Body::DataConsumer_SetBufferedAmountLowThresholdRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
     }
 
     void DataConsumerController::setSubchannels(const std::vector<uint16_t>& subchannels)
@@ -206,14 +249,22 @@ namespace srv {
             return;
         }
         
-        auto reqOffset = FBS::DataConsumer::CreateSetSubchannelsRequestDirect(channel->builder(), &subchannels);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto data = channel->request(FBS::Request::Method::DATACONSUMER_SET_SUBCHANNELS,
-                                     FBS::Request::Body::DataConsumer_SetSubchannelsRequest,
-                                     reqOffset,
-                                     _internal.dataConsumerId);
+        auto reqOffset = FBS::DataConsumer::CreateSetSubchannelsRequestDirect(builder, &subchannels);
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.dataConsumerId,
+                                                     FBS::Request::Method::DATACONSUMER_SET_SUBCHANNELS,
+                                                     FBS::Request::Body::DataConsumer_SetSubchannelsRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -256,12 +307,20 @@ namespace srv {
 
         uint32_t ppid = !isBinary ? (data.size() > 0 ? 51 : 56) : (data.size() > 0 ? 53 : 57);
         
-        auto reqOffset = FBS::DataConsumer::CreateSendRequestDirect(channel->builder(), ppid, &data);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqOffset = FBS::DataConsumer::CreateSendRequestDirect(builder, ppid, &data);
 
-        channel->request(FBS::Request::Method::DATACONSUMER_SEND,
-                         FBS::Request::Body::DataConsumer_SendRequest,
-                         reqOffset,
-                         _internal.dataConsumerId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.dataConsumerId,
+                                                     FBS::Request::Method::DATACONSUMER_SEND,
+                                                     FBS::Request::Body::DataConsumer_SendRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
     }
 
     uint32_t DataConsumerController::getBufferedAmount()
@@ -273,9 +332,15 @@ namespace srv {
             return 0;
         }
            
-        auto data = channel->request(FBS::Request::Method::DATACONSUMER_GET_BUFFERED_AMOUNT, _internal.dataConsumerId);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_GET_BUFFERED_AMOUNT);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -292,6 +357,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.connect(&DataConsumerController::onChannel, shared_from_this());
     }
 
@@ -311,6 +377,7 @@ namespace srv {
             if (!channel) {
                 return;
             }
+            
             channel->notificationSignal.disconnect(shared_from_this());
             
             this->dataProducerCloseSignal();

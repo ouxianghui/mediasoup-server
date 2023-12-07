@@ -21,6 +21,7 @@
 #include "consumer_controller.h"
 #include "data_consumer_controller.h"
 #include "data_producer_controller.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -56,11 +57,18 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
-        auto reqOffset = FBS::Router::CreateCloseTransportRequestDirect(channel->builder(), _internal.transportId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::ROUTER_CLOSE_TRANSPORT, FBS::Request::Body::Router_CloseTransportRequest, reqOffset, _internal.routerId);
+        auto reqOffset = FBS::Router::CreateCloseTransportRequestDirect(builder, _internal.transportId.c_str());
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.routerId, FBS::Request::Method::ROUTER_CLOSE_TRANSPORT, FBS::Request::Body::Router_CloseTransportRequest, reqOffset);
+        
+        channel->request(reqId, reqData);
         
         std::unordered_map<std::string, std::shared_ptr<IProducerController>> producerControllers;
         {
@@ -126,6 +134,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
         clearControllers();
@@ -150,6 +159,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
         clearControllers();
@@ -171,7 +181,7 @@ namespace srv {
         return nullptr;
     }
 
-    void AbstractTransportController::connect(const std::shared_ptr<ConnectParams>& data)
+    void AbstractTransportController::connect(const std::shared_ptr<ConnectParams>& params)
     {
         assert(0);
     }
@@ -185,12 +195,20 @@ namespace srv {
             return;
         }
         
-        auto reqOffset = FBS::Transport::CreateSetMaxIncomingBitrateRequest(channel->builder(), bitrate);
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_INCOMING_BITRATE,
-                         FBS::Request::Body::Transport_SetMaxIncomingBitrateRequest,
-                         reqOffset,
-                         _internal.transportId);
+        auto reqOffset = FBS::Transport::CreateSetMaxIncomingBitrateRequest(builder, bitrate);
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_SET_MAX_INCOMING_BITRATE,
+                                                     FBS::Request::Body::Transport_SetMaxIncomingBitrateRequest,
+                                                     reqOffset);
+                         
+        channel->request(reqId, reqData);
     }
 
     void AbstractTransportController::setMaxOutgoingBitrate(int32_t bitrate)
@@ -202,12 +220,20 @@ namespace srv {
             return;
         }
         
-        auto reqOffset = FBS::Transport::CreateSetMaxOutgoingBitrateRequest(channel->builder(), bitrate);
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::TRANSPORT_SET_MAX_OUTGOING_BITRATE,
-                         FBS::Request::Body::Transport_SetMaxOutgoingBitrateRequest,
-                         reqOffset,
-                         _internal.transportId);
+        auto reqOffset = FBS::Transport::CreateSetMaxOutgoingBitrateRequest(builder, bitrate);
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_SET_MAX_OUTGOING_BITRATE,
+                                                     FBS::Request::Body::Transport_SetMaxOutgoingBitrateRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
     }
 
     void AbstractTransportController::setMinOutgoingBitrate(int32_t bitrate)
@@ -219,12 +245,20 @@ namespace srv {
             return;
         }
         
-        auto reqOffset = FBS::Transport::CreateSetMinOutgoingBitrateRequest(channel->builder(), bitrate);
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::TRANSPORT_SET_MIN_OUTGOING_BITRATE,
-                         FBS::Request::Body::Transport_SetMinOutgoingBitrateRequest,
-                         reqOffset,
-                         _internal.transportId);
+        auto reqOffset = FBS::Transport::CreateSetMinOutgoingBitrateRequest(builder, bitrate);
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_SET_MIN_OUTGOING_BITRATE,
+                                                     FBS::Request::Body::Transport_SetMinOutgoingBitrateRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
     }
 
     void AbstractTransportController::enableTraceEvent(const std::vector<std::string>& types)
@@ -242,12 +276,20 @@ namespace srv {
             events.emplace_back(transportTraceEventTypeToFbs(type));
         }
         
-        auto reqOffset = FBS::Transport::CreateEnableTraceEventRequestDirect(channel->builder(), &events);
+        flatbuffers::FlatBufferBuilder builder;
+            
+        auto reqOffset = FBS::Transport::CreateEnableTraceEventRequestDirect(builder, &events);
         
-        channel->request(FBS::Request::Method::TRANSPORT_ENABLE_TRACE_EVENT,
-                         FBS::Request::Body::Transport_EnableTraceEventRequest,
-                         reqOffset,
-                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+            
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_ENABLE_TRACE_EVENT,
+                                                     FBS::Request::Body::Transport_EnableTraceEventRequest,
+                                                     reqOffset);
+            
+        channel->request(reqId, reqData);
     }
 
     std::shared_ptr<IProducerController> AbstractTransportController::produce(const std::shared_ptr<ProducerOptions>& options)
@@ -335,13 +377,21 @@ namespace srv {
             return producerController;
         }
         
-        auto reqOffset = createProduceRequest(channel->builder(), producerId, kind, rtpParameters, rtpMappingFbs, keyFrameRequestDelay, paused);
+        flatbuffers::FlatBufferBuilder builder;
+            
+        auto reqOffset = createProduceRequest(builder, producerId, kind, rtpParameters, rtpMappingFbs, keyFrameRequestDelay, paused);
 
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE,
-                                         FBS::Request::Body::Transport_ProduceRequest,
-                                         reqOffset,
-                                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+            
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_PRODUCE,
+                                                     FBS::Request::Body::Transport_ProduceRequest,
+                                                     reqOffset);
         
+        auto respData = channel->request(reqId, reqData);
+            
         auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
@@ -453,13 +503,21 @@ namespace srv {
         
         auto consumerId = uuid::uuidv4();
         
-        auto reqOffset = createConsumeRequest(channel->builder(), producerController, consumerId, rtpParameters, paused, preferredLayers, ignoreDtx, pipe);
+        flatbuffers::FlatBufferBuilder builder;
+            
+        auto reqOffset = createConsumeRequest(builder, producerController, consumerId, rtpParameters, paused, preferredLayers, ignoreDtx, pipe);
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME,
-                                         FBS::Request::Body::Transport_ConsumeRequest,
-                                         reqOffset,
-                                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+            
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_CONSUME,
+                                                     FBS::Request::Body::Transport_ConsumeRequest,
+                                                     reqOffset);
         
+        auto respData = channel->request(reqId, reqData);
+            
         auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
@@ -571,13 +629,21 @@ namespace srv {
         
         auto dataProducerId = id.empty() ? uuid::uuidv4() : id;
         
-        auto reqOffset = createProduceDataRequest(channel->builder(), dataProducerId, type, sctpStreamParameters, label, protocol, paused);
+        flatbuffers::FlatBufferBuilder builder;
+            
+        auto reqOffset = createProduceDataRequest(builder, dataProducerId, type, sctpStreamParameters, label, protocol, paused);
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_PRODUCE_DATA,
-                                         FBS::Request::Body::Transport_ProduceDataRequest,
-                                         reqOffset,
-                                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+            
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_PRODUCE_DATA,
+                                                     FBS::Request::Body::Transport_ProduceDataRequest,
+                                                     reqOffset);
         
+        auto respData = channel->request(reqId, reqData);
+            
         auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
@@ -696,13 +762,21 @@ namespace srv {
         internal.transportId = _internal.transportId;
         internal.dataConsumerId = dataConsumerId;
         
-        auto reqOffset = createConsumeDataRequest(channel->builder(), dataConsumerId, dataProducerId, type, sctpStreamParameters, label, protocol, paused, subchannels);
+        flatbuffers::FlatBufferBuilder builder;
+            
+        auto reqOffset = createConsumeDataRequest(builder, dataConsumerId, dataProducerId, type, sctpStreamParameters, label, protocol, paused, subchannels);
 
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME_DATA,
-                                         FBS::Request::Body::Transport_ConsumeDataRequest,
-                                         reqOffset,
-                                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+            
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_CONSUME_DATA,
+                                                     FBS::Request::Body::Transport_ConsumeDataRequest,
+                                                     reqOffset);
         
+        auto respData = channel->request(reqId, reqData);
+            
         auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();

@@ -94,6 +94,8 @@ namespace srv {
         
         void runWorker() override;
         
+        int pid() override { return _process.pid; }
+        
         void close() override;
 
         bool closed() override;

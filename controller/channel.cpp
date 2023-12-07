@@ -11,10 +11,17 @@
 #include <future>
 #include <chrono>
 #include "srv_logger.h"
+#include "FBS/request.h"
+#include "FBS/response.h"
+#include "FBS/message.h"
+#include "FBS/notification.h"
 
 namespace srv {
     
     using namespace std::chrono_literals;
+
+    static const int32_t MESSAGE_MAX_LEN = 4194308;
+    static const int32_t PAYLOAD_MAX_LEN = 4194304; // 4MB
 
     void Channel::channelReadFree(uint8_t* message, uint32_t messageLen, size_t messageCtx)
     {
@@ -67,6 +74,11 @@ namespace srv {
     {
         SRV_LOGD("~Channel()");
         clean();
+    }
+
+    uint32_t Channel::getRequestId()
+    {
+        _nextId < std::numeric_limits<uint32_t>::max() ? ++_nextId : (_nextId = 1);
     }
 
     void Channel::close()
@@ -151,16 +163,119 @@ namespace srv {
         }
     }
 
-    void Channel::notify(FBS::Notification::Event event, const std::string& handlerId)
+    void Channel::notify(const std::vector<uint8_t>& data)
     {
-        flatbuffers::Offset<void> bodyOffset;
-        this->notify(event, FBS::Notification::Body::NONE, bodyOffset, handlerId);
+        SRV_LOGD("notify()");
+        
+        if (_closed) {
+            SRV_LOGD("Channel closed");
+            return;
+        }
+        
+        if (data.size() > MESSAGE_MAX_LEN) {
+            SRV_LOGD("Channel request too big");
+            return;
+        }
+        
+        if (!_channelSocket) {
+            auto msg = std::make_shared<Message>();
+            msg->messageLen = (uint32_t)data.size();
+            msg->message = new uint8_t[msg->messageLen];
+            std::memcpy(msg->message, data.data(), msg->messageLen);
+            
+            if (_requestQueue.try_enqueue(msg)) {
+                notifyRead();
+            }
+            else {
+                SRV_LOGD("Channel request enqueue failed");
+            }
+        }
+        else {
+            _channelSocket->Send(data.data(), (uint32_t)data.size());
+        }
     }
 
-    std::vector<uint8_t> Channel::request(FBS::Request::Method method, const std::string& handlerId)
+    std::vector<uint8_t> Channel::request(uint32_t requestId, const std::vector<uint8_t>& data)
     {
-        flatbuffers::Offset<void> bodyOffset;
-        return this->request(method, FBS::Request::Body::NONE, bodyOffset, handlerId);
+        if (_closed) {
+            SRV_LOGD("Channel closed");
+            return {};
+        }
+        
+        std::promise<std::vector<uint8_t>> promise;
+        auto result = promise.get_future();
+                  
+        const uint32_t id = requestId;
+        
+        auto callback = std::make_shared<Callback>(id,
+        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const std::vector<uint8_t>& data) {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (self->removeCallback(id)) {
+                promise.set_value(data);
+            }
+        },
+        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const IError& error) {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (self->removeCallback(id)) {
+                promise.set_exception(std::make_exception_ptr(ChannelError(error.message().c_str())));
+            }
+        },
+        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise]() {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (self->removeCallback(id)) {
+                promise.set_exception(std::make_exception_ptr(ChannelError("callback was closed")));
+            }
+        },
+        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](){
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (self->removeCallback(id)) {
+                promise.set_exception(std::make_exception_ptr(ChannelError("callback was timeout")));
+            }
+        });
+        
+        uint32_t duration = 1000 * (15 + (0.1 * _callbackMap.size()));
+        callback->setTimeout(_threadPool, duration);
+        
+        {
+            std::lock_guard<std::mutex> lock(_callbackMutex);
+            _callbackMap[id] = callback;
+        }
+        
+        if (data.size() > MESSAGE_MAX_LEN) {
+            SRV_LOGD("Channel request too big");
+            return {};
+        }
+        
+        if (!_channelSocket) {
+            auto msg = std::make_shared<Message>();
+            msg->messageLen = (uint32_t)data.size();
+            msg->message = new uint8_t[msg->messageLen];
+            std::memcpy(msg->message, data.data(), msg->messageLen);
+                            
+            if (_requestQueue.try_enqueue(msg)) {
+                notifyRead();
+            }
+            else {
+                SRV_LOGD("Channel request enqueue failed");
+            }
+        }
+        else {
+            _channelSocket->Send(data.data(), (uint32_t)data.size());
+        }
+
+        return result.get();
     }
 
     void Channel::processResponse(const FBS::Response::Response* response, const std::vector<uint8_t>& data)
@@ -179,11 +294,13 @@ namespace srv {
         }
         
         if (response->accepted()) {
-            SRV_LOGD("request succeeded [method:%u, id:%u]", (uint8_t)callback->method(), callback->id());
+            //SRV_LOGD("request succeeded [method:%u, id:%u]", (uint8_t)callback->method(), callback->id());
+            SRV_LOGD("request succeeded [id:%u]", callback->id());
             callback->resolve(data);
         }
         else if (response->error()) {
-            SRV_LOGW("request failed [method:%u, id:%u]: %s", (uint8_t)callback->method(), callback->id(), response->reason()->c_str());
+            //SRV_LOGW("request failed [method:%u, id:%u]: %s", (uint8_t)callback->method(), callback->id(), response->reason()->c_str());
+            SRV_LOGW("request failed [id:%u]: %s", callback->id(), response->reason()->c_str());
 
             if (response->error()->str() == "TypeError") {
                 callback->reject(Error("TypeError", response->reason()->str()));
@@ -193,7 +310,8 @@ namespace srv {
             }
         }
         else {
-            SRV_LOGE("received response is not accepted nor rejected [method:%u, id:%u]", (uint8_t)callback->method(), callback->id());
+            //SRV_LOGE("received response is not accepted nor rejected [method:%u, id:%u]", (uint8_t)callback->method(), callback->id());
+            SRV_LOGE("received response is not accepted nor rejected [id:%u]", callback->id());
         }
     }
 

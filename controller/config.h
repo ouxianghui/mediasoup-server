@@ -41,6 +41,8 @@ namespace cfg {
         struct Mediasoup {
             int32_t numWorkers;
             bool useWebRtcServer = true;
+            bool multiprocess = false;
+            std::string workerPath;
             WorkerSettings workerSettings;
             RouterOptions routerOptions;
             WebRtcServerOptions webRtcServerOptions;

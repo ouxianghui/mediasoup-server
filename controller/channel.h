@@ -20,17 +20,10 @@
 #include "nlohmann/json.hpp"
 #include "common.hpp"
 #include "uv.h"
-#include "flatbuffers/flexbuffers.h"
-#include "FBS/request.h"
-#include "FBS/response.h"
-#include "FBS/message.h"
 #include "FBS/notification.h"
-
+#include "FBS/log.h"
 
 namespace srv {
-    
-    static const int32_t MESSAGE_MAX_LEN = 4194308;
-    static const int32_t PAYLOAD_MAX_LEN = 4194304; // 4MB
 
     class Channel : public ChannelSocket::Listener, public std::enable_shared_from_this<Channel>
     {
@@ -50,23 +43,11 @@ namespace srv {
         
         ~Channel();
         
-        void notify(FBS::Notification::Event event, const std::string& handlerId);
+        uint32_t getRequestId();
         
-        template<typename T>
-        void notify(FBS::Notification::Event event,
-                    FBS::Notification::Body bodyType,
-                    flatbuffers::Offset<T>& bodyOffset,
-                    const std::string& handlerId);
+        void notify(const std::vector<uint8_t>& data);
         
-        std::vector<uint8_t> request(FBS::Request::Method method, const std::string& handlerId);
-        
-        template<typename T>
-        std::vector<uint8_t> request(FBS::Request::Method method,
-                                     FBS::Request::Body bodyType,
-                                     flatbuffers::Offset<T>& bodyOffset,
-                                     const std::string& handlerId);
-        
-        flatbuffers::FlatBufferBuilder& builder() { return _builder; }
+        std::vector<uint8_t> request(uint32_t requestId, const std::vector<uint8_t>& data);
         
         void close();
         
@@ -109,192 +90,19 @@ namespace srv {
         sigslot::signal<const std::string&, FBS::Notification::Event, const std::vector<uint8_t>&> notificationSignal;
         
     private:
-        asio::static_thread_pool _threadPool {1};
+        asio::static_thread_pool _threadPool { 1 };
         
         std::mutex _callbackMutex;
         std::unordered_map<uint64_t, std::shared_ptr<Callback>> _callbackMap;
         
-        std::mutex _idMutex;
-        uint32_t _nextId {0};
+        std::atomic<uint32_t> _nextId { 0 };
         
-        std::atomic_bool _closed {false};
+        std::atomic_bool _closed { false };
         
         moodycamel::ConcurrentQueue<std::shared_ptr<Message>> _requestQueue;
         
         uv_async_t* _handle = nullptr;
         
-        std::mutex _builderMutex;
-        flatbuffers::FlatBufferBuilder _builder {8192};
-        
         std::shared_ptr<ChannelSocket> _channelSocket;
     };
-
-    template<typename T>
-    void Channel::notify(FBS::Notification::Event event,
-                         FBS::Notification::Body bodyType,
-                         flatbuffers::Offset<T>& bodyOffset,
-                         const std::string& handlerId)
-    {
-        SRV_LOGD("notify() [event:%u]", (uint8_t)event);
-        
-        if (_closed) {
-            SRV_LOGD("Channel closed");
-            return;
-        }
-        
-        {
-            std::lock_guard<std::mutex> lock(_idMutex);
-            
-            auto nfOffset = FBS::Notification::CreateNotificationDirect(_builder, handlerId.c_str(), event, bodyType, bodyOffset.Union());
-            
-            auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Notification, nfOffset.Union());
-            
-            if (!_channelSocket) {
-                _builder.Finish(msgOffset);
-                
-                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-                    SRV_LOGD("Channel request too big");
-                    return;
-                }
-                
-                auto msg = std::make_shared<Message>();
-                msg->messageLen = (uint32_t)_builder.GetSize();
-                msg->message = new uint8_t[msg->messageLen];
-                std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
-                
-                if (_requestQueue.try_enqueue(msg)) {
-                    notifyRead();
-                }
-                else {
-                    SRV_LOGD("Channel request enqueue failed");
-                }
-            }
-            else {
-                _builder.FinishSizePrefixed(msgOffset);
-                
-                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-                    SRV_LOGD("Channel request too big");
-                    return;
-                }
-                
-                _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
-            }
-
-            _builder.Reset();
-        }
-    }
-
-    template<typename T>
-    std::vector<uint8_t> Channel::request(FBS::Request::Method method,
-                                          FBS::Request::Body bodyType,
-                                          flatbuffers::Offset<T>& bodyOffset,
-                                          const std::string& handlerId)
-    {
-        if (_closed) {
-            SRV_LOGD("Channel closed");
-            return {};
-        }
-        
-        std::promise<std::vector<uint8_t>> promise;
-        auto result = promise.get_future();
-        
-        {
-            std::lock_guard<std::mutex> lock(_idMutex);
-            _nextId < std::numeric_limits<uint32_t>::max() ? ++_nextId : (_nextId = 1);
-        }
-                  
-        const uint32_t id = _nextId;
-        
-        auto callback = std::make_shared<Callback>(id, method,
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const std::vector<uint8_t>& data) {
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_value(data);
-            }
-        },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const IError& error) {
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_exception(std::make_exception_ptr(ChannelError(error.message().c_str())));
-            }
-        },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise]() {
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_exception(std::make_exception_ptr(ChannelError("callback was closed")));
-            }
-        },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](){
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            if (self->removeCallback(id)) {
-                promise.set_exception(std::make_exception_ptr(ChannelError("callback was timeout")));
-            }
-        });
-        
-        uint32_t duration = 1000 * (15 + (0.1 * _callbackMap.size()));
-        callback->setTimeout(_threadPool, duration);
-        
-        {
-            std::lock_guard<std::mutex> lock(_callbackMutex);
-            _callbackMap[id] = callback;
-        }
-        
-        SRV_LOGD("request() [method:%d, id:%u]", (uint8_t)method, id);
-        
-        {
-            std::lock_guard<std::mutex> lock(_idMutex);
-            
-            auto reqOffset = FBS::Request::CreateRequestDirect(_builder, _nextId, method, handlerId.c_str(), bodyType, bodyOffset.Union());
-            
-            auto msgOffset = FBS::Message::CreateMessage(_builder, FBS::Message::Body::Request, reqOffset.Union());
-            
-            if (!_channelSocket) {
-                _builder.Finish(msgOffset);
-                
-                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-                    SRV_LOGD("Channel request too big");
-                    return {};
-                }
-                
-                auto msg = std::make_shared<Message>();
-                msg->messageLen = (uint32_t)_builder.GetSize();
-                msg->message = new uint8_t[msg->messageLen];
-                std::memcpy(msg->message, _builder.GetBufferPointer(), msg->messageLen);
-                                
-                if (_requestQueue.try_enqueue(msg)) {
-                    notifyRead();
-                }
-                else {
-                    SRV_LOGD("Channel request enqueue failed");
-                }
-            }
-            else {
-                _builder.FinishSizePrefixed(msgOffset);
-                
-                if (_builder.GetSize() > MESSAGE_MAX_LEN) {
-                    SRV_LOGD("Channel request too big");
-                    return {};
-                }
-                
-                _channelSocket->Send(_builder.GetBufferPointer(), (uint32_t)_builder.GetSize());
-            }
-            
-            _builder.Reset();
-        }
-        
-        return result.get();
-    }
-
 }

@@ -37,6 +37,7 @@ set(headers
   engine.h
   unix_stream_socket_handle.h
   srv_logger.h
+  message_builder.h
   channel_socket.h
   channel.h
   worker_controller.h
@@ -72,6 +73,7 @@ set(sources
   ortc.cpp
   engine.cpp
   unix_stream_socket_handle.cpp
+  message_builder.cpp
   channel_socket.cpp
   channel.cpp
   worker_controller.cpp

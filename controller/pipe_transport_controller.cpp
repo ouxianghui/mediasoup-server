@@ -18,6 +18,7 @@
 #include "utils.h"
 #include "consumer_controller.h"
 #include "producer_controller.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -78,7 +79,13 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -89,27 +96,35 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void PipeTransportController::connect(const std::shared_ptr<ConnectParams>& reqData)
+    void PipeTransportController::connect(const std::shared_ptr<ConnectParams>& params)
     {
         SRV_LOGD("connect()");
         
-        assert(reqData);
+        assert(params);
 
         auto channel = _channel.lock();
         if (!channel) {
             return;
         }
+        
+        flatbuffers::FlatBufferBuilder builder;
 
-        auto reqOffset = FBS::PipeTransport::CreateConnectRequestDirect(channel->builder(),
-                                                                        reqData->ip.c_str(),
-                                                                        reqData->port,
-                                                                        reqData->srtpParameters.serialize(channel->builder())
+        auto reqOffset = FBS::PipeTransport::CreateConnectRequestDirect(builder,
+                                                                        params->ip.c_str(),
+                                                                        params->port,
+                                                                        params->srtpParameters.serialize(builder)
                                                                         );
         
-        auto respData = channel->request(FBS::Request::Method::PIPETRANSPORT_CONNECT,
-                                         FBS::Request::Body::PipeTransport_ConnectRequest,
-                                         reqOffset,
-                                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::PIPETRANSPORT_CONNECT,
+                                                     FBS::Request::Body::PipeTransport_ConnectRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -154,16 +169,24 @@ namespace srv {
         
         auto consumerId = uuid::uuidv4();
 
-        auto reqOffset = createConsumeRequest(channel->builder(),
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqOffset = createConsumeRequest(builder,
                                               consumerId,
                                               producerController,
                                               rtpParameters
                                               );
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_CONSUME,
-                                         FBS::Request::Body::Transport_ConsumeRequest,
-                                         reqOffset,
-                                         _internal.transportId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_CONSUME,
+                                                     FBS::Request::Body::Transport_ConsumeRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         

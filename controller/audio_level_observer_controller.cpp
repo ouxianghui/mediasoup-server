@@ -10,6 +10,7 @@
 #include "audio_level_observer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
+#include "FBS/message.h"
 
 namespace srv {
 
@@ -45,6 +46,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.connect(&AudioLevelObserverController::onChannel, self);
     }
 

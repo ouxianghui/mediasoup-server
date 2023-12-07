@@ -20,10 +20,10 @@
 #include "webrtc_server_controller.h"
 #include "uuid.h"
 #include "ortc.h"
+#include "config.h"
+#include "message_builder.h"
 
 using namespace std::chrono_literals;
-
-#define USE_MULTIPLE_PROCESS 1
 
 namespace
 {
@@ -43,11 +43,6 @@ namespace
 
         return 0;
     }
-
-    void onExit(uv_process_t*, int64_t exit_status, int term_signal)
-    {
-        
-    }
 }
 
 namespace srv {
@@ -60,16 +55,14 @@ namespace srv {
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)
     {
-        
-#if USE_MULTIPLE_PROCESS
-        createPipe(_consumerChannelFd);
-        createPipe(_producerChannelFd);
-        
-        _channel = std::make_shared<Channel>(_producerChannelFd[0], _consumerChannelFd[1]);
-        
-#else
-        _channel = std::make_shared<Channel>();
-#endif
+        if (MSConfig->params()->mediasoup.multiprocess) {
+            createPipe(_consumerChannelFd);
+            createPipe(_producerChannelFd);
+            _channel = std::make_shared<Channel>(_producerChannelFd[0], _consumerChannelFd[1]);
+        }
+        else {
+            _channel = std::make_shared<Channel>();
+        }
     }
 
     WorkerController::~WorkerController()
@@ -94,10 +87,10 @@ namespace srv {
 
         std::vector<std::string> args;
         		
-#if USE_MULTIPLE_PROCESS
-        std::string bin("mediasoup-worker");
-        args.emplace_back(bin);
-#endif
+        if (MSConfig->params()->mediasoup.multiprocess) {
+            std::string bin("mediasoup-worker");
+            args.emplace_back(bin);
+        }
         
         if (!settings->logLevel.empty()) {
             std::string level("--logLevel=");
@@ -150,106 +143,126 @@ namespace srv {
     {
         auto args = getArgs(_settings);
         
-#if USE_MULTIPLE_PROCESS
-        // ediasoup_worker_run(argc,
-        //                     &argv[0],
-        //                     MEDIASOUP_VERSION.c_str(),
-        //                     _consumerChannelFd[0],
-        //                     _producerChannelFd[1],
-        //                     0,
-        //                     0,
-        //                     0,
-        //                     0,
-        //                     0,
-        //                     0
-        //                     );
-        
-        int argc = static_cast<int>(args.size() + 1);
-        std::vector<char*> argv(argc);
-        
-        for (size_t i = 0; i < args.size(); ++i) {
-            argv[i] = const_cast<char*>(args[i].c_str());
+        if (MSConfig->params()->mediasoup.multiprocess) {
+            // ediasoup_worker_run(argc,
+            //                     &argv[0],
+            //                     MEDIASOUP_VERSION.c_str(),
+            //                     _consumerChannelFd[0],
+            //                     _producerChannelFd[1],
+            //                     0,
+            //                     0,
+            //                     0,
+            //                     0,
+            //                     0,
+            //                     0
+            //                     );
+            // close();
+            
+            int argc = static_cast<int>(args.size() + 1);
+            std::vector<char*> argv(argc);
+            
+            for (size_t i = 0; i < args.size(); ++i) {
+                argv[i] = const_cast<char*>(args[i].c_str());
+            }
+            
+            argv[args.size()] = nullptr;
+            
+            uv_stdio_container_t childStdio[5];
+            
+            // fd 0 (stdin)   : Just ignore it.
+            // fd 1 (stdout)  : Pipe it for 3rd libraries that log their own stuff.
+            // fd 2 (stderr)  : Same as stdout.
+            // fd 3 (channel) : Producer Channel fd.
+            // fd 4 (channel) : Consumer Channel fd.
+            
+            std::string version("MEDIASOUP_VERSION");
+            version += "=";
+            version += MEDIASOUP_VERSION;
+            
+            char* env[2];
+            env[0] = (char*)version.c_str();
+            env[1] = nullptr;
+            
+            childStdio[0].flags = UV_IGNORE;
+            
+            childStdio[1].flags =  uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);;
+            childStdio[1].data.fd = 1;
+            
+            childStdio[2].flags =  uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);;
+            childStdio[2].data.fd = 2;
+            
+            childStdio[3].flags = uv_stdio_flags(UV_INHERIT_FD | UV_READABLE_PIPE);
+            childStdio[3].data.fd = _consumerChannelFd[0];
+            
+            childStdio[4].flags = uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);
+            childStdio[4].data.fd = _producerChannelFd[1];
+            
+            uv_process_options_t options;
+            memset(&options, 0, sizeof(uv_process_options_t));
+            
+            options.env = env;
+            options.stdio_count = 5;
+            options.stdio = childStdio;
+            //options.flags = UV_PROCESS_DETACHED;
+            
+            auto callback = [](uv_process_t* process, int64_t exit_status, int term_signal) {
+                assert(process);
+                
+                if (exit_status == 42) {
+                    SRV_LOGE("worker process failed due to wrong settings [pid:%d]", process->pid);
+                }
+                else {
+                    SRV_LOGE("worker process failed unexpectedly [pid:%d, code:%lld, signal:%d]", process->pid, exit_status, term_signal);
+                }
+                
+                if (auto workerController = static_cast<WorkerController*>(process->data)) {
+                    workerController->close();
+                }
+            };
+            
+            assert(!MSConfig->params()->mediasoup.workerPath.empty());
+            
+            options.exit_cb = (uv_exit_cb)callback;
+            options.file = MSConfig->params()->mediasoup.workerPath.c_str();
+            options.args = &argv[0];
+            
+            auto ret = uv_spawn(_loop.get(), &_process, &options);
+            if (ret != 0) {
+                SRV_LOGE("%s", uv_strerror(ret));
+                return;
+            }
+            
+            _process.data = static_cast<void*>(this);
+            
+            SRV_LOGD("launched mediasoup worker with PID %d\n", _process.pid);
+            
+            //uv_unref((uv_handle_t*)&_process);
+            
+            _loop.asyncRun();
+            
         }
-        
-        argv[args.size()] = nullptr;
-        
-        uv_stdio_container_t childStdio[5];
-        
-        // fd 0 (stdin)   : Just ignore it.
-        // fd 1 (stdout)  : Pipe it for 3rd libraries that log their own stuff.
-        // fd 2 (stderr)  : Same as stdout.
-        // fd 3 (channel) : Producer Channel fd.
-        // fd 4 (channel) : Consumer Channel fd.
-        
-        std::string version("MEDIASOUP_VERSION");
-        version += "=";
-        version += MEDIASOUP_VERSION;
-        
-        char* env[2];
-        env[0] = (char*)version.c_str();
-        env[1] = nullptr;
-        
-        childStdio[0].flags = UV_IGNORE;
-        
-        childStdio[1].flags = UV_INHERIT_FD;
-        childStdio[1].data.fd = 1;
-        
-        childStdio[2].flags = UV_INHERIT_FD;
-        childStdio[2].data.fd = 2;
-        
-        childStdio[3].flags = uv_stdio_flags(UV_INHERIT_FD | UV_READABLE_PIPE);
-        childStdio[3].data.fd = _consumerChannelFd[0];
-        
-        childStdio[4].flags = uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);
-        childStdio[4].data.fd = _producerChannelFd[1];
-        
-        uv_process_options_t options;
-        memset(&options, 0, sizeof(uv_process_options_t));
-        
-        options.env = env;
-        options.stdio_count = 5;
-        options.stdio = childStdio;
-        //options.flags = UV_PROCESS_DETACHED;
-        options.exit_cb = (uv_exit_cb)onExit;
-        options.file = "/Users/jackie.ou/Desktop/Research/dev/mediasoup/worker/out/Release/mediasoup-worker";
-        options.args = &argv[0];
-
-        auto ret = uv_spawn(_loop.get(), &_process, &options);
-        if (ret != 0) {
-            SRV_LOGE("%s", uv_strerror(ret));
-            return;
+        else {
+            int argc = static_cast<int>(args.size());
+            std::vector<char*> argv(argc);
+            
+            for (size_t i = 0; i < args.size(); ++i) {
+                argv[i] = const_cast<char*>(args[i].c_str());
+            }
+            
+            mediasoup_worker_run(argc,
+                                 &argv[0],
+                                 MEDIASOUP_VERSION.c_str(),
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 &Channel::channelRead,
+                                 (void*)_channel.get(),
+                                 &Channel::channelWrite,
+                                 (void*)_channel.get()
+                                 );
+            close();
         }
-        
-        SRV_LOGD("launched mediasoup worker with PID %d\n", _process.pid);
-        
-        //uv_unref((uv_handle_t*)&_process);
-        
-        _loop.run();
-        
-        close();
-        
-#else
-        int argc = static_cast<int>(args.size());
-        std::vector<char*> argv(argc);
-        
-        for (size_t i = 0; i < args.size(); ++i) {
-            argv[i] = const_cast<char*>(args[i].c_str());
-        }
-        
-        mediasoup_worker_run(argc,
-                             &argv[0],
-                             MEDIASOUP_VERSION.c_str(),
-                             0,
-                             0,
-                             0,
-                             0,
-                             &Channel::channelRead,
-                             (void*)_channel.get(),
-                             &Channel::channelWrite,
-                             (void*)_channel.get()
-                             );        
-        close();
-#endif
     }
 
     bool WorkerController::closed()
@@ -267,12 +280,15 @@ namespace srv {
         
         _closed = true;
         
+        _channel->notificationSignal.disconnect_all();
+        
         _channel->close();
         
         {
             std::lock_guard<std::mutex> lock(_webRtcServersMutex);
             for (const auto& item: _webRtcServerControllers) {
                 item->onWorkerClosed();
+                item->closeSignal.disconnect_all();
             }
             _webRtcServerControllers.clear();
         }
@@ -281,6 +297,7 @@ namespace srv {
             std::lock_guard<std::mutex> lock(_routersMutex);
             for (const auto& item: _routerControllers) {
                 item->onWorkerClosed();
+                item->closeSignal.disconnect_all();
             }
             _routerControllers.clear();
         }
@@ -292,9 +309,18 @@ namespace srv {
     {
         SRV_LOGD("dump()");
         
-        auto data = _channel->request(FBS::Request::Method::WORKER_DUMP, "");
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = _channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_DUMP);
+        
+        auto respData = _channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -307,11 +333,20 @@ namespace srv {
     {
         SRV_LOGD("getResourceUsage()");
         
-        auto data = _channel->request(FBS::Request::Method::WORKER_GET_RESOURCE_USAGE, "");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_GET_RESOURCE_USAGE);
    
+        auto respData = _channel->request(reqId, reqData);
+        
         auto usage = std::make_shared<WorkerResourceUsage>();
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -341,17 +376,25 @@ namespace srv {
     {
         SRV_LOGD("updateSettings()");
         
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->getRequestId();
+        
         std::vector<::flatbuffers::Offset<::flatbuffers::String>> logTags_;
         for (const auto& item : logTags) {
-            logTags_.emplace_back(_channel->builder().CreateString(item));
+            logTags_.emplace_back(builder.CreateString(item));
         }
         
-        auto reqOffset = FBS::Worker::CreateUpdateSettingsRequestDirect(_channel->builder(), logLevel.c_str(), &logTags_);
+        auto reqOffset = FBS::Worker::CreateUpdateSettingsRequestDirect(builder, logLevel.c_str(), &logTags_);
         
-        _channel->request(FBS::Request::Method::WORKER_UPDATE_SETTINGS,
-                          FBS::Request::Body::Worker_UpdateSettingsRequest,
-                          reqOffset,
-                          "");
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_UPDATE_SETTINGS,
+                                                     FBS::Request::Body::Worker_UpdateSettingsRequest,
+                                                     reqOffset);
+        
+        _channel->request(reqId, reqData);
     }
 
     std::shared_ptr<IWebRtcServerController> WorkerController::createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData)
@@ -372,12 +415,16 @@ namespace srv {
             return webRtcServerController;
         }
         
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->getRequestId();
+        
         std::string webRtcServerId = uuid::uuidv4();
         
         std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> infos;
         
         for (auto& info : listenInfos) {
-            auto info_ = FBS::Transport::CreateListenInfoDirect(_channel->builder(),
+            auto info_ = FBS::Transport::CreateListenInfoDirect(builder,
                                                                 info.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                 info.ip.c_str(),
                                                                 info.announcedIp.c_str(),
@@ -388,12 +435,16 @@ namespace srv {
             infos.emplace_back(info_);
         }
         
-        auto reqOffset = FBS::Worker::CreateCreateWebRtcServerRequestDirect(_channel->builder(), webRtcServerId.c_str(), &infos);
+        auto reqOffset = FBS::Worker::CreateCreateWebRtcServerRequestDirect(builder, webRtcServerId.c_str(), &infos);
         
-        _channel->request(FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER,
-                          FBS::Request::Body::Worker_CreateWebRtcServerRequest,
-                          reqOffset,
-                          "");
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER,
+                                                     FBS::Request::Body::Worker_CreateWebRtcServerRequest,
+                                                     reqOffset);
+        
+        _channel->request(reqId, reqData);
 
         std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         WebRtcServerInternal internal { webRtcServerId };
@@ -423,10 +474,21 @@ namespace srv {
         RouterInternal internal;
         internal.routerId = uuid::uuidv4();
         
-        auto reqOffset = FBS::Worker::CreateCreateRouterRequestDirect(_channel->builder(), internal.routerId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->getRequestId();
+        
+        auto reqOffset = FBS::Worker::CreateCreateRouterRequestDirect(builder, internal.routerId.c_str());
 
-        _channel->request(FBS::Request::Method::WORKER_CREATE_ROUTER, FBS::Request::Body::Worker_CreateRouterRequest, reqOffset, "");
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_CREATE_ROUTER,
+                                                     FBS::Request::Body::Worker_CreateRouterRequest,
+                                                     reqOffset);
 
+        _channel->request(reqId, reqData);
+        
         RouterData data;
         data.rtpCapabilities = rtpCapabilities;
         
@@ -468,7 +530,8 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->notificationSignal.connect(&WorkerController::onChannel, shared_from_this());
+        
+        _channel->notificationSignal.connect(&WorkerController::onChannel, shared_from_this());
     }
 
     void WorkerController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)

@@ -52,7 +52,7 @@ namespace srv {
         Engine& operator=(Engine&&) = delete;
         
     private:
-        std::shared_ptr<IWorkerController> createWorkerController();
+        void createWorkerControllers();
 
     private:
         asio::static_thread_pool _threadPool {1};

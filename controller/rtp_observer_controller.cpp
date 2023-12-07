@@ -13,6 +13,7 @@
 #include "uuid.h"
 #include "channel.h"
 #include "FBS/rtpObserver.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -42,14 +43,23 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
     
-        auto reqOffset = FBS::Router::CreateCloseRtpObserverRequestDirect(channel->builder(), _internal.rtpObserverId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::ROUTER_CLOSE_RTPOBSERVER,
-                         FBS::Request::Body::Router_CloseRtpObserverRequest,
-                         reqOffset,
-                         _internal.routerId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqOffset = FBS::Router::CreateCloseRtpObserverRequestDirect(builder, _internal.rtpObserverId.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     FBS::Request::Method::ROUTER_CLOSE_RTPOBSERVER,
+                                                     FBS::Request::Body::Router_CloseRtpObserverRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
         
         this->closeSignal();
     }
@@ -69,6 +79,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
         this->routerCloseSignal();
@@ -87,8 +98,17 @@ namespace srv {
         
         bool wasPaused = _paused;
 
-        channel->request(FBS::Request::Method::RTPOBSERVER_PAUSE, _internal.rtpObserverId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_PAUSE);
 
+        channel->request(reqId, reqData);
+        
         _paused = true;
 
         // Emit observer event.
@@ -108,8 +128,17 @@ namespace srv {
         
         bool wasPaused = _paused;
 
-        channel->request(FBS::Request::Method::RTPOBSERVER_RESUME, _internal.rtpObserverId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_RESUME);
 
+        channel->request(reqId, reqData);
+        
         _paused = false;
 
         // Emit observer event.
@@ -143,12 +172,20 @@ namespace srv {
             return;
         }
 
-        auto reqOffset = FBS::RtpObserver::CreateAddProducerRequestDirect(channel->builder(), producerId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::RTPOBSERVER_ADD_PRODUCER,
-                         FBS::Request::Body::RtpObserver_AddProducerRequest,
-                         reqOffset,
-                         _internal.rtpObserverId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqOffset = FBS::RtpObserver::CreateAddProducerRequestDirect(builder, producerId.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_ADD_PRODUCER,
+                                                     FBS::Request::Body::RtpObserver_AddProducerRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
         
         this->addProducerSignal(producer);
     }
@@ -178,12 +215,20 @@ namespace srv {
             return;
         }
 
-        auto reqOffset = FBS::RtpObserver::CreateRemoveProducerRequestDirect(channel->builder(), producerId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::RTPOBSERVER_REMOVE_PRODUCER,
-                         FBS::Request::Body::RtpObserver_RemoveProducerRequest,
-                         reqOffset,
-                         _internal.rtpObserverId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqOffset = FBS::RtpObserver::CreateRemoveProducerRequestDirect(builder, producerId.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_REMOVE_PRODUCER,
+                                                     FBS::Request::Body::RtpObserver_RemoveProducerRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
         
         this->removeProducerSignal(producer);
     }

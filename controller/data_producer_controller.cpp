@@ -10,6 +10,7 @@
 #include "data_producer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -52,7 +53,13 @@ namespace srv {
             return;
         }
         
-        channel->request(FBS::Request::Method::DATAPRODUCER_PAUSE, _internal.dataProducerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataProducerId, FBS::Request::Method::DATAPRODUCER_PAUSE);
+        
+        channel->request(reqId, reqData);
         
         bool wasPaused = _paused;
 
@@ -73,7 +80,13 @@ namespace srv {
             return;
         }
         
-        channel->request(FBS::Request::Method::DATAPRODUCER_RESUME, _internal.dataProducerId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataProducerId, FBS::Request::Method::DATAPRODUCER_RESUME);
+        
+        channel->request(reqId, reqData);
         
         bool wasPaused = _paused;
 
@@ -100,14 +113,23 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
      
-        auto reqOffset = FBS::Transport::CreateCloseDataProducerRequestDirect(channel->builder(), _internal.dataProducerId.c_str());
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request(FBS::Request::Method::TRANSPORT_CLOSE_DATAPRODUCER,
-                         FBS::Request::Body::Transport_CloseDataProducerRequest,
-                         reqOffset,
-                         _internal.transportId);
+        auto reqOffset = FBS::Transport::CreateCloseDataProducerRequestDirect(builder, _internal.dataProducerId.c_str());
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_CLOSE_DATAPRODUCER,
+                                                     FBS::Request::Body::Transport_CloseDataProducerRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
         
         this->closeSignal();
     }
@@ -127,6 +149,7 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
         
         this->transportCloseSignal();
@@ -143,9 +166,15 @@ namespace srv {
             return nullptr;
         }
         
-        auto data = channel->request(FBS::Request::Method::DATAPRODUCER_DUMP, _internal.dataProducerId);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataProducerId, FBS::Request::Method::DATAPRODUCER_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -165,9 +194,15 @@ namespace srv {
         
         std::vector<std::shared_ptr<DataProducerStat>> result;
         
-        auto data = channel->request(FBS::Request::Method::DATAPRODUCER_GET_STATS, _internal.dataProducerId);
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto message = FBS::Message::GetMessage(data.data());
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataProducerId, FBS::Request::Method::DATAPRODUCER_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
         
         auto response = message->data_as_Response();
         
@@ -204,12 +239,17 @@ namespace srv {
 
         uint32_t ppid = !isBinary ? (data.size() > 0 ? 51 : 56) : (data.size() > 0 ? 53 : 57);
 
-        auto nfOffset = FBS::DataProducer::CreateSendNotificationDirect(channel->builder(), ppid, &data, &subchannels, requiredSubchannel);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto nfOffset = FBS::DataProducer::CreateSendNotificationDirect(builder, ppid, &data, &subchannels, requiredSubchannel);
 
-        channel->notify(FBS::Notification::Event::DATAPRODUCER_SEND,
-                        FBS::Notification::Body::DataProducer_SendNotification,
-                        nfOffset,
-                        _internal.dataProducerId);
+        auto nfData = MessageBuilder::createNotification(builder,
+                                                       _internal.dataProducerId,
+                                                       FBS::Notification::Event::DATAPRODUCER_SEND,
+                                                       FBS::Notification::Body::DataProducer_SendNotification,
+                                                       nfOffset);
+        
+        channel->notify(nfData);
     }
 
     void DataProducerController::handleWorkerNotifications()

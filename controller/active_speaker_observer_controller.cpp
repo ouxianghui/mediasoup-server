@@ -10,6 +10,7 @@
 #include "active_speaker_observer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
+#include "FBS/message.h"
 
 namespace srv {
 

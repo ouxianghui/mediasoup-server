@@ -157,7 +157,15 @@ void Room::removePeer(const std::string& peerId)
     auto peer = _peerMap.find(peerId);
     
     if (peer != _peerMap.end()) {
+        peer->second->requestSignal.disconnect_all();
+        peer->second->notificationSignal.disconnect_all();
+        peer->second->closeSignal.disconnect_all();
         _peerMap.erase(peerId);
+    }
+    
+    if (_peerMap.empty()) {
+        SRV_LOGI("last Peer in the room left, closing the room [roomId: %s]", _id.c_str());
+        close();
     }
 }
 
@@ -184,6 +192,13 @@ void Room::close()
 
     _closed = true;
 
+    auto audioLevelObserverController = std::dynamic_pointer_cast<srv::AudioLevelObserverController>(_audioLevelObserverController);
+    audioLevelObserverController->volumesSignal.disconnect_all();
+    audioLevelObserverController->silenceSignal.disconnect_all();
+    
+    auto activeSpeakerObserverController = std::dynamic_pointer_cast<srv::ActiveSpeakerObserverController>(_activeSpeakerObserverController);
+    activeSpeakerObserverController->dominantSpeakerSignal.disconnect_all();
+    
     // Close the mediasoup Router.
     _routerController->close();
     
@@ -218,10 +233,6 @@ void Room::onPeerClose(const std::string& peerId)
             for (const auto& controller : peer->second->data()->transportControllers) {
                 controller.second->close();
             }
-        }
-        if (_peerMap.empty()) {
-            SRV_LOGI("last Peer in the room left, closing the room [roomId: %s]", _id.c_str());
-            close();
         }
     }
 }
@@ -748,7 +759,7 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
     
     // single port multiplexing
     if (MSConfig->params()->mediasoup.useWebRtcServer) {
-        webRtcTransportOptions->webRtcServer = MSEngine->getWorkerController()->webRtcServerController();
+        webRtcTransportOptions->webRtcServer = _webRtcServerController;
     }
     
     auto transportController = _routerController->createWebRtcTransportController(webRtcTransportOptions);

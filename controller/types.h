@@ -66,9 +66,10 @@ namespace srv {
         using CloseFn = std::function<void()>;
         
     public:
-        Callback(uint32_t id_, FBS::Request::Method method, const ResolveFn& resolve, const RejectFn& reject, const CloseFn& close, const TimeoutFn& timeout)
+        //Callback(uint32_t id_, FBS::Request::Method method, const ResolveFn& resolve, const RejectFn& reject, const CloseFn& close, const TimeoutFn& timeout)
+        Callback(uint32_t id_, const ResolveFn& resolve, const RejectFn& reject, const CloseFn& close, const TimeoutFn& timeout)
         : _id(id_)
-        , _method(method)
+        //, _method(method)
         , _resolve(resolve)
         , _reject(reject)
         , _close(close)

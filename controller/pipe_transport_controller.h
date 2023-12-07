@@ -139,7 +139,7 @@ namespace srv {
     
         std::shared_ptr<BaseTransportStats> getStats() override;
         
-        void connect(const std::shared_ptr<ConnectParams>& data) override;
+        void connect(const std::shared_ptr<ConnectParams>& params) override;
         
         std::shared_ptr<IConsumerController> consume(const std::shared_ptr<ConsumerOptions>& options) override;
         

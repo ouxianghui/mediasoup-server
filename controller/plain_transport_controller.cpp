@@ -12,6 +12,7 @@
 #include "types.h"
 #include "uuid.h"
 #include "channel.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -72,7 +73,13 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_DUMP, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -92,7 +99,13 @@ namespace srv {
             return nullptr;
         }
         
-        auto respData = channel->request(FBS::Request::Method::TRANSPORT_GET_STATS, _internal.transportId);
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         
@@ -103,25 +116,31 @@ namespace srv {
         return parseGetStatsResponse(getStatsResponse);
     }
 
-    void PlainTransportController::connect(const std::shared_ptr<ConnectParams>& reqData)
+    void PlainTransportController::connect(const std::shared_ptr<ConnectParams>& params)
     {
         SRV_LOGD("connect()");
         
-        assert(reqData);
+        assert(params);
 
         auto channel = _channel.lock();
         if (!channel) {
             return;
         }
         
-        auto reqOffset = FBS::PlainTransport::CreateConnectRequestDirect(channel->builder(),
-                                                                         reqData->ip.c_str(),
-                                                                         reqData->port,
-                                                                         reqData->rtcpPort,
-                                                                         reqData->srtpParameters.serialize(channel->builder())
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqOffset = FBS::PlainTransport::CreateConnectRequestDirect(builder,
+                                                                         params->ip.c_str(),
+                                                                         params->port,
+                                                                         params->rtcpPort,
+                                                                         params->srtpParameters.serialize(builder)
                                                                          );
         
-        auto respData = channel->request(FBS::Request::Method::PLAINTRANSPORT_CONNECT, FBS::Request::Body::PlainTransport_ConnectRequest, reqOffset, _internal.transportId);
+        auto reqId = channel->getRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::PLAINTRANSPORT_CONNECT, FBS::Request::Body::PlainTransport_ConnectRequest, reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
         
         auto message = FBS::Message::GetMessage(respData.data());
         

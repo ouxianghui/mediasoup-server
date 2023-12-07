@@ -79,6 +79,7 @@ namespace srv {
     uint32_t Channel::getRequestId()
     {
         _nextId < std::numeric_limits<uint32_t>::max() ? ++_nextId : (_nextId = 1);
+        return _nextId;
     }
 
     void Channel::close()

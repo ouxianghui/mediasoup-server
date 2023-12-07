@@ -21,7 +21,6 @@ namespace srv {
     using namespace std::chrono_literals;
 
     static const int32_t MESSAGE_MAX_LEN = 4194308;
-    static const int32_t PAYLOAD_MAX_LEN = 4194304; // 4MB
 
     void Channel::channelReadFree(uint8_t* message, uint32_t messageLen, size_t messageCtx)
     {

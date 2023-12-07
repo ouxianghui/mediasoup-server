@@ -16,7 +16,7 @@ namespace srv {
     std::vector<uint8_t> MessageBuilder::createNotification(flatbuffers::FlatBufferBuilder& builder, const std::string& handlerId, FBS::Notification::Event event)
     {
         flatbuffers::Offset<void> bodyOffset;
-        createNotification(builder, handlerId, event, FBS::Notification::Body::NONE, bodyOffset);
+        return createNotification(builder, handlerId, event, FBS::Notification::Body::NONE, bodyOffset);
     }
 
     std::vector<uint8_t> MessageBuilder::createRequest(flatbuffers::FlatBufferBuilder& builder, uint32_t requestId, const std::string& handlerId, FBS::Request::Method method)

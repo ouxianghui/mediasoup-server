@@ -1,7 +1,11 @@
-/**
- * NOTE: This code cannot log to the Channel since this is the base code of the
- * Channel.
- */
+/************************************************************************
+* @Copyright: 2023-2024
+* @FileName:
+* @Description: Open source mediasoup C++ controller library
+* @Version: 1.0.0
+* @Author: Jackie Ou
+* @CreateTime: 2023-10-30
+*************************************************************************/
 
 #define SRV_CLASS "srv::UnixStreamSocketHandle"
 // #define SRV_LOG_DEV_LEVEL 3
@@ -338,7 +342,7 @@ namespace srv
         }
         // Some error.
         else {
-            SRV_ERROR_STD("read error, closing the pipe: %s", uv_strerror(nread));
+            SRV_ERROR_STD("read error, closing the pipe: %s", uv_strerror((int)nread));
             
             this->hasError = true;
             

@@ -149,7 +149,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqOffset = FBS::Worker::CreateCloseRouterRequestDirect(builder, _internal.routerId.c_str());
         
@@ -191,7 +191,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.routerId, FBS::Request::Method::ROUTER_DUMP);
         
@@ -305,7 +305,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         flatbuffers::Offset<void> listenOffset;
         
@@ -472,7 +472,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(builder, numSctpStreams.OS, numSctpStreams.MIS);
         bool isDataChannel = false;
@@ -597,7 +597,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto baseTransportOptionsOffset = FBS::Transport::CreateOptions(builder, true, maxMessageSize);
         
@@ -700,7 +700,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(builder, numSctpStreams.OS, numSctpStreams.MIS);
         bool isDataChannel = false;
@@ -807,7 +807,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto activeRtpObserverOptionsOffset = FBS::ActiveSpeakerObserver::CreateActiveSpeakerObserverOptions(builder, interval);
         
@@ -890,7 +890,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto audioLevelObserverOptionsOffset = FBS::AudioLevelObserver::CreateAudioLevelObserverOptions(builder, maxEntries, threshold, interval);
         

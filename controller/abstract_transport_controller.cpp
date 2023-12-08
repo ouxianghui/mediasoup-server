@@ -64,7 +64,7 @@ namespace srv {
         
         auto reqOffset = FBS::Router::CreateCloseTransportRequestDirect(builder, _internal.transportId.c_str());
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.routerId, FBS::Request::Method::ROUTER_CLOSE_TRANSPORT, FBS::Request::Body::Router_CloseTransportRequest, reqOffset);
         
@@ -199,7 +199,7 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateSetMaxIncomingBitrateRequest(builder, bitrate);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -224,7 +224,7 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateSetMaxOutgoingBitrateRequest(builder, bitrate);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -249,7 +249,7 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateSetMinOutgoingBitrateRequest(builder, bitrate);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -280,7 +280,7 @@ namespace srv {
             
         auto reqOffset = FBS::Transport::CreateEnableTraceEventRequestDirect(builder, &events);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
             
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -381,7 +381,7 @@ namespace srv {
             
         auto reqOffset = createProduceRequest(builder, producerId, kind, rtpParameters, rtpMappingFbs, keyFrameRequestDelay, paused);
 
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
             
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -507,7 +507,7 @@ namespace srv {
             
         auto reqOffset = createConsumeRequest(builder, producerController, consumerId, rtpParameters, paused, preferredLayers, ignoreDtx, pipe);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
             
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -633,7 +633,7 @@ namespace srv {
             
         auto reqOffset = createProduceDataRequest(builder, dataProducerId, type, sctpStreamParameters, label, protocol, paused);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
             
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -766,7 +766,7 @@ namespace srv {
             
         auto reqOffset = createConsumeDataRequest(builder, dataConsumerId, dataProducerId, type, sctpStreamParameters, label, protocol, paused, subchannels);
 
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
             
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,

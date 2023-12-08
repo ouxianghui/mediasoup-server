@@ -67,7 +67,7 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateCloseProducerRequestDirect(builder, _internal.producerId.c_str());
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -115,7 +115,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.producerId, FBS::Request::Method::PRODUCER_DUMP);
         
@@ -139,7 +139,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.producerId, FBS::Request::Method::PRODUCER_GET_STATS);
         
@@ -163,7 +163,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.producerId, FBS::Request::Method::PRODUCER_PAUSE);
         
@@ -190,7 +190,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.producerId, FBS::Request::Method::PRODUCER_RESUME);
         
@@ -225,7 +225,7 @@ namespace srv {
         
         auto reqOffset = FBS::Producer::CreateEnableTraceEventRequestDirect(builder, &eventTypes);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId, 

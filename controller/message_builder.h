@@ -29,18 +29,31 @@ namespace srv {
         static std::vector<uint8_t> createNotification(flatbuffers::FlatBufferBuilder& builder, const std::string& handlerId, FBS::Notification::Event event);
         
         template<typename T>
-        static std::vector<uint8_t> createNotification(flatbuffers::FlatBufferBuilder& builder, const std::string& handlerId, FBS::Notification::Event event, FBS::Notification::Body bodyType, flatbuffers::Offset<T>& bodyOffset);
+        static std::vector<uint8_t> createNotification(flatbuffers::FlatBufferBuilder& builder,
+                                                       const std::string& handlerId,
+                                                       FBS::Notification::Event event,
+                                                       FBS::Notification::Body bodyType,
+                                                       flatbuffers::Offset<T>& bodyOffset);
         
         static std::vector<uint8_t> createRequest(flatbuffers::FlatBufferBuilder& builder, uint32_t requestId, const std::string& handlerId, FBS::Request::Method method);
         
         template<typename T>
-        static std::vector<uint8_t> createRequest(flatbuffers::FlatBufferBuilder& builder, uint32_t requestId, const std::string& handlerId, FBS::Request::Method method, FBS::Request::Body bodyType, flatbuffers::Offset<T>& bodyOffset);
+        static std::vector<uint8_t> createRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                  uint32_t requestId,
+                                                  const std::string& handlerId,
+                                                  FBS::Request::Method method,
+                                                  FBS::Request::Body bodyType,
+                                                  flatbuffers::Offset<T>& bodyOffset);
         
         static std::atomic_bool hasSizePrefix;
     };
 
     template<typename T>
-    std::vector<uint8_t> MessageBuilder::createNotification(flatbuffers::FlatBufferBuilder& builder, const std::string& handlerId, FBS::Notification::Event event, FBS::Notification::Body bodyType, flatbuffers::Offset<T>& bodyOffset)
+    std::vector<uint8_t> MessageBuilder::createNotification(flatbuffers::FlatBufferBuilder& builder, 
+                                                            const std::string& handlerId,
+                                                            FBS::Notification::Event event,
+                                                            FBS::Notification::Body bodyType,
+                                                            flatbuffers::Offset<T>& bodyOffset)
     {
         SRV_LOGD("createNotification() [event:%u]", (uint8_t)event);
         
@@ -70,7 +83,12 @@ namespace srv {
     }
 
     template<typename T>
-    std::vector<uint8_t> MessageBuilder::createRequest(flatbuffers::FlatBufferBuilder& builder, uint32_t requestId, const std::string& handlerId, FBS::Request::Method method, FBS::Request::Body bodyType, flatbuffers::Offset<T>& bodyOffset)
+    std::vector<uint8_t> MessageBuilder::createRequest(flatbuffers::FlatBufferBuilder& builder, 
+                                                       uint32_t requestId,
+                                                       const std::string& handlerId,
+                                                       FBS::Request::Method method,
+                                                       FBS::Request::Body bodyType,
+                                                       flatbuffers::Offset<T>& bodyOffset)
     {
         SRV_LOGD("createRequest() [method:%d, id:%u]", (uint8_t)method, requestId);
             

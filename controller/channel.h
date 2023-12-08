@@ -43,7 +43,7 @@ namespace srv {
         
         ~Channel();
         
-        uint32_t getRequestId();
+        uint32_t genRequestId();
         
         void notify(const std::vector<uint8_t>& data);
         

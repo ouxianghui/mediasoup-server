@@ -311,7 +311,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = _channel->getRequestId();
+        auto reqId = _channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -335,7 +335,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = _channel->getRequestId();
+        auto reqId = _channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -378,7 +378,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = _channel->getRequestId();
+        auto reqId = _channel->genRequestId();
         
         std::vector<::flatbuffers::Offset<::flatbuffers::String>> logTags_;
         for (const auto& item : logTags) {
@@ -417,7 +417,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = _channel->getRequestId();
+        auto reqId = _channel->genRequestId();
         
         std::string webRtcServerId = uuid::uuidv4();
         
@@ -476,7 +476,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = _channel->getRequestId();
+        auto reqId = _channel->genRequestId();
         
         auto reqOffset = FBS::Worker::CreateCreateRouterRequestDirect(builder, internal.routerId.c_str());
 

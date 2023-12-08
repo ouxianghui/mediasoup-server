@@ -100,7 +100,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -129,7 +129,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -163,7 +163,7 @@ namespace srv {
     
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqOffset = createConnectRequest(builder, params->dtlsParameters);
         
@@ -196,7 +196,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,

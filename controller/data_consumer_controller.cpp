@@ -71,7 +71,7 @@ namespace srv {
         
         auto reqOffset = FBS::Transport::CreateCloseDataConsumerRequestDirect(builder, _internal.dataConsumerId.c_str());
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -119,7 +119,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_DUMP);
         
@@ -146,7 +146,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_GET_STATS);
         
@@ -172,7 +172,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_PAUSE);
         
@@ -199,7 +199,7 @@ namespace srv {
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_RESUME);
         
@@ -228,7 +228,7 @@ namespace srv {
         
         auto reqOffset = FBS::DataConsumer::CreateSetBufferedAmountLowThresholdRequest(builder, threshold);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -253,7 +253,7 @@ namespace srv {
         
         auto reqOffset = FBS::DataConsumer::CreateSetSubchannelsRequestDirect(builder, &subchannels);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -311,7 +311,7 @@ namespace srv {
         
         auto reqOffset = FBS::DataConsumer::CreateSendRequestDirect(builder, ppid, &data);
 
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -334,7 +334,7 @@ namespace srv {
            
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_GET_BUFFERED_AMOUNT);
         

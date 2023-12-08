@@ -123,7 +123,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         auto reqOffset = FBS::Transport::CreateCloseConsumerRequestDirect(builder, _internal.consumerId.c_str());
 
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_CLOSE_CONSUMER, FBS::Request::Body::Transport_CloseConsumerRequest, reqOffset);
         
@@ -166,7 +166,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_DUMP);
         
@@ -192,7 +192,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_GET_STATS);
         
@@ -218,7 +218,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_PAUSE);
         
@@ -245,7 +245,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_RESUME);
         
@@ -276,7 +276,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         auto bodyOffset = FBS::Consumer::CreateSetPreferredLayersRequest(builder, preferredLayersOffset);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_SET_PREFERRED_LAYERS, FBS::Request::Body::Consumer_SetPreferredLayersRequest, bodyOffset);
         
@@ -311,7 +311,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         auto reqOffset = FBS::Consumer::CreateSetPriorityRequest(builder, priority);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_SET_PRIORITY, FBS::Request::Body::Consumer_SetPriorityRequest, reqOffset);
         
@@ -349,7 +349,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_REQUEST_KEY_FRAME);
         
@@ -375,7 +375,7 @@ ConsumerController::ConsumerController(const ConsumerInternal& internal,
         
         auto reqOffset = FBS::Consumer::CreateEnableTraceEventRequestDirect(builder, &events);
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.consumerId, FBS::Request::Method::CONSUMER_ENABLE_TRACE_EVENT, FBS::Request::Body::Consumer_EnableTraceEventRequest, reqOffset);
         

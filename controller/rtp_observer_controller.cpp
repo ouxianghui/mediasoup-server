@@ -48,7 +48,7 @@ namespace srv {
     
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqOffset = FBS::Router::CreateCloseRtpObserverRequestDirect(builder, _internal.rtpObserverId.c_str());
         
@@ -100,7 +100,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -130,7 +130,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqData = MessageBuilder::createRequest(builder,
                                                      reqId,
@@ -174,7 +174,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqOffset = FBS::RtpObserver::CreateAddProducerRequestDirect(builder, producerId.c_str());
         
@@ -217,7 +217,7 @@ namespace srv {
 
         flatbuffers::FlatBufferBuilder builder;
         
-        auto reqId = channel->getRequestId();
+        auto reqId = channel->genRequestId();
         
         auto reqOffset = FBS::RtpObserver::CreateRemoveProducerRequestDirect(builder, producerId.c_str());
         

@@ -75,7 +75,7 @@ namespace srv {
         clean();
     }
 
-    uint32_t Channel::getRequestId()
+    uint32_t Channel::genRequestId()
     {
         _nextId < std::numeric_limits<uint32_t>::max() ? ++_nextId : (_nextId = 1);
         return _nextId;

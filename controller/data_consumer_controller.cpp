@@ -473,7 +473,11 @@ namespace srv {
         
         dump->dataProducerId = data->dataProducerId()->str();
         dump->type = dataConsumerTypeFromFbs(data->type());
-        dump->sctpStreamParameters = *parseSctpStreamParameters(data->sctpStreamParameters());
+        
+        if (auto params = data->sctpStreamParameters()) {
+            dump->sctpStreamParameters = *parseSctpStreamParameters(params);
+        }
+        
         dump->label = data->label()->str();
         dump->protocol = data->protocol()->str();
         dump->bufferedAmountLowThreshold = data->bufferedAmountLowThreshold();

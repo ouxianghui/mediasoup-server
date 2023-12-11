@@ -321,7 +321,10 @@ namespace srv {
         
         dump->tuple = *parseTuple(binary->tuple());
         dump->rtx = binary->rtx();
-        dump->srtpParameters = *parseSrtpParameters(binary->srtpParameters());
+        
+        if (auto params = binary->srtpParameters()) {
+            dump->srtpParameters = *parseSrtpParameters(params);
+        }
         
         return dump;
     }

@@ -280,8 +280,10 @@ namespace srv {
             rtpParameters->encodings.emplace_back(parameters);
         }
 
-        rtpParameters->rtcp.cname = data->rtcp()->cname()->str();
-        rtpParameters->rtcp.reducedSize = data->rtcp()->reducedSize();
+        if (auto rtcp = data->rtcp()) {
+            rtpParameters->rtcp.cname = rtcp->cname()->str();
+            rtpParameters->rtcp.reducedSize = rtcp->reducedSize();
+        }
         
         return rtpParameters;
     }

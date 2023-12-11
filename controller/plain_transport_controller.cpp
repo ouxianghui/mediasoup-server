@@ -237,9 +237,15 @@ namespace srv
         
         dump->rtcpMux = binary->rtcpMux();
         dump->comedia = binary->comedia();
-        dump->tuple = *parseTuple(binary->tuple());
+        
+        if (auto tuple = binary->tuple()) {
+            dump->tuple = *parseTuple(tuple);
+        }
         dump->rtcpTuple = *parseTuple(binary->rtcpTuple());
-        dump->srtpParameters = *parseSrtpParameters(binary->srtpParameters());
+        
+        if (auto params = binary->srtpParameters()) {
+            dump->srtpParameters = *parseSrtpParameters(params);
+        }
         
         return dump;
     }

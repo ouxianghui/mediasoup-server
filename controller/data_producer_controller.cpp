@@ -292,7 +292,9 @@ namespace srv {
         auto dump = std::make_shared<DataProducerDump>();
         
         dump->type = dataProducerTypeFromFbs(data->type());
-        dump->sctpStreamParameters = *parseSctpStreamParameters(data->sctpStreamParameters());
+        if (auto params = data->sctpStreamParameters()) {
+            dump->sctpStreamParameters = *parseSctpStreamParameters(params);
+        }
         dump->label = data->label()->str();
         dump->protocol = data->protocol()->str();
         dump->id = data->id()->str();

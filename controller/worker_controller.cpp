@@ -212,7 +212,7 @@ namespace srv {
                     SRV_LOGE("worker process failed due to wrong settings [pid:%d]", process->pid);
                 }
                 else {
-                    SRV_LOGE("worker process failed unexpectedly [pid:%d, code:%lld, signal:%d]", process->pid, exit_status, term_signal);
+                    SRV_LOGE("worker process failed unexpectedly [pid:%d, code:%ld, signal:%d]", process->pid, exit_status, term_signal);
                 }
                 
                 if (auto workerController = static_cast<WorkerController*>(process->data)) {

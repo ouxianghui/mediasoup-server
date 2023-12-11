@@ -19,7 +19,9 @@ message(STATUS "CMAKE_INSTALL_PREFIX : " ${CMAKE_INSTALL_PREFIX})
 
 message("")
 
-add_definitions(-DMS_LIBURING_SUPPORTED)
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    add_definitions(-DMS_LIBURING_SUPPORTED)
+ENDIF()
 
 # C++ standard requirements.
 set(CMAKE_CXX_STANDARD 17)

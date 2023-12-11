@@ -19,6 +19,8 @@ message(STATUS "CMAKE_INSTALL_PREFIX : " ${CMAKE_INSTALL_PREFIX})
 
 message("")
 
+add_definitions(-DMS_LIBURING_SUPPORTED)
+
 # C++ standard requirements.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,6 +32,7 @@ set(mediasoup_worker_headers
 "include/Channel/ChannelSocket.hpp"
 "include/ChannelMessageRegistrator.hpp"
 "include/DepLibSRTP.hpp"
+"include/DepLibUring.hpp"
 "include/DepLibUV.hpp"
 "include/DepLibWebRTC.hpp"
 "include/DepOpenSSL.hpp"
@@ -142,6 +145,7 @@ set(mediasoup_worker_sources
 "src/lib.cpp"
 "src/DepLibSRTP.cpp"
 "src/DepLibUV.cpp"
+"src/DepLibUring.cpp"
 "src/DepLibWebRTC.cpp"
 "src/DepOpenSSL.cpp"
 "src/DepUsrSCTP.cpp"

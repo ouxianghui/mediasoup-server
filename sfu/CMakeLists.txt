@@ -107,6 +107,7 @@ target_link_libraries(${PROJECT_NAME}
     libwebrtc.a
     libworker.a
     libcontroller.a
+    ${PROJECT_LIB_DIR}/liburing.a
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a
@@ -136,6 +137,7 @@ target_link_libraries(${PROJECT_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libwebrtc.a
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libcontroller.a
+    ${PROJECT_LIB_DIR}/liburing.a
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a
@@ -154,6 +156,8 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
     ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
+    ${PROJECT_LIB_DIR}/libabsl_raw_logging_internal.a
+    ${PROJECT_LIB_DIR}/libabsl_string_view.a
     # ${PROJECT_LIB_DIR}/libsdptransform.a
     dl
     -Wl,--end-group

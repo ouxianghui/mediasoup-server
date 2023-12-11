@@ -5,13 +5,14 @@ cd script
   #./buildsigslot.sh
   #./buildconcurrentqueue.sh
   #./buildopenssl.sh
-  ./buildjson.sh
+  #./buildjson.sh
   #./buildcatch.sh
-  #./buildoatpp.sh
-  #./buildoatppwebsocket.sh
-  #./buildoatppopenssl.sh
-  #./builduv.sh
-  #./buildsrtp.sh
+  ./buildoatpp.sh
+  ./buildliburing.sh
+  ./buildoatppwebsocket.sh
+  ./buildoatppopenssl.sh
+  ./builduv.sh
+  ./buildsrtp.sh
   #./buildusrsctp.sh
   #./buildflatbuffers.sh
   #./buildwebrtc.sh

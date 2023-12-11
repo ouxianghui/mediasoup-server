@@ -124,6 +124,15 @@ namespace srv {
             std::vector<std::string> channelNotificationHandlers;
         };
         ChannelMessageHandlers channelMessageHandlers;
+        
+        struct LibUring
+        {
+            uint64_t sqeProcessCount;
+            uint64_t sqeMissCount;
+            uint64_t userDataMissCount;
+        };
+        
+        std::shared_ptr<LibUring> liburing;
     };
 
     class IWebRtcServerController;

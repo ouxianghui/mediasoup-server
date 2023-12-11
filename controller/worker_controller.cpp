@@ -579,6 +579,13 @@ namespace srv
             workerDump->channelMessageHandlers.channelNotificationHandlers.emplace_back(item->str());
         }
         
+        if (auto liburing = response->liburing()) {
+            workerDump->liburing = std::make_shared<WorkerDump::LibUring>();
+            workerDump->liburing->sqeMissCount = liburing->sqeMissCount();
+            workerDump->liburing->sqeProcessCount = liburing->sqeProcessCount();
+            workerDump->liburing->userDataMissCount = liburing->userDataMissCount();
+        }
+        
         return workerDump;
     }
 

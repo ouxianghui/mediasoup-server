@@ -32,11 +32,6 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if defined(__FreeBSD__) && !defined(__Userspace__)
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-#endif
-
 #ifndef _NETINET_SCTP_VAR_H_
 #define _NETINET_SCTP_VAR_H_
 
@@ -45,7 +40,11 @@ __FBSDID("$FreeBSD$");
 #if defined(_KERNEL) || defined(__Userspace__)
 
 #if !defined(__Userspace__)
+#if defined(__FreeBSD__)
+extern struct protosw sctp_seqpacket_protosw, sctp_stream_protosw;
+#else
 extern struct pr_usrreqs sctp_usrreqs;
+#endif
 #endif
 
 #define sctp_feature_on(inp, feature)  (inp->sctp_features |= feature)
@@ -89,7 +88,7 @@ extern struct pr_usrreqs sctp_usrreqs;
 
 #define	sctp_sbspace(asoc, sb) ((long) ((sctp_maxspace(sb) > (asoc)->sb_cc) ? (sctp_maxspace(sb) - (asoc)->sb_cc) : 0))
 
-#define	sctp_sbspace_failedmsgs(sb) ((long) ((sctp_maxspace(sb) > (sb)->sb_cc) ? (sctp_maxspace(sb) - (sb)->sb_cc) : 0))
+#define	sctp_sbspace_failedmsgs(sb) ((long) ((sctp_maxspace(sb) > SCTP_SBAVAIL(sb)) ? (sctp_maxspace(sb) - SCTP_SBAVAIL(sb)) : 0))
 
 #define sctp_sbspace_sub(a,b) (((a) > (b)) ? ((a) - (b)) : 0)
 
@@ -203,7 +202,7 @@ extern struct pr_usrreqs sctp_usrreqs;
 }
 
 #define sctp_sbfree(ctl, stcb, sb, m) { \
-	SCTP_SAVE_ATOMIC_DECREMENT(&(sb)->sb_cc, SCTP_BUF_LEN((m))); \
+	SCTP_SB_DECR(sb, SCTP_BUF_LEN((m))); \
 	SCTP_SAVE_ATOMIC_DECREMENT(&(sb)->sb_mbcnt, MSIZE); \
 	if (((ctl)->do_not_ref_stcb == 0) && stcb) {\
 		SCTP_SAVE_ATOMIC_DECREMENT(&(stcb)->asoc.sb_cc, SCTP_BUF_LEN((m))); \
@@ -215,7 +214,7 @@ extern struct pr_usrreqs sctp_usrreqs;
 }
 
 #define sctp_sballoc(stcb, sb, m) { \
-	atomic_add_int(&(sb)->sb_cc,SCTP_BUF_LEN((m))); \
+	SCTP_SB_INCR(sb, SCTP_BUF_LEN((m))); \
 	atomic_add_int(&(sb)->sb_mbcnt, MSIZE); \
 	if (stcb) { \
 		atomic_add_int(&(stcb)->asoc.sb_cc, SCTP_BUF_LEN((m))); \
@@ -246,7 +245,7 @@ extern struct pr_usrreqs sctp_usrreqs;
 }
 
 #define sctp_sbfree(ctl, stcb, sb, m) { \
-	SCTP_SAVE_ATOMIC_DECREMENT(&(sb)->sb_cc, SCTP_BUF_LEN((m))); \
+	SCTP_SB_DECR(sb, SCTP_BUF_LEN((m))); \
 	SCTP_SAVE_ATOMIC_DECREMENT(&(sb)->sb_mbcnt, MSIZE); \
 	if (((ctl)->do_not_ref_stcb == 0) && stcb) { \
 		SCTP_SAVE_ATOMIC_DECREMENT(&(stcb)->asoc.sb_cc, SCTP_BUF_LEN((m))); \
@@ -255,7 +254,7 @@ extern struct pr_usrreqs sctp_usrreqs;
 }
 
 #define sctp_sballoc(stcb, sb, m) { \
-	atomic_add_int(&(sb)->sb_cc, SCTP_BUF_LEN((m))); \
+	SCTP_SB_INCR(sb, SCTP_BUF_LEN((m))); \
 	atomic_add_int(&(sb)->sb_mbcnt, MSIZE); \
 	if (stcb) { \
 		atomic_add_int(&(stcb)->asoc.sb_cc, SCTP_BUF_LEN((m))); \
@@ -368,10 +367,17 @@ void sctp_close(struct socket *so);
 #else
 int sctp_detach(struct socket *so);
 #endif
+#if defined(__FreeBSD__) && !defined(__Userspace__)
+void sctp_abort(struct socket *so);
+#else
+int sctp_abort(struct socket *so);
+#endif
 int sctp_disconnect(struct socket *so);
 #if !defined(__Userspace__)
 #if defined(__APPLE__) && !defined(APPLE_LEOPARD) && !defined(APPLE_SNOWLEOPARD) && !defined(APPLE_LION) && !defined(APPLE_MOUNTAINLION) && !defined(APPLE_ELCAPITAN)
 void sctp_ctlinput(int, struct sockaddr *, void *, struct ifnet * SCTP_UNUSED);
+#elif defined(__FreeBSD__)
+ipproto_ctlinput_t sctp_ctlinput;
 #else
 void sctp_ctlinput(int, struct sockaddr *, void *);
 #endif
@@ -394,7 +400,9 @@ void sctp_input(struct mbuf *,...);
 void *sctp_ctlinput(int, struct sockaddr *, void *);
 int sctp_ctloutput(int, struct socket *, int, int, struct mbuf **);
 #endif
+#if !(defined(__FreeBSD__) && !defined(__Userspace__))
 void sctp_drain(void);
+#endif
 #if defined(__Userspace__)
 void sctp_init(uint16_t,
                int (*)(void *addr, void *buffer, size_t length, uint8_t tos, uint8_t set_df),

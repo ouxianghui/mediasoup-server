@@ -45,7 +45,10 @@ namespace srv {
                                                   FBS::Request::Body bodyType,
                                                   flatbuffers::Offset<T>& bodyOffset);
         
-        static std::atomic_bool hasSizePrefix;
+        static void setSizePrefix(bool hasSizePrefix) { _hasSizePrefix = hasSizePrefix; }
+        
+    private:
+        static std::atomic_bool _hasSizePrefix;
     };
 
     template<typename T>
@@ -63,7 +66,7 @@ namespace srv {
         
         std::vector<uint8_t> buffer;
         
-        if (hasSizePrefix) {
+        if (_hasSizePrefix) {
             builder.FinishSizePrefixed(msgOffset);
         }
         else {
@@ -98,7 +101,7 @@ namespace srv {
         
         std::vector<uint8_t> buffer;
         
-        if (hasSizePrefix) {
+        if (_hasSizePrefix) {
             builder.FinishSizePrefixed(msgOffset);
         }
         else {

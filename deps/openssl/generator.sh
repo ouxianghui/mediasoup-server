@@ -27,6 +27,9 @@ cp ../../../meson.build.tmpl config/
 rm -rf openssl
 git clone --depth 1 --branch "openssl-$openssl_version" https://github.com/openssl/openssl.git
 
+python3 ../../../generate_def.py --fixup-crypto < openssl/util/libcrypto.num > ../../../crypto.def
+python3 ../../../generate_def.py < openssl/util/libssl.num > ../../../ssl.def
+
 rm -rf config/archs
 LANG=C make -C config
 

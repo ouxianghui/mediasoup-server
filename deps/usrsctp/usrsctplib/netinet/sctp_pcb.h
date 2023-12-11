@@ -32,11 +32,6 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if defined(__FreeBSD__) && !defined(__Userspace__)
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-#endif
-
 #ifndef _NETINET_SCTP_PCB_H_
 #define _NETINET_SCTP_PCB_H_
 
@@ -496,6 +491,7 @@ struct sctp_inpcb {
 	uint8_t reconfig_supported;
 	uint8_t nrsack_supported;
 	uint8_t pktdrop_supported;
+	uint8_t rcv_edmid;
 	struct sctp_nonpad_sndrcvinfo def_send;
 	/*-
 	 * These three are here for the sosend_dgram
@@ -617,16 +613,12 @@ struct sctp_tcb {
 	uint16_t resv;
 #if defined(__FreeBSD__) && !defined(__Userspace__)
 	struct mtx tcb_mtx;
-	struct mtx tcb_send_mtx;
 #elif defined(SCTP_PROCESS_LEVEL_LOCKS)
 	userland_mutex_t tcb_mtx;
-	userland_mutex_t tcb_send_mtx;
 #elif defined(__APPLE__) && !defined(__Userspace__)
 	lck_mtx_t* tcb_mtx;
-	lck_mtx_t* tcb_send_mtx;
 #elif defined(_WIN32) && !defined(__Userspace__)
 	struct spinlock tcb_lock;
-	struct spinlock tcb_send_lock;
 #elif defined(__Userspace__)
 #endif
 #if defined(__APPLE__) && !defined(__Userspace__)
@@ -849,13 +841,14 @@ sctp_set_primary_addr(struct sctp_tcb *, struct sockaddr *,
 bool
 sctp_is_vtag_good(uint32_t, uint16_t lport, uint16_t rport, struct timeval *);
 
-/* void sctp_drain(void); */
-
 int sctp_destination_is_reachable(struct sctp_tcb *, struct sockaddr *);
 
 int sctp_swap_inpcb_for_listen(struct sctp_inpcb *inp);
 
 void sctp_clean_up_stream(struct sctp_tcb *stcb, struct sctp_readhead *rh);
+
+void
+sctp_pcb_add_flags(struct sctp_inpcb *, uint32_t);
 
 /*-
  * Null in last arg inpcb indicate run on ALL ep's. Specific inp in last arg

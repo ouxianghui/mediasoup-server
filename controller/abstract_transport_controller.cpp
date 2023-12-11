@@ -526,6 +526,7 @@ namespace srv {
         
         bool paused_ = stats->paused();
         bool producerPaused_ = stats->producerPaused();
+        
         ConsumerScore score_;
         score_.score = stats->score()->score();
         score_.producerScore = stats->score()->producerScore();

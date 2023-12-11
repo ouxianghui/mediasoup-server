@@ -560,6 +560,7 @@ struct sctp_event_subscribe {
 #define SCTP_NRSACK_SUPPORTED           0x00000030
 #define SCTP_PKTDROP_SUPPORTED          0x00000031
 #define SCTP_MAX_CWND                   0x00000032
+#define SCTP_ACCEPT_ZERO_CHECKSUM       0x00000033
 
 #define SCTP_ENABLE_STREAM_RESET        0x00000900 /* struct sctp_assoc_value */
 
@@ -766,6 +767,10 @@ struct sctp_get_nonce_values {
 	uint32_t gn_peers_tag;
 	uint32_t gn_local_tag;
 };
+
+/* Values for SCTP_ACCEPT_ZERO_CHECKSUM */
+#define SCTP_EDMID_NONE             0
+#define SCTP_EDMID_LOWER_LAYER_DTLS 1
 
 
 /*
@@ -1146,6 +1151,7 @@ USRSCTP_SYSCTL_DECL(sctp_steady_step)
 USRSCTP_SYSCTL_DECL(sctp_use_dccc_ecn)
 USRSCTP_SYSCTL_DECL(sctp_buffer_splitting)
 USRSCTP_SYSCTL_DECL(sctp_initial_cwnd)
+USRSCTP_SYSCTL_DECL(sctp_ootb_with_zero_cksum)
 #ifdef SCTP_DEBUG
 USRSCTP_SYSCTL_DECL(sctp_debug_on)
 /* More specific values can be found in sctp_constants, but
@@ -1304,7 +1310,9 @@ struct sctpstat {
 	uint32_t  sctps_send_cwnd_avoid;     /* Send cwnd full  avoidance, already max burst inflight to net */
 	uint32_t  sctps_fwdtsn_map_over;     /* number of map array over-runs via fwd-tsn's */
 	uint32_t  sctps_queue_upd_ecne;      /* Number of times we queued or updated an ECN chunk on send queue */
-	uint32_t  sctps_reserved[31];        /* Future ABI compat - remove int's from here when adding new */
+	uint32_t  sctps_recvzerocrc;         /* Number of accepted packets with zero CRC */
+	uint32_t  sctps_sendzerocrc;         /* Number of packets sent with zero CRC */
+	uint32_t  sctps_reserved[29];        /* Future ABI compat - remove int's from here when adding new */
 };
 
 void

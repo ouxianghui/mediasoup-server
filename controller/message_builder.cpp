@@ -11,7 +11,7 @@
 
 namespace srv {
 
-    std::atomic_bool MessageBuilder::hasSizePrefix = true;
+    std::atomic_bool MessageBuilder::_hasSizePrefix = true;
 
     std::vector<uint8_t> MessageBuilder::createNotification(flatbuffers::FlatBufferBuilder& builder, const std::string& handlerId, FBS::Notification::Event event)
     {

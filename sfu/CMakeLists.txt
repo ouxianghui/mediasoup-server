@@ -110,7 +110,7 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a
-    ${PROJECT_LIB_DIR}/libuv_a.a
+    ${PROJECT_LIB_DIR}/libuv.a
     ${PROJECT_LIB_DIR}/libssl.a
     ${PROJECT_LIB_DIR}/libcrypto.a
     ${PROJECT_LIB_DIR}/libsrtp2.a
@@ -125,6 +125,8 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/libabsl_low_level_hash.a
     ${PROJECT_LIB_DIR}/libabsl_throw_delegate.a
     ${PROJECT_LIB_DIR}/libabsl_strings_internal.a
+    ${PROJECT_LIB_DIR}/libabsl_raw_logging_internal.a
+    ${PROJECT_LIB_DIR}/libabsl_string_view.a
     # ${PROJECT_LIB_DIR}/libsdptransform.a
     dl
 )
@@ -137,7 +139,7 @@ target_link_libraries(${PROJECT_NAME}
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a
-    ${PROJECT_LIB_DIR}/libuv_a.a
+    ${PROJECT_LIB_DIR}/libuv.a
     ${PROJECT_LIB_DIR}/libssl.a
     ${PROJECT_LIB_DIR}/libcrypto.a
     ${PROJECT_LIB_DIR}/libsrtp2.a

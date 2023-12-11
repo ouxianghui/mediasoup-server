@@ -52,7 +52,7 @@ namespace srv {
         
         *_webRtcServerOptions = params->mediasoup.webRtcServerOptions;
         
-        MessageBuilder::hasSizePrefix = params->mediasoup.multiprocess;
+        MessageBuilder::setSizePrefix(params->mediasoup.multiprocess);
     }
 
     void Engine::run()

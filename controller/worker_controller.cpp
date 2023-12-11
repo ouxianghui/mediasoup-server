@@ -50,7 +50,7 @@ namespace srv {
     static int _consumerChannelFd[2] = {3, 5};
     static int _producerChannelFd[2] = {6, 4};
 
-    static const std::string MEDIASOUP_VERSION("3.13.6");
+    static const std::string MEDIASOUP_VERSION("3.13.10");
     
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)

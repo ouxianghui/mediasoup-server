@@ -32,11 +32,6 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if defined(__FreeBSD__) && !defined(__Userspace__)
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-#endif
-
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
 #include <netinet/sctp_sysctl.h>
@@ -555,8 +550,8 @@ sctp_process_asconf_set_primary(struct sockaddr *src,
 		/* notify upper layer */
 		sctp_ulp_notify(SCTP_NOTIFY_ASCONF_SET_PRIMARY, stcb, 0, sa, SCTP_SO_NOT_LOCKED);
 		if ((stcb->asoc.primary_destination->dest_state & SCTP_ADDR_REACHABLE) &&
-		    (!(stcb->asoc.primary_destination->dest_state & SCTP_ADDR_PF)) &&
-		    (stcb->asoc.alternate)) {
+		    ((stcb->asoc.primary_destination->dest_state & SCTP_ADDR_PF) == 0) &&
+		    (stcb->asoc.alternate != NULL)) {
 			sctp_free_remote_addr(stcb->asoc.alternate);
 			stcb->asoc.alternate = NULL;
 		}
@@ -3389,7 +3384,7 @@ out:
 		aa_add->ap.addrp.ph.param_type = SCTP_IPV4_ADDRESS;
 		aa_add->ap.addrp.ph.param_length = sizeof (struct sctp_ipv4addr_param);
 		/* No need to fill the address, we are using 0.0.0.0 */
-		aa_del->ap.aph.ph.param_type = SCTP_ADD_IP_ADDRESS;
+		aa_del->ap.aph.ph.param_type = SCTP_DEL_IP_ADDRESS;
 		aa_del->ap.aph.ph.param_length = sizeof(struct sctp_asconf_addrv4_param);
 		aa_del->ap.addrp.ph.param_type = SCTP_IPV4_ADDRESS;
 		aa_del->ap.addrp.ph.param_length = sizeof (struct sctp_ipv4addr_param);

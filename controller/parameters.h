@@ -48,10 +48,15 @@ namespace srv {
 
         public:
             Type type;
-            bool booleanValue{ false };
-            int32_t integerValue{ 0 };
-            double doubleValue{ 0.0 };
+            
+            bool booleanValue { false };
+            
+            int32_t integerValue { 0 };
+            
+            double doubleValue { 0.0 };
+            
             const std::string stringValue;
+            
             const std::vector<int32_t> arrayOfIntegers;
         };
 

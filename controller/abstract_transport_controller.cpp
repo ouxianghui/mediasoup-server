@@ -595,6 +595,9 @@ namespace srv {
         
         const std::string& id = options->id;
         SctpStreamParameters sctpStreamParameters = options->sctpStreamParameters;
+        nlohmann::json jsctpStreamParameters = sctpStreamParameters;
+        SRV_LOGD("sctpStreamParameters: %s", jsctpStreamParameters.dump().c_str());
+        
         const std::string& label = options->label;
         const std::string& protocol = options->protocol;
         const bool paused = options->paused;
@@ -611,6 +614,13 @@ namespace srv {
             type = "sctp";
 
             nlohmann::json parameters = sctpStreamParameters;
+            if (sctpStreamParameters.maxPacketLifeTime == 0) {
+                parameters.erase("maxPacketLifeTime");
+            }
+            
+            if (sctpStreamParameters.maxRetransmits == 0) {
+                parameters.erase("maxRetransmits");
+            }
             
             // This may throw.
             ortc::validateSctpStreamParameters(parameters);

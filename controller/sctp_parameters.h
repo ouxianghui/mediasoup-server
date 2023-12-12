@@ -113,7 +113,8 @@ namespace srv
          * When ordered is false indicates the time (in milliseconds) after which a
          * SCTP packet will stop being retransmitted.
          */
-        uint16_t maxPacketLifeTime = false;
+        uint16_t maxPacketLifeTime = 0
+        ;
 
         /**
          * When ordered is false indicates the maximum number of times a packet will

@@ -151,6 +151,10 @@ namespace srv {
         
         virtual std::vector<std::shared_ptr<DataConsumerStat>> getStats() = 0;
         
+        virtual void addSubchannel(uint16_t subchannel) = 0;
+        
+        virtual void removeSubchannel(uint16_t subchannel) = 0;
+        
         virtual void pause() = 0;
         
         virtual void resume() = 0;

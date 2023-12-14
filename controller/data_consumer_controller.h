@@ -63,6 +63,10 @@ namespace srv {
         
         std::vector<std::shared_ptr<DataConsumerStat>> getStats() override;
         
+        void addSubchannel(uint16_t subchannel) override;
+        
+        void removeSubchannel(uint16_t subchannel) override;
+        
         void pause() override;
         
         void resume() override;

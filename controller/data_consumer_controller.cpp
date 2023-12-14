@@ -161,6 +161,70 @@ namespace srv {
         return std::vector<std::shared_ptr<DataConsumerStat>> { parseDataConsumerStats(statsFbs) };
     }
 
+    void DataConsumerController::addSubchannel(uint16_t subchannel)
+    {
+        SRV_LOGD("addSubchannel()");
+        
+        auto channel = _channel.lock();
+        if (!channel) {
+            return;
+        }
+        
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_ADD_SUBCHANNEL);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto response_ = response->body_as_DataConsumer_AddSubchannelResponse();
+        
+        std::vector<uint16_t> subchannels_;
+        
+        for (const auto& channel : *response_->subchannels()) {
+            subchannels_.emplace_back(channel);
+        }
+
+        this->_subchannels = subchannels_;
+    }
+
+    void DataConsumerController::removeSubchannel(uint16_t subchannel)
+    {
+        SRV_LOGD("removeSubchannel()");
+        
+        auto channel = _channel.lock();
+        if (!channel) {
+            return;
+        }
+        
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.dataConsumerId, FBS::Request::Method::DATACONSUMER_REMOVE_SUBCHANNEL);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto response_ = response->body_as_DataConsumer_RemoveSubchannelResponse();
+
+        std::vector<uint16_t> subchannels_;
+        
+        for (const auto& channel : *response_->subchannels()) {
+            subchannels_.emplace_back(channel);
+        }
+
+        this->_subchannels = subchannels_;
+    }
+
     void DataConsumerController::pause()
     {
         SRV_LOGD("pause()");
@@ -268,11 +332,11 @@ namespace srv {
         
         auto response = message->data_as_Response();
         
-        auto subchannelsResponse = response->body_as_DataConsumer_SetSubchannelsResponse();
+        auto response_ = response->body_as_DataConsumer_SetSubchannelsResponse();
         
         _subchannels.clear();
         
-        for (const auto& channel : *subchannelsResponse->subchannels()) {
+        for (const auto& channel : *response_->subchannels()) {
             _subchannels.emplace_back(channel);
         }
     }

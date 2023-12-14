@@ -431,7 +431,8 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
 void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, const std::shared_ptr<Peer>& dataProducerPeer, const std::shared_ptr<srv::IDataProducerController>& dataProducerController)
 {
     
-    if (!dataConsumerPeer->data()->sctpCapabilities.dump().empty()) {
+    if (dataConsumerPeer->data()->sctpCapabilities.dump().empty()) {
+        SRV_LOGE("sctpCapabilities must not be empty");
         return;
     }
 
@@ -451,12 +452,12 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
         return;
     }
 
-    // Create the Dataconsumer->
+    // Create the Dataconsumer
     std::shared_ptr<srv::IDataConsumerController> dataConsumerController;
 
     try {
         auto options = std::make_shared<srv::DataConsumerOptions>();
-        options->dataProducerId = dataConsumerController->id();
+        options->dataProducerId = dataProducerController->id();
         dataConsumerController = transportController->consumeData(options);
     }
     catch (const char* error) {

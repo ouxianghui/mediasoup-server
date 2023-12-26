@@ -21,6 +21,10 @@ namespace srv {
     : _options(options)
     {
         SRV_LOGD("RtpObserverController()");
+        _internal = options->internal;
+        _channel = options->channel;
+        _getProducerController = options->getProducerController;
+        _appData = options->appData;
     }
 
     RtpObserverController::~RtpObserverController()

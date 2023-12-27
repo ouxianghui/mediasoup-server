@@ -1546,7 +1546,9 @@ namespace RTC
 	{
 		MS_TRACE();
 
+#ifdef MS_RTC_LOGGER_RTP
 		packet->logger.recvTransportId = this->id;
+#endif
 
 		// Apply the Transport RTP header extension ids so the RTP listener can use them.
 		packet->SetMidExtensionId(this->recvRtpHeaderExtensionIds.mid);
@@ -1568,7 +1570,9 @@ namespace RTC
 
 		if (!producer)
 		{
+#ifdef MS_RTC_LOGGER_RTP
 			packet->logger.Dropped(RtcLogger::RtpPacket::DropReason::PRODUCER_NOT_FOUND);
+#endif
 
 			MS_WARN_TAG(
 			  rtp,
@@ -2442,8 +2446,10 @@ namespace RTC
 	{
 		MS_TRACE();
 
+#ifdef MS_RTC_LOGGER_RTP
 		packet->logger.sendTransportId = this->id;
 		packet->logger.Sent();
+#endif
 
 		// Update abs-send-time if present.
 		packet->UpdateAbsSendTime(DepLibUV::GetTimeMs());
@@ -2487,7 +2493,7 @@ namespace RTC
 			sentInfo.sendingAtMs = DepLibUV::GetTimeMs();
 
 			auto* cb = new onSendCallback(
-			  [tccClientWeakPtr, &packetInfo, senderBweWeakPtr, &sentInfo](bool sent)
+			  [tccClientWeakPtr, packetInfo, senderBweWeakPtr, sentInfo](bool sent)
 			  {
 				  if (sent)
 				  {
@@ -2511,7 +2517,7 @@ namespace RTC
 			SendRtpPacket(consumer, packet, cb);
 #else
 			const auto* cb = new onSendCallback(
-			  [tccClientWeakPtr, &packetInfo](bool sent)
+			  [tccClientWeakPtr, packetInfo](bool sent)
 			  {
 				  if (sent)
 				  {
@@ -2576,7 +2582,7 @@ namespace RTC
 			sentInfo.sendingAtMs = DepLibUV::GetTimeMs();
 
 			auto* cb = new onSendCallback(
-			  [tccClientWeakPtr, &packetInfo, senderBweWeakPtr, &sentInfo](bool sent)
+			  [tccClientWeakPtr, packetInfo, senderBweWeakPtr, sentInfo](bool sent)
 			  {
 				  if (sent)
 				  {
@@ -2600,7 +2606,7 @@ namespace RTC
 			SendRtpPacket(consumer, packet, cb);
 #else
 			const auto* cb = new onSendCallback(
-			  [tccClientWeakPtr, &packetInfo](bool sent)
+			  [tccClientWeakPtr, packetInfo](bool sent)
 			  {
 				  if (sent)
 				  {
@@ -2976,7 +2982,7 @@ namespace RTC
 			sentInfo.sendingAtMs = DepLibUV::GetTimeMs();
 
 			auto* cb = new onSendCallback(
-			  [tccClientWeakPtr, &packetInfo, senderBweWeakPtr, &sentInfo](bool sent)
+			  [tccClientWeakPtr, packetInfo, senderBweWeakPtr, sentInfo](bool sent)
 			  {
 				  if (sent)
 				  {
@@ -3000,7 +3006,7 @@ namespace RTC
 			SendRtpPacket(nullptr, packet, cb);
 #else
 			const auto* cb = new onSendCallback(
-			  [tccClientWeakPtr, &packetInfo](bool sent)
+			  [tccClientWeakPtr, packetInfo](bool sent)
 			  {
 				  if (sent)
 				  {

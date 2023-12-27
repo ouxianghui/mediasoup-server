@@ -50,7 +50,7 @@ namespace srv {
     static int _consumerChannelFd[2] = {3, 5};
     static int _producerChannelFd[2] = {6, 4};
 
-    static const std::string MEDIASOUP_VERSION("3.13.11");
+    static const std::string MEDIASOUP_VERSION("3.13.12");
     
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)
@@ -212,7 +212,7 @@ namespace srv {
                     SRV_LOGE("worker process failed due to wrong settings [pid:%d]", process->pid);
                 }
                 else {
-                    SRV_LOGE("worker process failed unexpectedly [pid:%d, code:%ld, signal:%d]", process->pid, exit_status, term_signal);
+                    SRV_LOGE("worker process failed unexpectedly [pid:%d, code:%lld, signal:%d]", process->pid, exit_status, term_signal);
                 }
                 
                 if (auto workerController = static_cast<WorkerController*>(process->data)) {

@@ -235,7 +235,7 @@ namespace srv {
 
     void WebRtcTransportController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
-        SRV_LOGD("onChannel()");
+        //SRV_LOGD("onChannel()");
         
         if (targetId != _internal.transportId) {
             return;

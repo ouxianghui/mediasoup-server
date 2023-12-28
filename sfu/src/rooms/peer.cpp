@@ -364,8 +364,9 @@ void Peer::handleResponse(const nlohmann::json& response)
     if (data.contains("method") && data["method"].get<std::string>() == "newConsumer" && data.contains("data")) {
         auto consumerId = data["data"]["id"].get<std::string>();
         if (!consumerId.empty()) {
-            auto& controller = this->_data->consumerControllers[consumerId];
-            controller->resume();
+            if (auto& controller = this->_data->consumerControllers[consumerId]) {
+                controller->resume();
+            }
         }
     }
 

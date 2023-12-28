@@ -205,52 +205,50 @@ namespace srv {
         std::promise<std::vector<uint8_t>> promise;
         auto result = promise.get_future();
                   
-        const uint32_t id = requestId;
-        
-        auto callback = std::make_shared<Callback>(id,
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const std::vector<uint8_t>& data) {
+        auto callback = std::make_shared<Callback>(requestId,
+        [wself = std::weak_ptr<Channel>(shared_from_this()), requestId, &promise](const std::vector<uint8_t>& data) {
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            if (self->removeCallback(id)) {
+            if (self->removeCallback(requestId)) {
                 promise.set_value(data);
             }
         },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](const IError& error) {
+        [wself = std::weak_ptr<Channel>(shared_from_this()), requestId, &promise](const IError& error) {
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            if (self->removeCallback(id)) {
+            if (self->removeCallback(requestId)) {
                 promise.set_exception(std::make_exception_ptr(ChannelError(error.message().c_str())));
             }
         },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise]() {
+        [wself = std::weak_ptr<Channel>(shared_from_this()), requestId, &promise]() {
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            if (self->removeCallback(id)) {
+            if (self->removeCallback(requestId)) {
                 promise.set_exception(std::make_exception_ptr(ChannelError("callback was closed")));
             }
         },
-        [wself = std::weak_ptr<Channel>(shared_from_this()), id, &promise](){
+        [wself = std::weak_ptr<Channel>(shared_from_this()), requestId, &promise](){
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            if (self->removeCallback(id)) {
+            if (self->removeCallback(requestId)) {
                 promise.set_exception(std::make_exception_ptr(ChannelError("callback was timeout")));
             }
         });
         
         uint32_t duration = 1000 * (15 + (0.1 * _callbackMap.size()));
-        callback->setTimeout(_threadPool, duration);
+        //callback->setTimeout(_timerThread, duration);
         
         {
             std::lock_guard<std::mutex> lock(_callbackMutex);
-            _callbackMap[id] = callback;
+            _callbackMap[requestId] = callback;
         }
         
         if (data.size() > MESSAGE_MAX_LEN) {

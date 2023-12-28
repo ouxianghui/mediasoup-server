@@ -938,6 +938,8 @@ namespace srv {
     {
         SRV_LOGD("canConsume()");
         
+        std::lock_guard<std::mutex> lock(_producersMutex);
+        
         if (_producerControllers.find(producerId) == _producerControllers.end()) {
             return false;
         }

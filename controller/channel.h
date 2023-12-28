@@ -92,6 +92,8 @@ namespace srv {
     private:
         asio::static_thread_pool _threadPool { 1 };
         
+        asio::static_thread_pool _timerThread { 1 };
+        
         std::mutex _callbackMutex;
         std::unordered_map<uint64_t, std::shared_ptr<Callback>> _callbackMap;
         

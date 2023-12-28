@@ -220,19 +220,25 @@ void Room::onPeerClose(const std::string& peerId)
         msg["peerId"] = peerId;
         
         auto otherPeers = getJoinedPeers(peerId);
-        std::lock_guard<std::mutex> guard(_peerMutex);
-        auto peer = _peerMap.find(peerId);
-        if (peer != _peerMap.end()) {
-            if (peer->second->data()->joined) {
-                for (const auto& otherPeer : otherPeers) {
-                    otherPeer.second->notify("peerClosed", msg);
+        
+        std::unordered_map<std::string, std::shared_ptr<srv::ITransportController>> transportControllers;
+        {
+            std::lock_guard<std::mutex> guard(_peerMutex);
+            auto peer = _peerMap.find(peerId);
+            if (peer != _peerMap.end()) {
+                if (peer->second->data()->joined) {
+                    for (const auto& otherPeer : otherPeers) {
+                        otherPeer.second->notify("peerClosed", msg);
+                    }
                 }
+                transportControllers = peer->second->data()->transportControllers;
             }
-            // Iterate and close all mediasoup Transport associated to this Peer, so all
-            // its Producers and Consumers will also be closed.
-            for (const auto& controller : peer->second->data()->transportControllers) {
-                controller.second->close();
-            }
+        }
+            
+        // Iterate and close all mediasoup Transport associated to this Peer, so all
+        // its Producers and Consumers will also be closed.
+        for (const auto& controller : transportControllers) {
+            controller.second->close();
         }
     }
 }
@@ -818,7 +824,7 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
         msg["sctpParameters"] = transportController->sctpParameters();
     }
 
-    SRV_LOGD("msg: %s",msg.dump(4).c_str());
+    SRV_LOGD("msg: %s", msg.dump(4).c_str());
     accept(request, msg);
     
     auto maxIncomingBitrate = MSConfig->params()->mediasoup.webRtcTransportOptions.maxIncomingBitrate;

@@ -363,7 +363,7 @@ void Peer::handleResponse(const nlohmann::json& response)
     SRV_LOGE("data: %s", data.dump().c_str());
     if (data.contains("method") && data["method"].get<std::string>() == "newConsumer" && data.contains("data")) {
         auto consumerId = data["data"]["id"].get<std::string>();
-        if (!consumerId.empty()) {
+        if (!consumerId.empty() && this->_data->consumerControllers.find(consumerId) != this->_data->consumerControllers.end()) {
             if (auto& controller = this->_data->consumerControllers[consumerId]) {
                 controller->resume();
             }

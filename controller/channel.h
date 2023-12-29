@@ -11,7 +11,7 @@
 
 #include <memory>
 #include <functional>
-#include <unordered_map>
+#include "threadsafe_unordered_map.hpp"
 #include <atomic>
 #include "sigslot/signal.hpp"
 #include "types.h"
@@ -94,8 +94,7 @@ namespace srv {
         
         asio::static_thread_pool _timerThread { 1 };
         
-        std::mutex _callbackMutex;
-        std::unordered_map<uint64_t, std::shared_ptr<Callback>> _callbackMap;
+        std::threadsafe_unordered_map<uint64_t, std::shared_ptr<Callback>> _callbackMap;
         
         std::atomic<uint32_t> _nextId { 0 };
         

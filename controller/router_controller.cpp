@@ -73,63 +73,45 @@ namespace srv {
     std::shared_ptr<IProducerController> RouterController::getProducerController(const std::string& producerId)
     {
         std::shared_ptr<IProducerController> controller;
-        {
-            std::lock_guard<std::mutex> lock(_producersMutex);
-            if (_producerControllers.find(producerId) != _producerControllers.end()) {
-                controller = _producerControllers[producerId];
-            }
+        
+        if (_producerControllers.contains(producerId)) {
+            controller = _producerControllers[producerId];
         }
+        
         return controller;
     }
 
     std::shared_ptr<IDataProducerController> RouterController::getDataProducerController(const std::string& dataProducerId)
     {
         std::shared_ptr<IDataProducerController> controller;
-        {
-            std::lock_guard<std::mutex> lock(_dataProducersMutex);
-            if (_dataProducerControllers.find(dataProducerId) != _dataProducerControllers.end()) {
-                controller = _dataProducerControllers[dataProducerId];
-            }
+
+        if (_dataProducerControllers.contains(dataProducerId)) {
+            controller = _dataProducerControllers[dataProducerId];
         }
+
         return controller;
     }
 
     void RouterController::clear()
     {
-        std::unordered_map<std::string, std::shared_ptr<ITransportController>> transportControllers;
-        {
-            std::lock_guard<std::mutex> lock(_transportsMutex);
-            transportControllers = _transportControllers;
-        }
-
-        // Close every Transport.
-        for (const auto& item : transportControllers) {
-            item.second->onRouterClosed();
-        }
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<ITransportController>> transportControllers = _transportControllers.value();
         
-        {
-            std::lock_guard<std::mutex> lock(_producersMutex);
-            // Clear the Producers map.
-            _producerControllers.clear();
-        }
+        // Close every Transport.
+        transportControllers.for_each([](const auto& item) {
+            item.second->onRouterClosed();
+        });
+        
+        _producerControllers.clear();
 
-        std::unordered_map<std::string, std::shared_ptr<IRtpObserverController>> rtpObserverControllers;
-        {
-            std::lock_guard<std::mutex> lock(_rtpObserversMutex);
-            rtpObserverControllers = _rtpObserverControllers;
-            //_rtpObserverControllers.clear();
-        }
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IRtpObserverController>> rtpObserverControllers = _rtpObserverControllers.value();
 
         // Close every RtpObserver.
-        for (const auto& item : rtpObserverControllers) {
+        rtpObserverControllers.for_each([](const auto& item) {
             item.second->onRouterClosed();
-        }
+        });
         
-        {
-            std::lock_guard<std::mutex> lock(_dataProducersMutex);
-            // Clear the DataProducers map.
-            _dataProducerControllers.clear();
-        }
+        // Clear the DataProducers map.
+        _dataProducerControllers.clear();
     }
 
     void RouterController::close()
@@ -391,12 +373,9 @@ namespace srv {
         wtcOptions->getProducerController = _getProducerController;
         wtcOptions->getDataProducerController = _getDataProducerController;
         
-        {
-            std::lock_guard<std::mutex> lock(_transportsMutex);
-            transportController = std::make_shared<WebRtcTransportController>(wtcOptions);
-            transportController->init();
-            _transportControllers[internal.transportId] = transportController;
-        }
+        transportController = std::make_shared<WebRtcTransportController>(wtcOptions);
+        transportController->init();
+        _transportControllers.emplace(std::make_pair(internal.transportId, transportController));
         
         connectSignals(transportController);
         
@@ -552,12 +531,9 @@ namespace srv {
         ptcOptions->getProducerController = _getProducerController;
         ptcOptions->getDataProducerController = _getDataProducerController;
         
-        {
-            std::lock_guard<std::mutex> lock(_transportsMutex);
             transportController = std::make_shared<PlainTransportController>(ptcOptions);
             transportController->init();
-            _transportControllers[internal.transportId] = transportController;
-        }
+            _transportControllers.emplace(std::make_pair(internal.transportId, transportController));
         
         connectSignals(transportController);
         
@@ -634,12 +610,9 @@ namespace srv {
         dtcOptions->getProducerController = _getProducerController;
         dtcOptions->getDataProducerController = _getDataProducerController;
         
-        {
-            std::lock_guard<std::mutex> lock(_transportsMutex);
-            transportController = std::make_shared<DirectTransportController>(dtcOptions);
-            transportController->init();
-            _transportControllers[internal.transportId] = transportController;
-        }
+        transportController = std::make_shared<DirectTransportController>(dtcOptions);
+        transportController->init();
+        _transportControllers.emplace(std::make_pair(internal.transportId, transportController));
         
         connectSignals(transportController);
         
@@ -767,12 +740,9 @@ namespace srv {
         ptcOptions->getProducerController = _getProducerController;
         ptcOptions->getDataProducerController = _getDataProducerController;
         
-        {
-            std::lock_guard<std::mutex> lock(_transportsMutex);
-            transportController = std::make_shared<PipeTransportController>(ptcOptions);
-            transportController->init();
-            _transportControllers[internal.transportId] = transportController;
-        }
+        transportController = std::make_shared<PipeTransportController>(ptcOptions);
+        transportController->init();
+        _transportControllers.emplace(std::make_pair(internal.transportId, transportController));
         
         connectSignals(transportController);
         
@@ -828,21 +798,17 @@ namespace srv {
         roocOptions->appData = appData;
         roocOptions->getProducerController = _getProducerController;
         
-        {
-            std::lock_guard<std::mutex> lock(_rtpObserversMutex);
-            rtpObserverController = std::make_shared<ActiveSpeakerObserverController>(roocOptions);
-            rtpObserverController->init();
-            
-            _rtpObserverControllers[internal.rtpObserverId] = rtpObserverController;
-        }
+        rtpObserverController = std::make_shared<ActiveSpeakerObserverController>(roocOptions);
+        rtpObserverController->init();
+        
+        _rtpObserverControllers.emplace(std::make_pair(internal.rtpObserverId, rtpObserverController));
         
         rtpObserverController->closeSignal.connect([id = rtpObserverController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_rtpObserversMutex);
-            if (self->_rtpObserverControllers.find(id) != self->_rtpObserverControllers.end()) {
+            if (self->_rtpObserverControllers.contains(id)) {
                 self->_rtpObserverControllers.erase(id);
             }
         });
@@ -911,20 +877,16 @@ namespace srv {
         alocOptions->appData = appData;
         alocOptions->getProducerController = _getProducerController;
         
-        {
-            std::lock_guard<std::mutex> lock(_rtpObserversMutex);
-            rtpObserverController = std::make_shared<AudioLevelObserverController>(alocOptions);
-            rtpObserverController->init();
-            _rtpObserverControllers[internal.rtpObserverId] = rtpObserverController;
-        }
+        rtpObserverController = std::make_shared<AudioLevelObserverController>(alocOptions);
+        rtpObserverController->init();
+        _rtpObserverControllers.emplace(std::make_pair(internal.rtpObserverId, rtpObserverController));
         
         rtpObserverController->closeSignal.connect([id = rtpObserverController->id(), wself = std::weak_ptr<RouterController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_rtpObserversMutex);
-            if (self->_rtpObserverControllers.find(id) != self->_rtpObserverControllers.end()) {
+            if (self->_rtpObserverControllers.contains(id)) {
                 self->_rtpObserverControllers.erase(id);
             }
         });
@@ -938,9 +900,7 @@ namespace srv {
     {
         SRV_LOGD("canConsume()");
         
-        std::lock_guard<std::mutex> lock(_producersMutex);
-        
-        if (_producerControllers.find(producerId) == _producerControllers.end()) {
+        if (!_producerControllers.contains(producerId)) {
             return false;
         }
         
@@ -967,8 +927,8 @@ namespace srv {
             if (!self) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_transportsMutex);
-            if (self->_transportControllers.find(transportId) != self->_transportControllers.end()) {
+            
+            if (self->_transportControllers.contains(transportId)) {
                 self->_transportControllers.erase(transportId);
             }
         });
@@ -978,8 +938,8 @@ namespace srv {
             if (!self) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_transportsMutex);
-            if (self->_transportControllers.find(id) != self->_transportControllers.end()) {
+            
+            if (self->_transportControllers.contains(id)) {
                 self->_transportControllers.erase(id);
             }
         });
@@ -989,12 +949,13 @@ namespace srv {
             if (!self) {
                 return;
             }
+            
             if (!producerController) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_producersMutex);
-            if (self->_producerControllers.find(producerController->id()) == self->_producerControllers.end()) {
-                self->_producerControllers[producerController->id()] = producerController;
+            
+            if (!self->_producerControllers.contains(producerController->id())) {
+                self->_producerControllers.emplace(std::make_pair(producerController->id(), producerController));
             }
         });
         
@@ -1006,8 +967,7 @@ namespace srv {
             if (!producerController) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_producersMutex);
-            if (self->_producerControllers.find(producerController->id()) != self->_producerControllers.end()) {
+            if (self->_producerControllers.contains(producerController->id())) {
                 self->_producerControllers.erase(producerController->id());
             }
         });
@@ -1020,9 +980,8 @@ namespace srv {
             if (!dataProducerController) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_dataProducersMutex);
-            if (self->_dataProducerControllers.find(dataProducerController->id()) == self->_dataProducerControllers.end()) {
-                self->_dataProducerControllers[dataProducerController->id()] = dataProducerController;
+            if (!self->_dataProducerControllers.contains(dataProducerController->id())) {
+                self->_dataProducerControllers.emplace(std::make_pair(dataProducerController->id(), dataProducerController));
             }
         });
         
@@ -1034,8 +993,7 @@ namespace srv {
             if (!dataProducerController) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_dataProducersMutex);
-            if (self->_dataProducerControllers.find(dataProducerController->id()) != self->_dataProducerControllers.end()) {
+            if (self->_dataProducerControllers.contains(dataProducerController->id())) {
                 self->_dataProducerControllers.erase(dataProducerController->id());;
             }
         });
@@ -1102,14 +1060,14 @@ namespace srv {
         std::shared_ptr<IDataProducerController> dataProducerController;
 
         if (!producerId.empty()) {
-            if (this->_producerControllers.find(producerId) == this->_producerControllers.end()) {
+            if (!this->_producerControllers.contains(producerId)) {
                 SRV_LOGE("Producer not found");
                 return result;
             }
             producerController = _producerControllers[producerId];
         }
         else if (!dataProducerId.empty()) {
-            if (this->_dataProducerControllers.find(dataProducerId) == this->_dataProducerControllers.end()) {
+            if (!this->_dataProducerControllers.contains(dataProducerId)) {
                 SRV_LOGE("Data producer not found");
                 return result;
             }
@@ -1121,7 +1079,7 @@ namespace srv {
         std::shared_ptr<PipeTransportController> remotePipeTransportController;
         PipeTransportControllerPair pipeTransportControllerPair;
         
-        if (_routerPipeTransportPairMap.find(pipeTransportPairKey) == _routerPipeTransportPairMap.end()) {
+        if (!_routerPipeTransportPairMap.contains(pipeTransportPairKey)) {
             SRV_LOGE("given key already exists in this Router");
             return result;
         }
@@ -1149,7 +1107,7 @@ namespace srv {
                 if (auto remote = weakRemote.lock()) {
                     remote->close();
                 }
-                if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
+                if (self->_routerPipeTransportPairMap.contains(pipeTransportPairKey)) {
                     self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
                 }
             });
@@ -1162,7 +1120,7 @@ namespace srv {
                 if (auto local = weakLocal.lock()) {
                     local->close();
                 }
-                if (self->_routerPipeTransportPairMap.find(pipeTransportPairKey) != self->_routerPipeTransportPairMap.end()) {
+                if (self->_routerPipeTransportPairMap.contains(pipeTransportPairKey)) {
                     self->_routerPipeTransportPairMap.erase(pipeTransportPairKey);
                 }
             });
@@ -1179,7 +1137,7 @@ namespace srv {
             lData->srtpParameters = localPipeTransportController->srtpParameters();
             remotePipeTransportController->connect(lData);
             
-            this->_routerPipeTransportPairMap[pipeTransportPairKey] = pipeTransportControllerPair;
+            this->_routerPipeTransportPairMap.emplace(std::make_pair(pipeTransportPairKey, pipeTransportControllerPair));
             
             routerController->addPipeTransportPair(this->id(), pipeTransportControllerPair);
         }
@@ -1317,12 +1275,12 @@ namespace srv {
     // key: router.id
     void RouterController::addPipeTransportPair(const std::string& key, PipeTransportControllerPair& pair)
     {
-        if (_routerPipeTransportPairMap.find(key) != _routerPipeTransportPairMap.end()) {
+        if (_routerPipeTransportPairMap.contains(key)) {
             SRV_LOGE("given key already exists in this Router");
             return;
         }
         
-        _routerPipeTransportPairMap[key] = pair;
+        _routerPipeTransportPairMap.emplace(std::make_pair(key, pair));
         
         auto localPipeTransportController = pair[_internal.routerId];
         

@@ -22,22 +22,22 @@ Lobby::~Lobby()
 
 std::shared_ptr<Room> Lobby::getOrCreateRoom(const std::string& roomId)
 {
-    std::lock_guard<std::mutex> lock(_roomMapMutex);
-    std::shared_ptr<Room>& room = _roomMap[roomId];
-    if (!room) {
-        room = Room::create(roomId, 0);
+    if (_roomMap.contains(roomId)) {
+        return _roomMap[roomId];
+    }
+    else {
+        auto room = Room::create(roomId, 0);
         room->init();
         room->closeSignal.connect(&Lobby::onRoomClose, shared_from_this());
+        _roomMap.emplace(std::make_pair(roomId, room));
+        return room;
     }
-    return room;
 }
 
 std::shared_ptr<Room> Lobby::getRoom(const std::string& roomId)
 {
-    std::lock_guard<std::mutex> lock(_roomMapMutex);
-    auto it = _roomMap.find(roomId);
-    if (it != _roomMap.end()) {
-        return it->second;
+    if (_roomMap.contains(roomId)) {
+        return _roomMap[roomId];
     }
     return nullptr;
 }
@@ -49,7 +49,7 @@ void Lobby::deleteRoom(const std::string& roomId)
 
 void Lobby::runPingLoop(const std::chrono::duration<v_int64, std::micro>& interval)
 {
-    while(true) {
+    while (true) {
         std::chrono::duration<v_int64, std::micro> elapsed = std::chrono::microseconds(0);
         auto startTime = std::chrono::system_clock::now();
 
@@ -58,10 +58,9 @@ void Lobby::runPingLoop(const std::chrono::duration<v_int64, std::micro>& interv
             elapsed = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - startTime);
         } while (elapsed < interval);
 
-        std::lock_guard<std::mutex> lock(_roomMapMutex);
-        for (const auto &room : _roomMap) {
-            room.second->pingAllPeers();
-        }
+        _roomMap.for_each([](const auto& item){
+            item.second->pingAllPeers();
+        });
     }
 }
 
@@ -91,20 +90,20 @@ void Lobby::onBeforeDestroy_NonBlocking(const std::shared_ptr<AsyncWebSocket>& s
     auto peer = std::static_pointer_cast<Peer>(socket->getListener());
     auto roomId = peer->roomId();
 
-    {
-        std::lock_guard<std::mutex> lock(_roomMapMutex);
-        if (auto room = _roomMap[roomId.c_str()]) {
-            peer->close();
-            peer->invalidateSocket();
-            room->removePeer(peer->id());
-            if (room->isEmpty()) {
-                deleteRoom(roomId.c_str());
-            }
-        }
+    if (!_roomMap.contains(roomId)) {
+        return;
+    }
+    
+    auto room = _roomMap[roomId];
+    peer->close();
+    peer->invalidateSocket();
+    room->removePeer(peer->id());
+    if (room->isEmpty()) {
+        deleteRoom(roomId);
     }
 }
 
 void Lobby::onRoomClose(const std::string& roomId)
 {
-    deleteRoom(roomId.c_str());
+    deleteRoom(roomId);
 }

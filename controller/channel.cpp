@@ -139,8 +139,7 @@ namespace srv {
 
     bool Channel::removeCallback(uint32_t id)
     {
-        std::lock_guard<std::mutex> lock(_callbackMutex);
-        if (_callbackMap.find(id) != _callbackMap.end()) {
+        if (_callbackMap.contains(id)) {
             _callbackMap.erase(id);
             return true;
         }
@@ -149,12 +148,9 @@ namespace srv {
 
     void Channel::clean()
     {
-        {
-            std::lock_guard<std::mutex> lock(_callbackMutex);
-            for (const auto& item : _callbackMap) {
-                item.second->close();
-            }
-        }
+        _callbackMap.for_each([](const auto& item) {
+            item.second->close();
+        });
         
         std::shared_ptr<Message> msg;
         while (_requestQueue.try_dequeue(msg)) {
@@ -246,10 +242,7 @@ namespace srv {
         uint32_t duration = 1000 * (15 + (0.1 * _callbackMap.size()));
         //callback->setTimeout(_timerThread, duration);
         
-        {
-            std::lock_guard<std::mutex> lock(_callbackMutex);
-            _callbackMap[requestId] = callback;
-        }
+        _callbackMap.emplace(std::make_pair(requestId, callback));
         
         if (data.size() > MESSAGE_MAX_LEN) {
             SRV_LOGD("Channel request too big");
@@ -280,16 +273,12 @@ namespace srv {
     {
         assert(response);
         
-        std::shared_ptr<Callback> callback;
-        {
-            std::lock_guard<std::mutex> lock(_callbackMutex);
-            auto it = _callbackMap.find(response->id());
-            if (it == _callbackMap.end()) {
-                SRV_LOGE("received response does not match any sent request [id:%u]", response->id());
-                return;
-            }
-            callback = it->second;
+        if (!_callbackMap.contains(response->id())) {
+            SRV_LOGE("received response does not match any sent request [id:%u]", response->id());
+            return;
         }
+        
+        std::shared_ptr<Callback> callback = _callbackMap[response->id()];
         
         if (response->accepted()) {
             //SRV_LOGD("request succeeded [method:%u, id:%u]", (uint8_t)callback->method(), callback->id());

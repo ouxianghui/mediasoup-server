@@ -10,6 +10,7 @@
 #pragma once
 
 #include <memory>
+#include "threadsafe_unordered_map.hpp"
 #include "interface/i_transport_controller.h"
 #include "interface/i_webrtc_server_controller.h"
 #include "FBS/webRtcServer.h"
@@ -75,8 +76,7 @@ namespace srv {
         // Custom app data.
         nlohmann::json _appData;
         
-        std::mutex _webRtcTransportsMutex;
-        std::unordered_map<std::string, std::shared_ptr<WebRtcTransportController>> _webRtcTransportMap;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<WebRtcTransportController>> _webRtcTransportMap;
     };
 
     std::shared_ptr<IpPort> parseIpPort(const FBS::WebRtcServer::IpPort* binary);

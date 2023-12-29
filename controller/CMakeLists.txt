@@ -115,6 +115,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/json/single_include
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libwebrtc/deps/abseil-cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/stl
   ${CMAKE_CURRENT_SOURCE_DIR}/../release/include/fbs
   ${PROJECT_INCLUDE_DIR}
 )

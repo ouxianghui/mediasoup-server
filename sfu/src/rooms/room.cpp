@@ -23,8 +23,8 @@
 #include "interface/i_data_consumer_controller.h"
 #include "interface/i_data_producer_controller.h"
 #include "interface/i_rtp_observer_controller.h"
-
 #include "video_sharing_controller.hpp"
+#include "producer_video_quality_controller.hpp"
 
 std::shared_ptr<Room> Room::create(const std::string& roomId, int32_t consumerReplicas)
 {
@@ -104,7 +104,7 @@ Room::~Room()
 
 void Room::init()
 {
-    SRV_LOGD("inti()");
+    SRV_LOGD("init()");
     
     handleAudioLevelObserver();
     handleActiveSpeakerObserver();
@@ -119,8 +119,7 @@ void Room::createPeer(const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& s
 {
     SRV_LOGD("createPeer()");
     
-    std::lock_guard<std::mutex> guard(_peerMutex);
-    if (_peerMap.find(peerId) != _peerMap.end()) {
+    if (_peerMap.contains(peerId)) {
         SRV_LOGE("there is already a Peer with same peerId [peerId:'%s']", peerId.c_str());
         return;
     }
@@ -134,17 +133,15 @@ void Room::createPeer(const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& s
     peer->notificationSignal.connect(&Room::onHandleNotification, shared_from_this());
     peer->closeSignal.connect(&Room::onPeerClose, shared_from_this());
     
-    _peerMap[peer->id()] = peer;
+    _peerMap.emplace(std::make_pair(peer->id(), peer));
 }
 
 std::shared_ptr<Peer> Room::getPeer(const std::string& peerId)
 {
     SRV_LOGD("getPeer()");
-    
-    std::lock_guard<std::mutex> guard(_peerMutex);
-    auto it = _peerMap.find(peerId);
-    if (it != _peerMap.end()) {
-        return it->second;
+
+    if (_peerMap.contains(peerId)) {
+        return _peerMap[peerId];
     }
     return nullptr;
 }
@@ -152,14 +149,12 @@ std::shared_ptr<Peer> Room::getPeer(const std::string& peerId)
 void Room::removePeer(const std::string& peerId)
 {
     SRV_LOGD("removePeer()");
-    
-    std::lock_guard<std::mutex> guard(_peerMutex);
-    auto peer = _peerMap.find(peerId);
-    
-    if (peer != _peerMap.end()) {
-        peer->second->requestSignal.disconnect_all();
-        peer->second->notificationSignal.disconnect_all();
-        peer->second->closeSignal.disconnect_all();
+
+    if (_peerMap.contains(peerId)) {
+        auto peer = _peerMap[peerId];
+        peer->requestSignal.disconnect_all();
+        peer->notificationSignal.disconnect_all();
+        peer->closeSignal.disconnect_all();
         _peerMap.erase(peerId);
     }
     
@@ -171,14 +166,13 @@ void Room::removePeer(const std::string& peerId)
 
 void Room::pingAllPeers()
 {
-    std::lock_guard<std::mutex> guard(_peerMutex);
-    for(auto& pair : _peerMap) {
+    _peerMap.for_each([this](auto& pair) {
         auto& peer = pair.second;
         if (!peer->sendPing()) {
             peer->invalidateSocket();
-            ++_statistics->EVENT_PEER_ZOMBIE_DROPPED;
+            ++this->_statistics->EVENT_PEER_ZOMBIE_DROPPED;
         }
-    }
+    });
 }
 
 bool Room::isEmpty()
@@ -221,25 +215,28 @@ void Room::onPeerClose(const std::string& peerId)
         
         auto otherPeers = getJoinedPeers(peerId);
         
-        std::unordered_map<std::string, std::shared_ptr<srv::ITransportController>> transportControllers;
-        {
-            std::lock_guard<std::mutex> guard(_peerMutex);
-            auto peer = _peerMap.find(peerId);
-            if (peer != _peerMap.end()) {
-                if (peer->second->data()->joined) {
-                    for (const auto& otherPeer : otherPeers) {
-                        otherPeer.second->notify("peerClosed", msg);
-                    }
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::ITransportController>> transportControllers;
+
+        if (_peerMap.contains(peerId)) {
+            auto peer = _peerMap[peerId];
+            auto peerData = peer->data();
+            if (peerData->joined) {
+                peerData->consumerControllers.for_each([this](const auto& item) {
+                   this->removeProducerVideoQuality(item.second);
+                });
+                
+                for (const auto& otherPeer : otherPeers) {
+                    otherPeer.second->notify("peerClosed", msg);
                 }
-                transportControllers = peer->second->data()->transportControllers;
             }
+            transportControllers = peer->data()->transportControllers.value();
         }
             
         // Iterate and close all mediasoup Transport associated to this Peer, so all
         // its Producers and Consumers will also be closed.
-        for (const auto& controller : transportControllers) {
-            controller.second->close();
-        }
+        transportControllers.for_each([](const auto& item) {
+            item.second->close();
+        });
     }
 }
 
@@ -258,13 +255,12 @@ void Room::handleActiveSpeakerObserver()
 
 std::unordered_map<std::string, std::shared_ptr<Peer>> Room::getJoinedPeers(const std::string& excludePeerId)
 {
-    std::lock_guard<std::mutex> guard(_peerMutex);
     std::unordered_map<std::string, std::shared_ptr<Peer>> peers;
-    for (const auto& item: _peerMap) {
+    _peerMap.for_each([&peers, excludePeerId](const auto& item) {
         if (item.second->data()->joined && item.first != excludePeerId) {
             peers.emplace(item);
         }
-    }
+    });
     return peers;
 }
 
@@ -290,13 +286,12 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
 
     // Must take the Transport the remote Peer is using for consuming.
     std::shared_ptr<srv::ITransportController> transportController;
-    for(auto &kv : consumerPeer->data()->transportControllers) {
+    consumerPeer->data()->transportControllers.for_each([&transportController](auto &kv) {
         auto &t = kv.second;
-        if(t->appData()["consuming"].get<bool>() == true) {
+        if(t->appData()["consuming"].template get<bool>() == true) {
             transportController = t;
-            break;
         }
-    }
+    });
     // This should not happen.
     if (!transportController) {
         SRV_LOGE("createConsumer() | Transport for consuming not found");
@@ -322,7 +317,10 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             return;
         }
         
-        consumerPeer->data()->consumerControllers[consumerController->id()] = consumerController;
+        consumerPeer->data()->consumerControllers.emplace(std::make_pair(consumerController->id(), consumerController));
+        
+        std::weak_ptr<srv::IConsumerController> wcc = consumerController;
+        std::weak_ptr<Room> wself = shared_from_this();
         
         consumerController->transportCloseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
             auto cp = wcp.lock();
@@ -332,7 +330,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             cp->data()->consumerControllers.erase(id);
         });
         
-        consumerController->producerCloseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
+        consumerController->producerCloseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer), wcc, wself](){
             auto cp = wcp.lock();
             if (!cp) {
                 return;
@@ -341,13 +339,19 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             nlohmann::json msg;
             msg["consumerId"] = id;
             
-            if (cp->data()->consumerControllers.find(id) != cp->data()->consumerControllers.end()) {
+            if (cp->data()->consumerControllers.contains(id)) {
                 auto consumerController = cp->data()->consumerControllers[id];
                 msg["appData"] = consumerController->appData();
             }
             
             cp->data()->consumerControllers.erase(id);
             cp->notify("consumerClosed", msg);
+            
+            if (auto self = wself.lock()) {
+                if(auto consumerController = wcc.lock()) {
+                    self->removeProducerVideoQuality(consumerController);
+                }
+            }
         });
         
         consumerController->producerPauseSignal.connect([id = consumerController->id(), wcp = std::weak_ptr<Peer>(consumerPeer)](){
@@ -444,14 +448,14 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
 
     // Must take the Transport the remote Peer is using for consuming.
     std::shared_ptr<srv::ITransportController> transportController;
-    for(auto &kv : dataConsumerPeer->data()->transportControllers)
-    {
+    dataConsumerPeer->data()->transportControllers.for_each2([&transportController](auto &kv){
         auto t = kv.second;
-        if(t->appData()["consuming"].get<bool>() == true) {
+        if(t->appData()["consuming"].template get<bool>() == true) {
             transportController = t;
-            break;
+            return true;
         }
-    }
+        return false;
+    });
     // This should not happen.
     if (!transportController) {
         SRV_LOGW("createDataConsumer() | Transport for consuming not found");
@@ -471,7 +475,7 @@ void Room::createDataConsumer(const std::shared_ptr<Peer>& dataConsumerPeer, con
         return;
     }
     
-    dataConsumerPeer->data()->dataConsumerControllers[dataConsumerController->id()] = dataConsumerController;
+    dataConsumerPeer->data()->dataConsumerControllers.emplace(std::make_pair(dataConsumerController->id(), dataConsumerController));
 
     dataConsumerController->transportCloseSignal.connect([id = dataConsumerController->id(), wdcp = std::weak_ptr<Peer>(dataConsumerPeer)](){
         auto dcp = wdcp.lock();
@@ -690,19 +694,18 @@ void Room::onHandleJoin(const std::shared_ptr<Peer>& peer, const nlohmann::json&
     for (const auto& kv : otherPeers) {
         const auto& joinedPeer = kv.second;
         // Create Consumers for existing Producers.
-        for (const auto& ikv : joinedPeer->data()->producerControllers) {
+        joinedPeer->data()->producerControllers.for_each([this, peer, joinedPeer](const auto& ikv) {
             const auto& producerController = ikv.second;
-            createConsumer(peer, joinedPeer, producerController);
-        }
+            this->createConsumer(peer, joinedPeer, producerController);
+        });
 
         // Create DataConsumers for existing DataProducers.
-        for (const auto& ikv : joinedPeer->data()->dataProducerControllers) {
+        joinedPeer->data()->dataProducerControllers.for_each([this, peer, joinedPeer](const auto& ikv) {
             const auto& dataProducerController = ikv.second;
-            if (dataProducerController->label() == "bot") {
-                continue;
+            if (dataProducerController->label() != "bot") {
+                this->createDataConsumer(peer, joinedPeer, dataProducerController);
             }
-            createDataConsumer(peer, joinedPeer, dataProducerController);
-        }
+        });
     }
     
     // Create Consumer for sharing Producer.
@@ -806,7 +809,7 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
         }
     });
     
-    peer->data()->transportControllers[transportController->id()] = transportController;
+    peer->data()->transportControllers.emplace(std::make_pair(transportController->id(), transportController));
     
     nlohmann::json jiceCandidates = transportController->iceCandidates();
     SRV_LOGD("iceCandidates: %s", jiceCandidates.dump(4).c_str());
@@ -850,7 +853,7 @@ void Room::onHandleConnectWebRtcTransport(const std::shared_ptr<Peer>& peer, con
     const auto& transportId = data["transportId"];
     const auto& dtlsParameters = data["dtlsParameters"];
     
-    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
+    if (!peer->data()->transportControllers.contains(transportId)) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
@@ -883,7 +886,7 @@ void Room::onHandleRestartIce(const std::shared_ptr<Peer>& peer, const nlohmann:
     const auto& data = request["data"];
     const auto& transportId = data["transportId"];
     
-    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
+    if (!peer->data()->transportControllers.contains(transportId)) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
@@ -944,7 +947,7 @@ void Room::onHandleDefaultProduce(const std::shared_ptr<Peer>& peer, const nlohm
     const auto& rtpParameters = data["rtpParameters"];
     SRV_LOGD("produce rtpParameters: %s", rtpParameters.dump(4).c_str());
     
-    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
+    if (!peer->data()->transportControllers.contains(transportId)) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
@@ -974,7 +977,7 @@ void Room::onHandleDefaultProduce(const std::shared_ptr<Peer>& peer, const nlohm
     
     auto producerController = transportController->produce(options);
     
-    peer->data()->producerControllers[producerController->id()] = producerController;
+    peer->data()->producerControllers.emplace(std::make_pair(producerController->id(), producerController));
     
     producerController->scoreSignal.connect([wpeer = std::weak_ptr<Peer>(peer), id = producerController->id()](const std::vector<srv::ProducerScore>& scores){
         auto peer = wpeer.lock();
@@ -1036,7 +1039,7 @@ void Room::onHandleSharingProduce(const std::shared_ptr<Peer>& peer, const nlohm
     const auto& rtpParameters = data["rtpParameters"];
     SRV_LOGD("produce rtpParameters: %s", rtpParameters.dump(4).c_str());
     
-    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
+    if (!peer->data()->transportControllers.contains(transportId)) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
@@ -1127,7 +1130,7 @@ void Room::onHandleCloseProducer(const std::shared_ptr<Peer>& peer, const nlohma
     const auto& producerId = data["producerId"];
     
     std::shared_ptr<srv::IProducerController> producerConstroller;
-    if (peer->data()->producerControllers.find(producerId) != peer->data()->producerControllers.end()) {
+    if (peer->data()->producerControllers.contains(producerId)) {
         producerConstroller = peer->data()->producerControllers[producerId];
         producerConstroller->close();
         peer->data()->producerControllers.erase(producerConstroller->id());
@@ -1168,7 +1171,7 @@ void Room::onHandlePauseProducer(const std::shared_ptr<Peer>& peer, const nlohma
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    if (peer->data()->producerControllers.find(producerId) == peer->data()->producerControllers.end()) {
+    if (!peer->data()->producerControllers.contains(producerId)) {
         SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
         accept(request, {});
         return;
@@ -1199,7 +1202,7 @@ void Room::onHandleResumeProducer(const std::shared_ptr<Peer>& peer, const nlohm
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    if (peer->data()->producerControllers.find(producerId) == peer->data()->producerControllers.end()) {
+    if (!peer->data()->producerControllers.contains(producerId)) {
         SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
         accept(request, {});
         return;
@@ -1230,7 +1233,7 @@ void Room::onHandlePauseConsumer(const std::shared_ptr<Peer>& peer, const nlohma
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
+    if (!peer->data()->consumerControllers.contains(consumerId)) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
@@ -1241,6 +1244,8 @@ void Room::onHandlePauseConsumer(const std::shared_ptr<Peer>& peer, const nlohma
     consumerConstroller->pause();
     
     accept(request, {});
+    
+    updateProducerVideoQuality(consumerConstroller);
 }
 
 void Room::onHandleResumeConsumer(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1261,7 +1266,7 @@ void Room::onHandleResumeConsumer(const std::shared_ptr<Peer>& peer, const nlohm
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
+    if (!peer->data()->consumerControllers.contains(consumerId)) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
@@ -1272,6 +1277,8 @@ void Room::onHandleResumeConsumer(const std::shared_ptr<Peer>& peer, const nlohm
     consumerConstroller->resume();
     
     accept(request, {});
+    
+    updateProducerVideoQuality(consumerConstroller);
 }
 
 void Room::onHandleSetConsumerPreferredLayers(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1296,7 +1303,7 @@ void Room::onHandleSetConsumerPreferredLayers(const std::shared_ptr<Peer>& peer,
     consumerLayers.spatialLayer = data["spatialLayer"];
     consumerLayers.temporalLayer = data["temporalLayer"];
 
-    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
+    if (!peer->data()->consumerControllers.contains(consumerId)) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
@@ -1307,6 +1314,8 @@ void Room::onHandleSetConsumerPreferredLayers(const std::shared_ptr<Peer>& peer,
     consumerConstroller->setPreferredLayers(consumerLayers);
     
     accept(request, {});
+    
+    updateProducerVideoQuality(consumerConstroller);
 }
 
 void Room::onHandleSetConsumerPriority(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1329,7 +1338,7 @@ void Room::onHandleSetConsumerPriority(const std::shared_ptr<Peer>& peer, const 
     const auto& consumerId = data["consumerId"];
     const auto& priority = data["priority"];
     
-    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
+    if (!peer->data()->consumerControllers.contains(consumerId)) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
@@ -1360,7 +1369,7 @@ void Room::onHandleRequestConsumerKeyFrame(const std::shared_ptr<Peer>& peer, co
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
+    if (!peer->data()->consumerControllers.contains(consumerId)) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
@@ -1395,7 +1404,7 @@ void Room::onHandleProduceData(const std::shared_ptr<Peer>& peer, const nlohmann
     const auto& protocol = data["protocol"];
     const auto& appData = data["appData"];
     
-    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
+    if (!peer->data()->transportControllers.contains(transportId)) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
@@ -1411,7 +1420,7 @@ void Room::onHandleProduceData(const std::shared_ptr<Peer>& peer, const nlohmann
     
     auto dataProducerController = transportController->produceData(option);
     
-    peer->data()->dataProducerControllers[dataProducerController->id()] = dataProducerController;
+    peer->data()->dataProducerControllers.emplace(std::make_pair(dataProducerController->id(), dataProducerController));
     
     nlohmann::json msg;
     msg["id"] = dataProducerController->id();
@@ -1483,7 +1492,7 @@ void Room::onHandleGetTransportStats(const std::shared_ptr<Peer>& peer, const nl
     const auto& data = request["data"];
     const auto& transportId = data["transportId"];
     
-    if (peer->data()->transportControllers.find(transportId) == peer->data()->transportControllers.end()) {
+    if (!peer->data()->transportControllers.contains(transportId)) {
         SRV_LOGE("transport with id transportId: %s not found", transportId.dump().c_str());
         accept(request, {});
         return;
@@ -1515,7 +1524,7 @@ void Room::onHandleGetProducerStats(const std::shared_ptr<Peer>& peer, const nlo
     const auto& data = request["data"];
     const auto& producerId = data["producerId"];
     
-    if (peer->data()->producerControllers.find(producerId) == peer->data()->producerControllers.end()) {
+    if (!peer->data()->producerControllers.contains(producerId)) {
         SRV_LOGD("producer with id producerId: %s not found", producerId.dump().c_str());
         accept(request, {});
         return;
@@ -1553,7 +1562,7 @@ void Room::onHandleGetConsumerStats(const std::shared_ptr<Peer>& peer, const nlo
     const auto& data = request["data"];
     const auto& consumerId = data["consumerId"];
     
-    if (peer->data()->consumerControllers.find(consumerId) == peer->data()->consumerControllers.end()) {
+    if (!peer->data()->consumerControllers.contains(consumerId)) {
         SRV_LOGD("consumer with id consumerId: %s not found", consumerId.dump().c_str());
         accept(request, {});
         return;
@@ -1591,7 +1600,7 @@ void Room::onHandleGetDataProducerStats(const std::shared_ptr<Peer>& peer, const
     const auto& data = request["data"];
     const auto& dataProducerId = data["dataProducerId"];
     
-    if (peer->data()->dataProducerControllers.find(dataProducerId) == peer->data()->dataProducerControllers.end()) {
+    if (!peer->data()->dataProducerControllers.contains(dataProducerId)) {
         SRV_LOGD("data producer with id producerId: %s not found", dataProducerId.dump().c_str());
         accept(request, {});
         return;
@@ -1629,7 +1638,7 @@ void Room::onHandleGetDataConsumerStats(const std::shared_ptr<Peer>& peer, const
     const auto& data = request["data"];
     const auto& dataConsumerId = data["dataConsumerId"];
     
-    if (peer->data()->dataConsumerControllers.find(dataConsumerId) == peer->data()->dataConsumerControllers.end()) {
+    if (!peer->data()->dataConsumerControllers.contains(dataConsumerId)) {
         SRV_LOGD("data consumer with id consumerId: %s not found", dataConsumerId.dump().c_str());
         accept(request, {});
         return;
@@ -1683,4 +1692,75 @@ void Room::onHandleApplyNetworkThrottle(const std::shared_ptr<Peer>& peer, const
     }
     
     accept(request, {});
+}
+
+void Room::updateProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController)
+{
+    auto producerId = consumerController->producerId();
+    auto producerPeerId = consumerController->appData()["peerId"].get<std::string>();
+    auto producerPeer = getPeer(producerPeerId);
+
+    if (!producerPeer) {
+        return;
+    }
+    
+    auto producerPeerData = producerPeer->data();
+    
+    std::shared_ptr<ProducerVideoQualityController> qualityController;
+    if (!producerPeerData->producerVideoQualityControllers.contains(producerId)) {
+        qualityController = std::make_shared<ProducerVideoQualityController>();
+        producerPeerData->producerVideoQualityControllers.emplace(std::make_pair(producerId, qualityController));
+    }
+    else {
+        qualityController = producerPeerData->producerVideoQualityControllers[producerId];
+    }
+    
+    srv::ConsumerLayers layers = consumerController->preferredLayers();
+    auto consumerPaused = consumerController->paused();
+    qualityController->addOrUpdateConsumer(consumerController->id(),consumerPaused, layers.spatialLayer);
+
+    auto maxQ = qualityController->getMaxDesiredQ();
+    auto paused = qualityController->isAllConsumerPaused();
+
+    nlohmann::json msg;
+    msg["producerId"] = producerId;
+    msg["paused"] = paused;
+    msg["desiredQ"] = maxQ;
+    producerPeer->notify("producerVideoQualityChanged", msg);
+}
+
+void Room::removeProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController)
+{
+    auto producerId = consumerController->producerId();
+    auto producerPeerId = consumerController->appData()["peerId"].get<std::string>();
+    
+    std::shared_ptr<Peer> producerPeer;
+    if (_peerMap.contains(producerPeerId)) {
+        producerPeer = _peerMap[producerPeerId];
+    }
+
+    if (!producerPeer) {
+        return;
+    }
+    
+    auto producerPeerData = producerPeer->data();
+
+    std::shared_ptr<ProducerVideoQualityController> qualityController;
+    
+    if (!producerPeerData->producerVideoQualityControllers.contains(producerId)) {
+        return;
+    }
+    
+    qualityController = producerPeerData->producerVideoQualityControllers[producerId];
+    
+    qualityController->removeConsumer(consumerController->id());
+
+    auto maxQ = qualityController->getMaxDesiredQ();
+    auto paused = qualityController->isAllConsumerPaused();
+
+    nlohmann::json msg;
+    msg["producerId"] = producerId;
+    msg["paused"] = paused;
+    msg["desiredQ"] = maxQ;
+    producerPeer->notify("producerVideoQualityChanged", msg);
 }

@@ -207,47 +207,43 @@ namespace srv {
         data.rtpParameters = rtpParameters;
         data.type = pipe ? "pipe" : producerController->type();
         
-        {
-            std::lock_guard<std::mutex> lock(_consumersMutex);
-            consumerController = std::make_shared<ConsumerController>(internal,
-                                                                      data,
-                                                                      _channel.lock(),
-                                                                      appData,
-                                                                      paused_,
-                                                                      producerPaused_,
-                                                                      ConsumerScore(),
-                                                                      ConsumerLayers());
-            consumerController->init();
-            
-            _consumerControllers[consumerController->id()] = consumerController;
-            
-            auto wself = std::weak_ptr<ITransportController>(AbstractTransportController::shared_from_this());
-            auto removeLambda = [id = consumerController->id(), wself]() {
-                auto self = wself.lock();
-                if (!self) {
-                    return;
-                }
-                if (auto ptc = std::dynamic_pointer_cast<PipeTransportController>(self)) {
-                    ptc->removeConsumerController(id);
-                }
-                else {
-                    assert(0);
-                }
-            };
-            
-            consumerController->closeSignal.connect(removeLambda);
-            consumerController->producerCloseSignal.connect(removeLambda);
-            
-            this->newConsumerSignal(consumerController);
-        }
+        consumerController = std::make_shared<ConsumerController>(internal,
+                                                                  data,
+                                                                  _channel.lock(),
+                                                                  appData,
+                                                                  paused_,
+                                                                  producerPaused_,
+                                                                  ConsumerScore(),
+                                                                  ConsumerLayers());
+        consumerController->init();
+        
+        _consumerControllers.emplace(std::make_pair(consumerController->id(), consumerController));
+        
+        auto wself = std::weak_ptr<ITransportController>(AbstractTransportController::shared_from_this());
+        auto removeLambda = [id = consumerController->id(), wself]() {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (auto ptc = std::dynamic_pointer_cast<PipeTransportController>(self)) {
+                ptc->removeConsumerController(id);
+            }
+            else {
+                assert(0);
+            }
+        };
+        
+        consumerController->closeSignal.connect(removeLambda);
+        consumerController->producerCloseSignal.connect(removeLambda);
+        
+        this->newConsumerSignal(consumerController);
 
         return consumerController;
     }
 
     void PipeTransportController::removeConsumerController(const std::string& id)
     {
-        std::lock_guard<std::mutex> lock(_consumersMutex);
-        if (_consumerControllers.find(id) != _consumerControllers.end()) {
+        if (_consumerControllers.contains(id)) {
             _consumerControllers.erase(id);
         }
     }

@@ -10,6 +10,7 @@
 #pragma once
 
 #include <memory>
+#include "threadsafe_unordered_map.hpp"
 #include "interface/i_transport_controller.h"
 #include "FBS/transport.h"
 #include "FBS/sctpAssociation.h"
@@ -93,21 +94,17 @@ namespace srv {
         // Method to retrieve a DataProducer.
         std::function<std::shared_ptr<IDataProducerController>(const std::string&)> _getDataProducerController;
 
-        std::mutex _producersMutex;
         // Producers map.
-        std::unordered_map<std::string, std::shared_ptr<IProducerController>> _producerControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IProducerController>> _producerControllers;
 
-        std::mutex _consumersMutex;
         // Consumers map.
-        std::unordered_map<std::string, std::shared_ptr<IConsumerController>> _consumerControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IConsumerController>> _consumerControllers;
 
-        std::mutex _dataProducersMutex;
         // DataProducers map.
-        std::unordered_map<std::string, std::shared_ptr<IDataProducerController>> _dataProducerControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IDataProducerController>> _dataProducerControllers;
 
-        std::mutex _dataConsumersMutex;
         // DataConsumers map.
-        std::unordered_map<std::string, std::shared_ptr<IDataConsumerController>> _dataConsumerControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IDataConsumerController>> _dataConsumerControllers;
 
         // RTCP CNAME for Producers.
         std::string _cnameForProducers;

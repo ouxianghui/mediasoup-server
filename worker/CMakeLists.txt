@@ -34,7 +34,6 @@ set(mediasoup_worker_headers
 "include/Channel/ChannelSocket.hpp"
 "include/ChannelMessageRegistrator.hpp"
 "include/DepLibSRTP.hpp"
-"include/DepLibUring.hpp"
 "include/DepLibUV.hpp"
 "include/DepLibWebRTC.hpp"
 "include/DepOpenSSL.hpp"
@@ -147,7 +146,6 @@ set(mediasoup_worker_sources
 "src/lib.cpp"
 "src/DepLibSRTP.cpp"
 "src/DepLibUV.cpp"
-"src/DepLibUring.cpp"
 "src/DepLibWebRTC.cpp"
 "src/DepOpenSSL.cpp"
 "src/DepUsrSCTP.cpp"
@@ -262,6 +260,11 @@ set(mediasoup_worker_sources
 "src/RTC/RTCP/XrDelaySinceLastRr.cpp"
 "src/RTC/RTCP/XrReceiverReferenceTime.cpp"
 )
+
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    set(mediasoup_worker_headers ${mediasoup_worker_headers} "include/DepLibUring.hpp")
+    set(mediasoup_worker_sources ${mediasoup_worker_sources} "include/DepLibUring.cpp")
+ENDIF()
 
 add_library(${PROJECT_NAME}
     ${mediasoup_worker_sources}

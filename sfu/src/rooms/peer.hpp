@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include "threadsafe_unordered_map.hpp"
 #include "dto/dtos.hpp"
 #include "dto/config.hpp"
 #include "utils/statistics.hpp"
@@ -56,6 +57,8 @@ struct PeerInfo
     std::vector<nlohmann::json> producers;
 };
 
+class ProducerVideoQualityController;
+
 class PeerData
 {
 public:
@@ -67,11 +70,12 @@ public:
     nlohmann::json rtpCapabilities;
     nlohmann::json sctpCapabilities;
     
-    std::unordered_map<std::string, std::shared_ptr<srv::ITransportController>> transportControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::IProducerController>> producerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::IConsumerController>> consumerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::IDataProducerController>> dataProducerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::IDataConsumerController>> dataConsumerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::ITransportController>> transportControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IProducerController>> producerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IConsumerController>> consumerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IDataProducerController>> dataProducerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IDataConsumerController>> dataConsumerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<ProducerVideoQualityController>> producerVideoQualityControllers;
 };
 
 class Peer : public oatpp::websocket::AsyncWebSocket::Listener, public std::enable_shared_from_this<Peer>

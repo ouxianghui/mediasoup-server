@@ -76,13 +76,10 @@ namespace srv {
         SRV_LOGD("workerClosed()");
 
         _closed = true;
-
-        {
-            std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-            // NOTE: No need to close WebRtcTransports since they are closed by their
-            // respective Router parents.
-            _webRtcTransportMap.clear();
-        }
+        
+        // NOTE: No need to close WebRtcTransports since they are closed by their
+        // respective Router parents.
+        _webRtcTransportMap.clear();
 
         this->workerCloseSignal();
 
@@ -120,29 +117,23 @@ namespace srv {
 
         channel->request(reqId, reqData);
         
-        {
-            std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-            
-            // Close every WebRtcTransport.
-            for (const auto& webRtcTransport : _webRtcTransportMap) {
-                auto transport = webRtcTransport.second;
-                
-                transport->onWebRtcServerClosed();
-                
-                this->webrtcTransportUnhandledSignal(transport);
-            }
-            _webRtcTransportMap.clear();
-        }
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<WebRtcTransportController>> webRtcTransportMap = _webRtcTransportMap.value();
+        
+        // Close every WebRtcTransport.
+        webRtcTransportMap.for_each ([this](const auto& webRtcTransport) {
+            auto transport = webRtcTransport.second;
+            transport->onWebRtcServerClosed();
+            this->webrtcTransportUnhandledSignal(transport);
+        });
+        
+        _webRtcTransportMap.clear();
 
         this->closeSignal(shared_from_this());
     }
 
     void WebRtcServerController::handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& transportController)
     {
-        {
-            std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-            _webRtcTransportMap[transportController->id()] = transportController;
-        }
+        _webRtcTransportMap.emplace(std::make_pair(transportController->id(), transportController));
 
         // Emit observer event.
         this->webrtcTransportHandledSignal(transportController);
@@ -152,8 +143,7 @@ namespace srv {
 
     void WebRtcServerController::onWebRtcTransportClose(const std::string& id_)
     {
-        std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-        if (_webRtcTransportMap.find(id_) != _webRtcTransportMap.end()) {
+        if (_webRtcTransportMap.contains(id_)) {
             auto controller = _webRtcTransportMap[id_];
             this->webrtcTransportUnhandledSignal(controller);
             _webRtcTransportMap.erase(id_);

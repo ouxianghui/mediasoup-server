@@ -11,7 +11,7 @@
 
 #include <memory>
 #include <atomic>
-#include <unordered_map>
+#include "threadsafe_unordered_map.hpp"
 #include <list>
 #include "peer.hpp"
 #include "dto/dtos.hpp"
@@ -26,6 +26,7 @@ namespace srv {
     class IRtpObserverController;
     class AudioLevelObserverVolume;
     class ActiveSpeakerObserverDominantSpeaker;
+    class IConsumerController;
 }
 
 class VideoSharingController;
@@ -141,11 +142,14 @@ private:
     void onHandleApplyNetworkThrottle(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject);
     
 private:
+    void updateProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController);
+    
+    void removeProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController);
+    
+private:
     std::string _id;
     
-    std::mutex _peerMutex;
-    
-    std::unordered_map<std::string, std::shared_ptr<Peer>> _peerMap;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<Peer>> _peerMap;
     
     std::shared_ptr<srv::IWebRtcServerController> _webRtcServerController;
     

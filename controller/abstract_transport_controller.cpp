@@ -70,51 +70,31 @@ namespace srv {
         
         channel->request(reqId, reqData);
         
-        std::unordered_map<std::string, std::shared_ptr<IProducerController>> producerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_producersMutex);
-            producerControllers = _producerControllers;
-        }
-        for (const auto& item : producerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IProducerController>> producerControllers = _producerControllers.value();
+        producerControllers.for_each([this](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
             this->producerCloseSignal(ctrl);
-        }
-        //_producerControllers.clear();
+        });
         
-        std::unordered_map<std::string, std::shared_ptr<IConsumerController>> consumerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_consumersMutex);
-            consumerControllers = _consumerControllers;
-        }
-        for (const auto& item : consumerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IConsumerController>> consumerControllers = _consumerControllers.value();
+        consumerControllers.for_each([](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
-        }
-        //_consumerControllers.clear();
+        });
         
-        std::unordered_map<std::string, std::shared_ptr<IDataProducerController>> dataProducerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_dataProducersMutex);
-            dataProducerControllers = _dataProducerControllers;
-        }
-        for (const auto& item : dataProducerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IDataProducerController>> dataProducerControllers = _dataProducerControllers.value();
+        dataProducerControllers.for_each([this](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
             this->dataProducerCloseSignal(ctrl);
-        }
-        //_dataProducerControllers.clear();
+        });
         
-        std::unordered_map<std::string, std::shared_ptr<IDataConsumerController>> dataConsumerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_dataConsumersMutex);
-            dataConsumerControllers = _dataConsumerControllers;
-        }
-        for (const auto& item : dataConsumerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IDataConsumerController>> dataConsumerControllers = _dataConsumerControllers.value();
+        dataConsumerControllers.for_each([](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
-        }
-        //_dataConsumerControllers.clear();
+        });
         
         this->closeSignal(id());
     }
@@ -309,7 +289,7 @@ namespace srv {
         const int& keyFrameRequestDelay = options->keyFrameRequestDelay;
         const nlohmann::json& appData = options->appData;
         
-        if (_producerControllers.find(id) != _producerControllers.end()) {
+        if (_producerControllers.contains(id)) {
             SRV_LOGE("a Producer with same id '%s' already exists", id.c_str());
             return producerController;
         }
@@ -409,24 +389,20 @@ namespace srv {
         producerInternal.producerId = producerId;
         producerInternal.transportId = _internal.transportId;
         
-        {
-            std::lock_guard<std::mutex> lock(_producersMutex);
-            producerController = std::make_shared<ProducerController>(producerInternal,
-                                                                      producerData,
-                                                                      _channel.lock(),
-                                                                      appData,
-                                                                      paused);
-            producerController->init();
-            _producerControllers[producerController->id()] = producerController;
-        }
+        producerController = std::make_shared<ProducerController>(producerInternal,
+                                                                  producerData,
+                                                                  _channel.lock(),
+                                                                  appData,
+                                                                  paused);
+        producerController->init();
+        _producerControllers.emplace(std::make_pair(producerController->id(), producerController));
 
         producerController->closeSignal.connect([id = producerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
             auto self = wself.lock();
             if (!self) {
                 return;
             }
-            std::lock_guard<std::mutex> lock(self->_producersMutex);
-            if (self->_producerControllers.find(id) != self->_producerControllers.end()) {
+            if (self->_producerControllers.contains(id)) {
                 auto ctrl = self->_producerControllers[id];
                 self->producerCloseSignal(ctrl);
                 self->_producerControllers.erase(id);
@@ -550,35 +526,31 @@ namespace srv {
         data.rtpParameters = rtpParameters;
         data.type = pipe ? "pipe" : producerController->type();
         
-        {
-            std::lock_guard<std::mutex> lock(_consumersMutex);
-            consumerController = std::make_shared<ConsumerController>(internal,
-                                                                      data,
-                                                                      _channel.lock(),
-                                                                      appData,
-                                                                      paused_,
-                                                                      producerPaused_,
-                                                                      score_,
-                                                                      preferredLayers_);
-            consumerController->init();
-            _consumerControllers[consumerController->id()] = consumerController;
-            
-            auto removeLambda = [id = consumerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
-                auto self = wself.lock();
-                if (!self) {
-                    return;
-                }
-                std::lock_guard<std::mutex> lock(self->_consumersMutex);
-                if (self->_consumerControllers.find(id) != self->_consumerControllers.end()) {
-                    self->_consumerControllers.erase(id);
-                }
-            };
-            
-            consumerController->closeSignal.connect(removeLambda);
-            consumerController->producerCloseSignal.connect(removeLambda);
-            
-            this->newConsumerSignal(consumerController);
-        }
+        consumerController = std::make_shared<ConsumerController>(internal,
+                                                                  data,
+                                                                  _channel.lock(),
+                                                                  appData,
+                                                                  paused_,
+                                                                  producerPaused_,
+                                                                  score_,
+                                                                  preferredLayers_);
+        consumerController->init();
+        _consumerControllers.emplace(std::make_pair(consumerController->id(), consumerController));
+        
+        auto removeLambda = [id = consumerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (self->_consumerControllers.contains(id)) {
+                self->_consumerControllers.erase(id);
+            }
+        };
+        
+        consumerController->closeSignal.connect(removeLambda);
+        consumerController->producerCloseSignal.connect(removeLambda);
+        
+        this->newConsumerSignal(consumerController);
 
         return consumerController;
     }
@@ -603,7 +575,7 @@ namespace srv {
         const bool paused = options->paused;
         const nlohmann::json& appData = options->appData;
 
-        if (_dataProducerControllers.find(id) != _dataProducerControllers.end()) {
+        if (_dataProducerControllers.contains(id)) {
             SRV_LOGE("a DataProducer with same id = %s already exists", id.c_str());
             return dataProducerController;
         }
@@ -671,31 +643,27 @@ namespace srv {
         dataProducerData.label = dump->label()->str();
         dataProducerData.protocol = dump->protocol()->str();
         
-        {
-            std::lock_guard<std::mutex> lock(_dataProducersMutex);
-            dataProducerController = std::make_shared<DataProducerController>(internal,
-                                                                              dataProducerData,
-                                                                              _channel.lock(),
-                                                                              paused,
-                                                                              appData);
-            dataProducerController->init();
-            _dataProducerControllers[dataProducerController->id()] = dataProducerController;
-            
-            dataProducerController->closeSignal.connect([id = dataProducerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
-                auto self = wself.lock();
-                if (!self) {
-                    return;
-                }
-                std::lock_guard<std::mutex> lock(self->_dataProducersMutex);
-                if (self->_dataProducerControllers.find(id) != self->_dataProducerControllers.end()) {
-                    auto ctrl = self->_dataProducerControllers[id];
-                    self->_dataProducerControllers.erase(id);
-                    self->dataProducerCloseSignal(ctrl);
-                }
-            });
-            
-            this->newDataProducerSignal(dataProducerController);
-        }
+        dataProducerController = std::make_shared<DataProducerController>(internal,
+                                                                          dataProducerData,
+                                                                          _channel.lock(),
+                                                                          paused,
+                                                                          appData);
+        dataProducerController->init();
+        _dataProducerControllers.emplace(std::make_pair(dataProducerController->id(), dataProducerController));
+        
+        dataProducerController->closeSignal.connect([id = dataProducerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this())]() {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (self->_dataProducerControllers.contains(id)) {
+                auto ctrl = self->_dataProducerControllers[id];
+                self->_dataProducerControllers.erase(id);
+                self->dataProducerCloseSignal(ctrl);
+            }
+        });
+        
+        this->newDataProducerSignal(dataProducerController);
 
         return dataProducerController;
     }
@@ -804,35 +772,31 @@ namespace srv {
         dataConsumerData.protocol = dataConsumerDump->protocol;
         dataConsumerData.bufferedAmountLowThreshold = dataConsumerDump->bufferedAmountLowThreshold;
         
-        {
-            std::lock_guard<std::mutex> lock(_dataConsumersMutex);
-            dataConsumerController = std::make_shared<DataConsumerController>(internal,
-                                                                              dataConsumerData,
-                                                                              _channel.lock(),
-                                                                              paused,
-                                                                              dataConsumerDump->dataProducerPaused,
-                                                                              subchannels,
-                                                                              appData);
-            dataConsumerController->init();
-            _dataConsumerControllers[dataConsumerController->id()] = dataConsumerController;
-            
-            auto removeLambda = [id = dataConsumerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this()), sctpStreamId]() {
-                auto self = wself.lock();
-                if (!self) {
-                    return;
-                }
-                std::lock_guard<std::mutex> lock(self->_dataConsumersMutex);
-                if (self->_dataConsumerControllers.find(id) != self->_dataConsumerControllers.end()) {
-                    self->_dataConsumerControllers.erase(id);
-                }
-                if (self->_sctpStreamIds.size() != 0) {
-                    self->_sctpStreamIds[sctpStreamId] = 0;
-                }
-            };
-            
-            dataConsumerController->closeSignal.connect(removeLambda);
-            dataConsumerController->dataProducerCloseSignal.connect(removeLambda);
-        }
+        dataConsumerController = std::make_shared<DataConsumerController>(internal,
+                                                                          dataConsumerData,
+                                                                          _channel.lock(),
+                                                                          paused,
+                                                                          dataConsumerDump->dataProducerPaused,
+                                                                          subchannels,
+                                                                          appData);
+        dataConsumerController->init();
+        _dataConsumerControllers.emplace(std::make_pair(dataConsumerController->id(), dataConsumerController));
+        
+        auto removeLambda = [id = dataConsumerController->id(), wself = std::weak_ptr<AbstractTransportController>(shared_from_this()), sctpStreamId]() {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (self->_dataConsumerControllers.contains(id)) {
+                self->_dataConsumerControllers.erase(id);
+            }
+            if (self->_sctpStreamIds.size() != 0) {
+                self->_sctpStreamIds[sctpStreamId] = 0;
+            }
+        };
+        
+        dataConsumerController->closeSignal.connect(removeLambda);
+        dataConsumerController->dataProducerCloseSignal.connect(removeLambda);
         
         this->newDataConsumerSignal(dataConsumerController);
 
@@ -870,49 +834,29 @@ namespace srv {
 
     void AbstractTransportController::clearControllers()
     {
-        std::unordered_map<std::string, std::shared_ptr<IProducerController>> producerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_producersMutex);
-            producerControllers = _producerControllers;
-            //_producerControllers.clear();
-        }
-        for (const auto& item : producerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IProducerController>> producerControllers = _producerControllers.value();
+        producerControllers.for_each([](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
-        }
+        });
         
-        std::unordered_map<std::string, std::shared_ptr<IConsumerController>> consumerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_consumersMutex);
-            consumerControllers = _consumerControllers;
-            //_consumerControllers.clear();
-        }
-        for (const auto& item : consumerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IConsumerController>> consumerControllers = _consumerControllers.value();
+        consumerControllers.for_each([](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
-        }
+        });
         
-        std::unordered_map<std::string, std::shared_ptr<IDataProducerController>> dataProducerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_dataProducersMutex);
-            dataProducerControllers = _dataProducerControllers;
-            //_dataProducerControllers.clear();
-        }
-        for (const auto& item : dataProducerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IDataProducerController>> dataProducerControllers = _dataProducerControllers.value();
+        dataProducerControllers.for_each([](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
-        }
+        });
         
-        std::unordered_map<std::string, std::shared_ptr<IDataConsumerController>> dataConsumerControllers;
-        {
-            std::lock_guard<std::mutex> lock(_dataConsumersMutex);
-            dataConsumerControllers = _dataConsumerControllers;
-            //_dataConsumerControllers.clear();
-        }
-        for (const auto& item : dataConsumerControllers) {
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IDataConsumerController>> dataConsumerControllers = _dataConsumerControllers.value();
+        dataConsumerControllers.for_each([](const auto& item){
             auto ctrl = item.second;
             ctrl->onTransportClosed();
-        }
+        });
     }
 }
 

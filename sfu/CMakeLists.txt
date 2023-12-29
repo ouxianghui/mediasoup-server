@@ -41,6 +41,8 @@ set(sources
     src/rooms/lobby.hpp
     src/rooms/video_sharing_controller.hpp
     src/rooms/video_sharing_controller.cpp
+    src/rooms/producer_video_quality_controller.hpp
+    src/rooms/producer_video_quality_controller.cpp
     src/utils/statistics.cpp
     src/utils/statistics.hpp
     src/utils/message.cpp
@@ -100,6 +102,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libsdptransform
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
   ${CMAKE_CURRENT_SOURCE_DIR}/../release/include/fbs
+  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/stl
 )
 
 if (APPLE) 
@@ -107,7 +110,7 @@ target_link_libraries(${PROJECT_NAME}
     libwebrtc.a
     libworker.a
     libcontroller.a
-    ${PROJECT_LIB_DIR}/liburing.a
+    # ${PROJECT_LIB_DIR}/liburing.a
     ${PROJECT_LIB_DIR}/liboatpp-websocket.a
     ${PROJECT_LIB_DIR}/liboatpp.a
     ${PROJECT_LIB_DIR}/liboatpp-openssl.a

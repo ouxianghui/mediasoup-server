@@ -10,6 +10,7 @@
 #pragma once
 
 #include <memory>
+#include "threadsafe_unordered_map.hpp"
 #include "interface/i_router_controller.h"
 #include "FBS/router.h"
 
@@ -136,21 +137,17 @@ namespace srv {
         // Custom app data.
         nlohmann::json _appData;
 
-        std::mutex _transportsMutex;
         // Transports map.
-        std::unordered_map<std::string, std::shared_ptr<ITransportController>> _transportControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<ITransportController>> _transportControllers;
 
-        std::mutex _producersMutex;
         // Producers map.
-        std::unordered_map<std::string, std::shared_ptr<IProducerController>> _producerControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IProducerController>> _producerControllers;
 
-        std::mutex _rtpObserversMutex;
         // RtpObservers map.
-        std::unordered_map<std::string, std::shared_ptr<IRtpObserverController>> _rtpObserverControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IRtpObserverController>> _rtpObserverControllers;
 
-        std::mutex _dataProducersMutex;
         // DataProducers map.
-        std::unordered_map<std::string, std::shared_ptr<IDataProducerController>> _dataProducerControllers;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<IDataProducerController>> _dataProducerControllers;
 
         std::function<std::shared_ptr<IProducerController>(const std::string&)> _getProducerController;
         
@@ -159,7 +156,7 @@ namespace srv {
         std::function<RtpCapabilities()> _getRouterRtpCapabilities;
         
         // Map of PipeTransport pair indexed by the id of the Router in which pipeToRouter() was called.
-        std::unordered_map<std::string, PipeTransportControllerPair> _routerPipeTransportPairMap;
+        std::threadsafe_unordered_map<std::string, PipeTransportControllerPair> _routerPipeTransportPairMap;
     };
 
     std::shared_ptr<RouterDump> parseRouterDumpResponse(const FBS::Router::DumpResponse* binary);

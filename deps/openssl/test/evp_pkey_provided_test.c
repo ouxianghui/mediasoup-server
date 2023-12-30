@@ -1721,10 +1721,11 @@ static OSSL_PARAM *do_construct_hkdf_params(char *digest, char *key,
     return params;
 }
 
-static int test_evp_pkey_ctx_dup_kdf(void)
+/* Test that EVP_PKEY_CTX_dup() fails gracefully for a KDF */
+static int test_evp_pkey_ctx_dup_kdf_fail(void)
 {
     int ret = 0;
-    size_t len = 0, dlen = 0;
+    size_t len = 0;
     EVP_PKEY_CTX *pctx = NULL, *dctx = NULL;
     OSSL_PARAM *params = NULL;
 
@@ -1735,12 +1736,10 @@ static int test_evp_pkey_ctx_dup_kdf(void)
         goto err;
     if (!TEST_int_eq(EVP_PKEY_derive_init_ex(pctx, params), 1))
         goto err;
-    if (!TEST_ptr(dctx = EVP_PKEY_CTX_dup(pctx)))
-        goto err;
     if (!TEST_int_eq(EVP_PKEY_derive(pctx, NULL, &len), 1)
-        || !TEST_size_t_eq(len, SHA256_DIGEST_LENGTH)
-        || !TEST_int_eq(EVP_PKEY_derive(dctx, NULL, &dlen), 1)
-        || !TEST_size_t_eq(dlen, SHA256_DIGEST_LENGTH))
+        || !TEST_size_t_eq(len, SHA256_DIGEST_LENGTH))
+        goto err;
+    if (!TEST_ptr_null(dctx = EVP_PKEY_CTX_dup(pctx)))
         goto err;
     ret = 1;
 err:
@@ -1760,7 +1759,7 @@ int setup_tests(void)
     if (!TEST_ptr(datadir = test_get_argument(0)))
         return 0;
 
-    ADD_TEST(test_evp_pkey_ctx_dup_kdf);
+    ADD_TEST(test_evp_pkey_ctx_dup_kdf_fail);
     ADD_TEST(test_evp_pkey_get_bn_param_large);
     ADD_TEST(test_fromdata_rsa);
 #ifndef OPENSSL_NO_DH

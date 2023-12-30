@@ -7,8 +7,9 @@ include (TestBigEndian)
 TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
 
 IF(NOT WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 ENDIF()
+
 message("\n=========== libwebrtc Build Configuration ===========\n")
 message(STATUS "MAIN_DIR : " ${MAIN_DIR})
 message(STATUS "PROJECT_INCLUDE_DIR : " ${PROJECT_INCLUDE_DIR})
@@ -16,8 +17,9 @@ message(STATUS "PROJECT_LIB_DIR : " ${PROJECT_LIB_DIR})
 message(STATUS "CMAKE_INSTALL_PREFIX : " ${CMAKE_INSTALL_PREFIX})
 message(STATUS "abseil-cpp : "  ${CMAKE_CURRENT_SOURCE_DIR}/deps/abseil-cpp)
 message("")
+
 set(BUILD_TESTING OFF CACHE INTERNAL "")
-#add_subdirectory(deps/abseil-cpp)
+
 unset(BUILD_TESTING)
 
 set(libwebrtc_headers
@@ -132,9 +134,6 @@ set(libwebrtc_sources
     libwebrtc/modules/congestion_controller/rtp/control_handler.cc
 )
 
-# file(GLOB_RECURSE libwebrtc_headers libwebrtc/*.h??)
-# file(GLOB_RECURSE libwebrtc_sources libwebrtc/*.cc??)
-
 add_library(${PROJECT_NAME}
   STATIC
   ${libwebrtc_sources}
@@ -144,7 +143,7 @@ add_library(${PROJECT_NAME}
 IF(APPLE)
     set_property(TARGET ${PROJECT_NAME}
         PROPERTY XCODE_ATTRIBUTE_OTHER_CPLUSPLUSFLAGS
-        -std=c++14
+        -std=c++17
     )
 ENDIF()
 
@@ -154,17 +153,10 @@ else()
     target_compile_definitions(${PROJECT_NAME} PRIVATE "MS_LITTLE_ENDIAN")
 endif()
 
-target_link_libraries(${PROJECT_NAME}
-    #uv
-    #ssl
-    #absl_internal_throw_delegate
-    #absl_strings
-    #absl_optional
-)
-
 target_include_directories(${PROJECT_NAME}
     PRIVATE
     libwebrtc
+    ../../release/include/fbs
     ../../worker/include
     ../json/single_include/nlohmann
     ${CMAKE_CURRENT_SOURCE_DIR}/libwebrtc
@@ -175,13 +167,13 @@ target_include_directories(${PROJECT_NAME}
     INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/libwebrtc
-    ${CMAKE_CURRENT_SOURCE_DIR}/deps/abseil-cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../abseil-cpp
     
 )
 # Public (interface) headers from dependencies.
 target_include_directories(${PROJECT_NAME} PUBLIC
 	${PROJECT_INCLUDE_DIR}
-  ${LIB_WEBRTC_INCLUDE_DIR}
+    ${LIB_WEBRTC_INCLUDE_DIR}
 	
 )
 LINK_DIRECTORIES(
@@ -189,28 +181,3 @@ LINK_DIRECTORIES(
 )
 
 install(TARGETS ${PROJECT_NAME} DESTINATION lib)
-# install(FILES ${libwebrtc_headers} DESTINATION include/libwebrtc)
-
-# install(DIRECTORY libwebrtc DESTINATION include/libwebrtc FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/system_wrappers/source DESTINATION include/libwebrtc/system_wrappers/source FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/rtc_base DESTINATION include/libwebrtc/rtc_base FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/call DESTINATION include/libwebrtc/call FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/api DESTINATION include/libwebrtc/api FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/api/transport DESTINATION include/libwebrtc/api/transport FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/api/units DESTINATION include/libwebrtc/api/units FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/include DESTINATION include/libwebrtc/modules/include FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/pacing DESTINATION include/libwebrtc/modules/pacing FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/remote_bitrate_estimator DESTINATION include/libwebrtc/modules/remote_bitrate_estimator FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/remote_bitrate_estimator/include DESTINATION include/libwebrtc/modules/remote_bitrate_estimator/include FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/rtp_rtcp/include DESTINATION include/libwebrtc/modules/rtp_rtcp/include FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/rtp_rtcp/source/rtp_packet DESTINATION include/libwebrtc/modules/rtp_rtcp/rtp_packet FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/bitrate_controller DESTINATION include/libwebrtc/modules/bitrate_controller FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/congestion_controller/goog_cc DESTINATION include/libwebrtc/modules/congestion_controller/goog_cc FILES_MATCHING PATTERN "*.h")
-# install(DIRECTORY libwebrtc/modules/congestion_controller/rtp DESTINATION include/libwebrtc/modules/congestion_controller/rtp FILES_MATCHING PATTERN "*.h")
-
-
-# install(DIRECTORY include/
-#     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/MyTarget
-#     FILES_MATCHING PATTERN "*.h"
-#     PATTERN "*_p.h" EXCLUDE
-# )

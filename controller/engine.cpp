@@ -13,6 +13,9 @@
 #include "DepLibUV.hpp"
 #include "srv_logger.h"
 #include "config.h"
+#include "interface/i_worker_controller.h"
+#include "worker_controller.h"
+#include "message_builder.h"
 
 namespace srv {
     std::shared_ptr<Engine>& Engine::sharedInstance()
@@ -48,11 +51,13 @@ namespace srv {
         *_workerSettings = params->mediasoup.workerSettings;
         
         *_webRtcServerOptions = params->mediasoup.webRtcServerOptions;
+        
+        MessageBuilder::setSizePrefix(params->mediasoup.multiprocess);
     }
 
     void Engine::run()
     {
-         createWorkerController();
+        createWorkerControllers();
     }
 
     void Engine::destroy()
@@ -61,18 +66,14 @@ namespace srv {
         
         _webRtcServerOptions = nullptr;
         
-        {
-            std::lock_guard<std::mutex> lock(_workerControllersMutex);
-            _workerControllers.clear();
-        }
+        _workerControllers.clear();
         
         MSConfig->destroy();
     }
 
-    std::shared_ptr<WorkerController> Engine::getWorkerController()
+    std::shared_ptr<IWorkerController> Engine::getWorkerController()
     {
-        std::lock_guard<std::mutex> lock(_workerControllersMutex);
-        std::shared_ptr<WorkerController> worker = _workerControllers[_nextWorkerIdx];
+        std::shared_ptr<IWorkerController> worker = _workerControllers[_nextWorkerIdx];
 
         if (++_nextWorkerIdx == _workerControllers.size()) {
             _nextWorkerIdx = 0;
@@ -81,48 +82,91 @@ namespace srv {
         return worker;
     }
 
-    std::shared_ptr<WorkerController> Engine::createWorkerController()
+    void Engine::createWorkerControllers()
     {
         SRV_LOGD("createWorker()");
         
-        std::shared_ptr<WorkerController> workerController;
-        
         if (!_workerSettings) {
-            return workerController;
+            SRV_LOGE("_workerSettings must not be null");
+            return;
         }
 
-        {
-            std::lock_guard<std::mutex> lock(_workerControllersMutex);
-            workerController = std::make_shared<WorkerController>(_workerSettings);
-            workerController->init();
-            _workerControllers.emplace_back(workerController);
+        if (MSConfig->params()->mediasoup.multiprocess) {
+            auto workerNum = MSConfig->params()->mediasoup.numWorkers;
+            for (int i = 0; i < workerNum; ++i) {
+                std::shared_ptr<IWorkerController> workerController = std::make_shared<WorkerController>(_workerSettings);
+                workerController->init();
+                
+                _workerControllers.push_back(workerController);
+                
+                workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()),
+                                                       wWorkerController = std::weak_ptr<IWorkerController>(workerController),
+                                                       portIncrement = (_workerControllers.size() - 1)]() {
+                    auto self = wself.lock();
+                    if (!self) {
+                        return;
+                    }
+                    
+                    auto workerController = wWorkerController.lock();
+                    if (!workerController) {
+                        return;
+                    }
+                    
+                    asio::post(self->_threadPool.get_executor(), [wself, wWorkerController, portIncrement]() {
+                        auto self = wself.lock();
+                        if (!self) {
+                            return;
+                        }
+                        auto workerController = wWorkerController.lock();
+                        if (!workerController) {
+                            return;
+                        }
+                        auto options = std::make_shared<WebRtcServerOptions>();
+                        *options = *self->_webRtcServerOptions;
+                        for (auto& info : options->listenInfos) {
+                            info.port += portIncrement;
+                        }
+                        workerController->createWebRtcServerController(options, nlohmann::json());
+                    });
+                    
+                    self->newWorkerSignal(workerController);
+                });
+                
+                workerController->runWorker();
+            }
         }
-        
-        workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()), wWorkerController = std::weak_ptr<WorkerController>(workerController)]() {
-            auto self = wself.lock();
-            if (!self) {
-                return;
-            }
-            auto workerController = wWorkerController.lock();
-            if (!workerController) {
-                return;
-            }
-            asio::post(self->_threadPool.get_executor(), [wself, wWorkerController]() {
+        else {
+            auto workerController = std::make_shared<WorkerController>(_workerSettings);
+            workerController->init();
+            _workerControllers.push_back(workerController);
+            
+            workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()), wWorkerController = std::weak_ptr<IWorkerController>(workerController)]() {
                 auto self = wself.lock();
                 if (!self) {
                     return;
                 }
+                
                 auto workerController = wWorkerController.lock();
                 if (!workerController) {
                     return;
                 }
-                workerController->createWebRtcServerController(self->_webRtcServerOptions, nlohmann::json());
+                
+                asio::post(self->_threadPool.get_executor(), [wself, wWorkerController]() {
+                    auto self = wself.lock();
+                    if (!self) {
+                        return;
+                    }
+                    auto workerController = wWorkerController.lock();
+                    if (!workerController) {
+                        return;
+                    }
+                    workerController->createWebRtcServerController(self->_webRtcServerOptions, nlohmann::json());
+                });
+                
+                self->newWorkerSignal(workerController);
             });
-            self->newWorkerSignal(workerController);
-        });
-        
-        workerController->runWorker();
-        
-        return workerController;
+            
+            workerController->runWorker();
+        }
     }
 }

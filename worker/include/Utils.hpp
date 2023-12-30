@@ -5,7 +5,6 @@
 #include <openssl/evp.h>
 #include <cmath>
 #include <cstring> // std::memcmp(), std::memcpy()
-#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 #ifdef _WIN32
@@ -15,8 +14,6 @@
 #define __builtin_popcount __popcnt
 #endif
 
-using json = nlohmann::json;
-
 namespace Utils
 {
 	class IP
@@ -25,6 +22,8 @@ namespace Utils
 		static int GetFamily(const std::string& ip);
 
 		static void GetAddressInfo(const struct sockaddr* addr, int& family, std::string& ip, uint16_t& port);
+
+		static size_t GetAddressLen(const struct sockaddr* addr);
 
 		static bool CompareAddresses(const struct sockaddr* addr1, const struct sockaddr* addr2)
 		{
@@ -311,8 +310,6 @@ namespace Utils
 		static uint8_t* Base64Decode(const uint8_t* data, size_t len, size_t& outLen);
 
 		static uint8_t* Base64Decode(const std::string& str, size_t& outLen);
-
-		static std::vector<std::string> Split(const std::string& str, char separator, size_t limit = 0);
 	};
 
 	class Time
@@ -373,26 +370,6 @@ namespace Utils
 		static uint32_t TimeMsToAbsSendTime(uint64_t ms)
 		{
 			return static_cast<uint32_t>(((ms << 18) + 500) / 1000) & 0x00FFFFFF;
-		}
-	};
-
-	class Json
-	{
-	public:
-		static bool IsPositiveInteger(const json& value)
-		{
-			if (value.is_number_unsigned())
-			{
-				return true;
-			}
-			else if (value.is_number_integer())
-			{
-				return value.get<int64_t>() >= 0;
-			}
-			else
-			{
-				return false;
-			}
 		}
 	};
 } // namespace Utils

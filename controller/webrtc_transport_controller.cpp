@@ -12,31 +12,14 @@
 #include "types.h"
 #include "uuid.h"
 #include "channel.h"
-#include "payload_channel.h"
+#include "message_builder.h"
 
 namespace srv {
 
     WebRtcTransportController::WebRtcTransportController(const std::shared_ptr<WebRtcTransportConstructorOptions>& options)
-    : TransportController(options)
+    : AbstractTransportController(options)
     {
         SRV_LOGD("WebRtcTransportController()");
-        
-        const auto& data = options->data;
-        
-        _data["iceRole"] = data["iceRole"];
-        _data["iceParameters"] = data["iceParameters"];
-        _data["iceCandidates"] = data["iceCandidates"];
-        _data["iceState"] = data["iceState"];
-        if (data.contains("iceSelectedTuple")) {
-            _data["iceSelectedTuple"] = data["iceSelectedTuple"];
-        }
-        _data["dtlsParameters"] = data["dtlsParameters"];
-        _data["dtlsState"] = data["dtlsState"];
-        if (data.contains("dtlsRemoteCert")) {
-            _data["dtlsRemoteCert"] = data["dtlsRemoteCert"];
-        }
-        _data["sctpParameters"] = data["sctpParameters"];
-        _data["sctpState"] = data["sctpState"];
     }
 
     WebRtcTransportController::~WebRtcTransportController()
@@ -57,13 +40,10 @@ namespace srv {
 
     void WebRtcTransportController::cleanData()
     {
-        this->_data["iceState"] = "closed";
-        this->_data["iceSelectedTuple"] = "";
-        this->_data["dtlsState"] = "closed";
-
-        if (this->_data["sctpState"]) {
-            this->_data["sctpState"] = "closed";
-        }
+        transportData()->iceState = "closed";
+        transportData()->iceSelectedTuple = {};
+        transportData()->dtlsState = "closed";
+        transportData()->sctpState = "closed";
     }
 
     void WebRtcTransportController::close()
@@ -76,12 +56,12 @@ namespace srv {
         
         cleanData();
 
-        TransportController::close();
+        AbstractTransportController::close();
     }
 
-    void WebRtcTransportController::onListenServerClosed()
+    void WebRtcTransportController::onWebRtcServerClosed()
     {
-        SRV_LOGD("onListenServerClosed()");
+        SRV_LOGD("onWebRtcServerClosed()");
         
         if (_closed) {
             return;
@@ -91,7 +71,7 @@ namespace srv {
 
         cleanData();
 
-        TransportController::onListenServerClosed();
+        AbstractTransportController::onWebRtcServerClosed();
     }
 
     void WebRtcTransportController::onRouterClosed()
@@ -106,58 +86,138 @@ namespace srv {
 
         cleanData();
         
-        TransportController::onRouterClosed();
+        AbstractTransportController::onRouterClosed();
     }
 
-    nlohmann::json WebRtcTransportController::getStats()
+    std::shared_ptr<BaseTransportDump> WebRtcTransportController::dump()
+    {
+        SRV_LOGD("dump()");
+        
+        auto channel = _channel.lock();
+        if (!channel) {
+            return nullptr;
+        }
+        
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto dumpResponse = response->body_as_WebRtcTransport_DumpResponse();
+        
+        return parseWebRtcTransportDumpResponse(dumpResponse);
+    }
+
+    std::shared_ptr<BaseTransportStats> WebRtcTransportController::getStats()
     {
         SRV_LOGD("getStats()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("transport.getStats", _internal.transportId, "{}");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto getStatsResponse = response->body_as_WebRtcTransport_GetStatsResponse();
+        
+        return parseGetStatsResponse(getStatsResponse);
     }
 
-    void WebRtcTransportController::connect(const nlohmann::json& reqData)
+    void WebRtcTransportController::connect(const std::shared_ptr<ConnectParams>& params)
     {
         SRV_LOGD("connect()");
         
+        if (!params) {
+            SRV_LOGE("params is null");
+            return;
+        }
+            
         auto channel = _channel.lock();
         if (!channel) {
             return;
         }
+    
+        flatbuffers::FlatBufferBuilder builder;
         
-        // nlohmann::json reqData;
-        // reqData["dtlsParameters"] = dtlsParameters;
-
-        auto data = channel->request("transport.connect", _internal.transportId, reqData.dump());
-
-        // Update data.
-        this->_data["dtlsParameters"]["role"] = data["dtlsLocalRole"];
+        auto reqId = channel->genRequestId();
+        
+        auto reqOffset = createConnectRequest(builder, params->dtlsParameters);
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::WEBRTCTRANSPORT_CONNECT,
+                                                     FBS::Request::Body::WebRtcTransport_ConnectRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto connectResponse = response->body_as_WebRtcTransport_ConnectResponse();
+        
+        this->transportData()->dtlsParameters.role = dtlsRoleFromFbs(connectResponse->dtlsLocalRole());
     }
 
-    IceParameters WebRtcTransportController::restartIce()
+    std::shared_ptr<IceParameters> WebRtcTransportController::restartIce()
     {
         SRV_LOGD("restartIce()");
         
-        IceParameters iceParameters;
-        
         auto channel = _channel.lock();
         if (!channel) {
-            return iceParameters;
+            return nullptr;
         }
-        
-        auto data = channel->request("transport.restartIce", _internal.transportId, "{}");
-        
-        iceParameters = data;
 
-        this->_data["iceParameters"] = data["iceParameters"];
-
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_RESTART_ICE);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto restartIceResponse = response->body_as_Transport_RestartIceResponse();
+        
+        auto iceParameters = std::make_shared<IceParameters>();
+        
+        iceParameters->usernameFragment = restartIceResponse->usernameFragment()->str();
+        iceParameters->password = restartIceResponse->password()->str();
+        iceParameters->iceLite = restartIceResponse->iceLite();
+        
         return iceParameters;
-        
     }
 
     void WebRtcTransportController::handleWorkerNotifications()
@@ -169,73 +229,364 @@ namespace srv {
             return;
         }
         
-        auto self = std::dynamic_pointer_cast<WebRtcTransportController>(TransportController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<WebRtcTransportController>(AbstractTransportController::shared_from_this());
         channel->notificationSignal.connect(&WebRtcTransportController::onChannel, self);
     }
 
-    void WebRtcTransportController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void WebRtcTransportController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
-        SRV_LOGD("onChannel()");
+        //SRV_LOGD("onChannel()");
         
         if (targetId != _internal.transportId) {
             return;
         }
         
-        if (event == "icestatechange") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                std::string iceState = js["iceState"];
-                this->_data["iceState"] = iceState;
-                this->iceStateChangeSignal(iceState);
+        if (event == FBS::Notification::Event::WEBRTCTRANSPORT_ICE_STATE_CHANGE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_WebRtcTransport_IceStateChangeNotification()) {
+                transportData()->iceState = iceStateFromFbs(nf->iceState());
+                this->iceStateChangeSignal(transportData()->iceState);
             }
         }
-        else if (event == "iceselectedtuplechange") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                auto iceSelectedTuple = js["iceSelectedTuple"];
-                this->_data["iceSelectedTuple"] = iceSelectedTuple;
-                TransportTuple tuple = js;
-                this->iceSelectedTupleChangeSignal(tuple);
+        else if (event == FBS::Notification::Event::WEBRTCTRANSPORT_ICE_SELECTED_TUPLE_CHANGE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_WebRtcTransport_IceSelectedTupleChangeNotification()) {
+                transportData()->iceSelectedTuple = *parseTuple(nf->tuple());
+                this->iceSelectedTupleChangeSignal(transportData()->iceSelectedTuple);
             }
         }
-        else if (event == "dtlsstatechange") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                auto dtlsState = js["dtlsState"];
-
-                this->_data["dtlsState"] = dtlsState;
-
-                if (dtlsState == "connected") {
-                    this->_data["dtlsRemoteCert"] = js["dtlsRemoteCert"];
+        else if (event == FBS::Notification::Event::WEBRTCTRANSPORT_DTLS_STATE_CHANGE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_WebRtcTransport_DtlsStateChangeNotification()) {
+                transportData()->dtlsState = dtlsStateFromFbs(nf->dtlsState());
+                if (nf->dtlsState() == FBS::WebRtcTransport::DtlsState::CONNECTED) {
+                    // TODO: assign dtlsRemoteCert
                 }
-                this->dtlsStateChangeSignal(dtlsState);
+                this->dtlsStateChangeSignal(transportData()->dtlsState);
             }
         }
-        else if (event == "sctpstatechange") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                auto sctpState = js["sctpState"];
-                this->_data["sctpState"] = sctpState;
-                this->sctpStateChangeSignal(sctpState);
+        else if (event == FBS::Notification::Event::TRANSPORT_SCTP_STATE_CHANGE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_Transport_SctpStateChangeNotification()) {
+                transportData()->sctpState = parseSctpState(nf->sctpState());
+                this->sctpStateChangeSignal(transportData()->sctpState);
             }
         }
-        else if (event == "trace") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                TransportTraceEventData eventData = js;
-                this->traceSignal(eventData);
+        else if (event == FBS::Notification::Event::TRANSPORT_TRACE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_Transport_TraceNotification()) {
+                auto eventData = parseTransportTraceEventData(nf);
+                this->traceSignal(*eventData);
             }
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
+    }
+}
+
+namespace srv {
+
+    std::string iceStateFromFbs(FBS::WebRtcTransport::IceState iceState)
+    {
+        switch (iceState)
+        {
+            case FBS::WebRtcTransport::IceState::NEW:
+                return "new";
+            case FBS::WebRtcTransport::IceState::CONNECTED:
+                return "connected";
+            case FBS::WebRtcTransport::IceState::COMPLETED:
+                return "completed";
+            case FBS::WebRtcTransport::IceState::DISCONNECTED:
+                return "disconnected";
+            default:
+                return "";
+        }
+    }
+
+    std::string iceRoleFromFbs(FBS::WebRtcTransport::IceRole role)
+    {
+        switch (role)
+        {
+            case FBS::WebRtcTransport::IceRole::CONTROLLED:
+                return "controlled";
+            case FBS::WebRtcTransport::IceRole::CONTROLLING:
+                return "controlling";
+            default:
+                return "";
+        }
+    }
+
+    std::string iceCandidateTypeFromFbs(FBS::WebRtcTransport::IceCandidateType type)
+    {
+        switch (type)
+        {
+            case FBS::WebRtcTransport::IceCandidateType::HOST:
+                return "host";
+            default:
+                return "";
+        }
+    }
+
+    std::string iceCandidateTcpTypeFromFbs(FBS::WebRtcTransport::IceCandidateTcpType type)
+    {
+        switch (type)
+        {
+            case FBS::WebRtcTransport::IceCandidateTcpType::PASSIVE:
+                return "passive";
+            default:
+                return "";
+        }
+    }
+
+    std::string dtlsStateFromFbs(FBS::WebRtcTransport::DtlsState fbsDtlsState)
+    {
+        switch (fbsDtlsState)
+        {
+            case FBS::WebRtcTransport::DtlsState::NEW:
+                return "new";
+            case FBS::WebRtcTransport::DtlsState::CONNECTING:
+                return "connecting";
+            case FBS::WebRtcTransport::DtlsState::CONNECTED:
+                return "connected";
+            case FBS::WebRtcTransport::DtlsState::FAILED:
+                return "failed";
+            case FBS::WebRtcTransport::DtlsState::CLOSED:
+                return "closed";
+            default:
+                return "";
+        }
+    }
+
+    std::string dtlsRoleFromFbs(FBS::WebRtcTransport::DtlsRole role)
+    {
+        switch (role)
+        {
+            case FBS::WebRtcTransport::DtlsRole::AUTO:
+                return "auto";
+            case FBS::WebRtcTransport::DtlsRole::CLIENT:
+                return "client";
+            case FBS::WebRtcTransport::DtlsRole::SERVER:
+                return "server";
+        }
+    }
+
+    std::string fingerprintAlgorithmsFromFbs(FBS::WebRtcTransport::FingerprintAlgorithm algorithm)
+    {
+        switch (algorithm)
+        {
+            case FBS::WebRtcTransport::FingerprintAlgorithm::SHA1:
+                return "sha-1";
+            case FBS::WebRtcTransport::FingerprintAlgorithm::SHA224:
+                return "sha-224";
+            case FBS::WebRtcTransport::FingerprintAlgorithm::SHA256:
+                return "sha-256";
+            case FBS::WebRtcTransport::FingerprintAlgorithm::SHA384:
+                return "sha-384";
+            case FBS::WebRtcTransport::FingerprintAlgorithm::SHA512:
+                return "sha-512";
+            default:
+                return "";
+        }
+    }
+
+    FBS::WebRtcTransport::FingerprintAlgorithm fingerprintAlgorithmToFbs(const std::string& algorithm)
+    {
+        if ("sha-1" == algorithm) {
+            return FBS::WebRtcTransport::FingerprintAlgorithm::SHA1;
+        }
+        else if ("sha-224" == algorithm) {
+            return FBS::WebRtcTransport::FingerprintAlgorithm::SHA224;
+        }
+        else if ("sha-256" == algorithm) {
+            return FBS::WebRtcTransport::FingerprintAlgorithm::SHA256;
+        }
+        else if ("sha-384" == algorithm) {
+            return FBS::WebRtcTransport::FingerprintAlgorithm::SHA384;
+        }
+        else if ("sha-512" == algorithm) {
+            return FBS::WebRtcTransport::FingerprintAlgorithm::SHA512;
+        }
+
+        SRV_LOGE("invalid FingerprintAlgorithm: %s", algorithm.c_str());
+        
+        return FBS::WebRtcTransport::FingerprintAlgorithm::MIN;
+    }
+
+    FBS::WebRtcTransport::DtlsRole dtlsRoleToFbs(const std::string& role)
+    {
+        if ("auto" == role) {
+            return FBS::WebRtcTransport::DtlsRole::AUTO;
+        }
+        if ("client" == role) {
+            return FBS::WebRtcTransport::DtlsRole::CLIENT;
+        }
+        if ("server" == role) {
+            return FBS::WebRtcTransport::DtlsRole::SERVER;
+        }
+
+        SRV_LOGE("invalid DtlsRole: %s", role.c_str());
+        
+        return FBS::WebRtcTransport::DtlsRole::MIN;
+    }
+
+    std::shared_ptr<WebRtcTransportDump> parseWebRtcTransportDumpResponse(const FBS::WebRtcTransport::DumpResponse* binary)
+    {
+        auto dump = std::make_shared<WebRtcTransportDump>();
+        
+        auto baseDump = parseBaseTransportDump(binary->base());
+        
+        dump->id = baseDump->id;
+        dump->direct = baseDump->direct;
+        dump->producerIds = baseDump->producerIds;
+        dump->consumerIds = baseDump->consumerIds;
+        dump->mapSsrcConsumerId = baseDump->mapSsrcConsumerId;
+        dump->mapRtxSsrcConsumerId = baseDump->mapRtxSsrcConsumerId;
+        dump->recvRtpHeaderExtensions = baseDump->recvRtpHeaderExtensions;
+        dump->rtpListener = baseDump->rtpListener;
+        dump->maxMessageSize = baseDump->maxMessageSize;
+        dump->dataProducerIds = baseDump->dataProducerIds;
+        dump->dataConsumerIds = baseDump->dataConsumerIds;
+        dump->sctpParameters = baseDump->sctpParameters;
+        dump->sctpState = baseDump->sctpState;
+        dump->sctpListener = baseDump->sctpListener;
+        dump->traceEventTypes = baseDump->traceEventTypes;
+        
+        
+        dump->iceRole = iceRoleFromFbs(binary->iceRole());
+        dump->iceParameters = *parseIceParameters(binary->iceParameters());
+        
+        for (const auto& item : *binary->iceCandidates()) {
+            dump->iceCandidates.emplace_back(*parseIceCandidate(item));
+        }
+        
+        dump->iceState = iceStateFromFbs(binary->iceState());
+        //dump->iceSelectedTuple = *parseTuple(binary->iceSelectedTuple());
+        dump->dtlsParameters = *parseDtlsParameters(binary->dtlsParameters());
+        dump->dtlsState = dtlsStateFromFbs(binary->dtlsState());
+        
+        // TODO: missing?
+        //dump->dtlsRemoteCert = binary->dtlsRemoteCert()->str();
+        
+        return dump;
+    }
+
+    flatbuffers::Offset<FBS::WebRtcTransport::ConnectRequest> createConnectRequest(flatbuffers::FlatBufferBuilder& builder, const DtlsParameters& dtlsParameters)
+    {
+        auto paramsOffset = serializeDtlsParameters(builder, dtlsParameters);
+        
+        return FBS::WebRtcTransport::CreateConnectRequest(builder, paramsOffset);
+    }
+
+    std::shared_ptr<WebRtcTransportStat> parseGetStatsResponse(const FBS::WebRtcTransport::GetStatsResponse* binary)
+    {
+        auto stats = std::make_shared<WebRtcTransportStat>();
+
+        auto baseStats = parseBaseTransportStats(binary->base());
+        
+        stats->transportId = baseStats->transportId;
+        stats->timestamp = baseStats->timestamp;
+        stats->sctpState = baseStats->sctpState;
+        stats->bytesReceived = baseStats->bytesReceived;
+        stats->recvBitrate = baseStats->recvBitrate;
+        stats->bytesSent = baseStats->bytesSent;
+        stats->sendBitrate = baseStats->sendBitrate;
+        stats->rtpBytesReceived = baseStats->rtpBytesReceived;
+        stats->rtpRecvBitrate = baseStats->rtpRecvBitrate;
+        stats->rtpBytesSent = baseStats->rtpBytesSent;
+        stats->rtpSendBitrate = baseStats->rtpSendBitrate;
+        stats->rtxBytesReceived = baseStats->rtxBytesReceived;
+        stats->rtxRecvBitrate = baseStats->rtxRecvBitrate;
+        stats->rtxBytesSent = baseStats->rtxBytesSent;
+        stats->rtxSendBitrate = baseStats->rtxSendBitrate;
+        stats->probationBytesSent = baseStats->probationBytesSent;
+        stats->probationSendBitrate = baseStats->probationSendBitrate;
+        stats->availableOutgoingBitrate = baseStats->availableOutgoingBitrate;
+        stats->availableIncomingBitrate = baseStats->availableIncomingBitrate;
+        stats->maxIncomingBitrate = baseStats->maxIncomingBitrate;
+        
+        // TODO: type?
+        stats->type = "";
+        stats->iceRole = iceRoleFromFbs(binary->iceRole());
+        stats->iceState = iceStateFromFbs(binary->iceState());
+        stats->iceSelectedTuple = *parseTuple(binary->iceSelectedTuple());
+        stats->dtlsState = dtlsStateFromFbs(binary->dtlsState());
+        
+        return stats;
+    }
+
+    std::shared_ptr<IceCandidate> parseIceCandidate(const FBS::WebRtcTransport::IceCandidate* binary)
+    {
+        auto candidate = std::make_shared<IceCandidate>();
+        
+        candidate->foundation = binary->foundation()->str();
+        candidate->priority = binary->priority();
+        candidate->ip = binary->ip()->str();
+        candidate->protocol = parseProtocol(binary->protocol());
+        candidate->port = binary->port();
+        candidate->type = iceCandidateTypeFromFbs(binary->type());
+        if (binary->tcpType().has_value()) {
+            candidate->tcpType = iceCandidateTcpTypeFromFbs(binary->tcpType().value());
+        }
+        
+        return candidate;
+    }
+
+    std::shared_ptr<IceParameters> parseIceParameters(const FBS::WebRtcTransport::IceParameters* binary)
+    {
+        auto parameters = std::make_shared<IceParameters>();
+        
+        parameters->usernameFragment = binary->usernameFragment()->str();
+        parameters->password = binary->password()->str();
+        parameters->iceLite = binary->iceLite();
+        
+        return parameters;
+    }
+
+    std::shared_ptr<DtlsParameters> parseDtlsParameters(const FBS::WebRtcTransport::DtlsParameters* binary)
+    {
+        auto parameters = std::make_shared<DtlsParameters>();
+        
+        parameters->role = dtlsRoleFromFbs(binary->role());
+        
+        for (const auto& item : *binary->fingerprints()) {
+            DtlsFingerprint fingerprint;
+            fingerprint.algorithm = fingerprintAlgorithmsFromFbs(item->algorithm());
+            fingerprint.value = item->value()->str();
+            parameters->fingerprints.emplace_back(fingerprint);
+        }
+        
+        return parameters;
+    }
+
+    flatbuffers::Offset<FBS::WebRtcTransport::DtlsParameters> serializeDtlsParameters(flatbuffers::FlatBufferBuilder& builder, const DtlsParameters& dtlsParameters)
+    {
+        std::vector<flatbuffers::Offset<FBS::WebRtcTransport::Fingerprint>> fingerprints;
+        
+        for (const auto& item : dtlsParameters.fingerprints) {
+            auto algorithm = fingerprintAlgorithmToFbs(item.algorithm);
+            SRV_LOGD("dtlsParameters.fingerprints, algorithm: %u, value: %s", (uint8_t)algorithm, item.value.c_str());
+            auto ft = FBS::WebRtcTransport::CreateFingerprintDirect(builder, algorithm, item.value.c_str());
+            fingerprints.emplace_back(ft);
+        }
+        
+        FBS::WebRtcTransport::DtlsRole role = dtlsRoleToFbs(dtlsParameters.role);
+        
+        return FBS::WebRtcTransport::CreateDtlsParametersDirect(builder, &fingerprints, role);
     }
 }
 
 namespace srv
 {
+
     void to_json(nlohmann::json& j, const WebRtcTransportOptions& st)
     {
+        //j["listenInfos"] = st.listenInfos;
         j["listenIps"] = st.listenIps;
         j["port"] = st.port;
         j["enableUdp"] = st.enableUdp;
@@ -254,6 +605,9 @@ namespace srv
 
     void from_json(const nlohmann::json& j, WebRtcTransportOptions& st)
     {
+        //if (j.contains("listenInfos")) {
+        //    j.at("listenInfos").get_to(st.listenInfos);
+        //}
         if (j.contains("listenIps")) {
             j.at("listenIps").get_to(st.listenIps);
         }
@@ -298,138 +652,25 @@ namespace srv
         }
     }
 
-    void to_json(nlohmann::json& j, const WebRtcTransportStat& st)
-    {
-        j["type"] = st.type;
-        j["transportId"] = st.transportId;
-        j["timestamp"] = st.timestamp;
-        j["sctpState"] = st.sctpState;
-        
-        j["bytesReceived"] = st.bytesReceived;
-        j["recvBitrate"] = st.recvBitrate;
-        j["bytesSent"] = st.bytesSent;
-        j["sendBitrate"] = st.sendBitrate;
-        j["rtpBytesReceived"] = st.rtpBytesReceived;
-        j["rtpRecvBitrate"] = st.rtpRecvBitrate;
-        
-        j["rtpBytesSent"] = st.rtpBytesSent;
-        j["rtpSendBitrate"] = st.rtpSendBitrate;
-        j["rtxBytesReceived"] = st.rtxBytesReceived;
-        j["rtxRecvBitrate"] = st.rtxRecvBitrate;
-        j["rtxBytesSent"] = st.rtxBytesSent;
-        
-        j["rtxSendBitrate"] = st.rtxSendBitrate;
-        j["probationBytesSent"] = st.probationBytesSent;
-        j["probationSendBitrate"] = st.probationSendBitrate;
-        j["availableOutgoingBitrate"] = st.availableOutgoingBitrate;
-        j["availableIncomingBitrate"] = st.availableIncomingBitrate;
-        j["maxIncomingBitrate"] = st.maxIncomingBitrate;
-        
-        j["iceRole"] = st.iceRole;
-        j["iceState"] = st.iceState;
-        j["iceSelectedTuple"] = st.iceSelectedTuple;
-        j["dtlsState"] = st.dtlsState;
-    }
-
-    void from_json(const nlohmann::json& j, WebRtcTransportStat& st)
-    {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
-        }
-        if (j.contains("transportId")) {
-            j.at("transportId").get_to(st.transportId);
-        }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
-        }
-        if (j.contains("sctpState")) {
-            j.at("sctpState").get_to(st.sctpState);
-        }
-        if (j.contains("bytesReceived")) {
-            j.at("bytesReceived").get_to(st.bytesReceived);
-        }
-        if (j.contains("recvBitrate")) {
-            j.at("recvBitrate").get_to(st.recvBitrate);
-        }
-        if (j.contains("bytesSent")) {
-            j.at("bytesSent").get_to(st.bytesSent);
-        }
-        if (j.contains("sendBitrate")) {
-            j.at("sendBitrate").get_to(st.sendBitrate);
-        }
-        if (j.contains("rtpBytesReceived")) {
-            j.at("rtpBytesReceived").get_to(st.rtpBytesReceived);
-        }
-        if (j.contains("rtpRecvBitrate")) {
-            j.at("rtpRecvBitrate").get_to(st.rtpRecvBitrate);
-        }
-        if (j.contains("rtpBytesSent")) {
-            j.at("rtpBytesSent").get_to(st.rtpBytesSent);
-        }
-        if (j.contains("rtpSendBitrate")) {
-            j.at("rtpSendBitrate").get_to(st.rtpSendBitrate);
-        }
-        if (j.contains("rtxBytesReceived")) {
-            j.at("rtxBytesReceived").get_to(st.rtxBytesReceived);
-        }
-        if (j.contains("rtxRecvBitrate")) {
-            j.at("rtxRecvBitrate").get_to(st.rtxRecvBitrate);
-        }
-        if (j.contains("rtxBytesSent")) {
-            j.at("rtxBytesSent").get_to(st.rtxBytesSent);
-        }
-        if (j.contains("rtxSendBitrate")) {
-            j.at("rtxSendBitrate").get_to(st.rtxSendBitrate);
-        }
-        if (j.contains("probationBytesSent")) {
-            j.at("probationBytesSent").get_to(st.probationBytesSent);
-        }
-        if (j.contains("probationSendBitrate")) {
-            j.at("probationSendBitrate").get_to(st.probationSendBitrate);
-        }
-        if (j.contains("availableOutgoingBitrate")) {
-            j.at("availableOutgoingBitrate").get_to(st.availableOutgoingBitrate);
-        }
-        if (j.contains("availableIncomingBitrate")) {
-            j.at("availableIncomingBitrate").get_to(st.availableIncomingBitrate);
-        }
-        if (j.contains("maxIncomingBitrate")) {
-            j.at("maxIncomingBitrate").get_to(st.maxIncomingBitrate);
-        }
-        
-        if (j.contains("iceRole")) {
-            j.at("iceRole").get_to(st.iceRole);
-        }
-        if (j.contains("iceState")) {
-            j.at("iceState").get_to(st.iceState);
-        }
-        if (j.contains("iceSelectedTuple")) {
-            j.at("iceSelectedTuple").get_to(st.iceSelectedTuple);
-        }
-        if (j.contains("dtlsState")) {
-            j.at("dtlsState").get_to(st.dtlsState);
-        }
-    }
-
     void to_json(nlohmann::json& j, const IceParameters& st)
-    {
-        j["usernameFragment"] = st.usernameFragment;
-        j["password"] = st.password;
-        j["iceLite"] = st.iceLite;
-    }
+     {
+         j["usernameFragment"] = st.usernameFragment;
+         j["password"] = st.password;
+         j["iceLite"] = st.iceLite;
+     }
 
-    void from_json(const nlohmann::json& j, IceParameters& st)
-    {
-        if (j.contains("usernameFragment")) {
-            j.at("usernameFragment").get_to(st.usernameFragment);
-        }
-        if (j.contains("password")) {
-            j.at("password").get_to(st.password);
-        }
-        if (j.contains("iceLite")) {
-            j.at("iceLite").get_to(st.iceLite);
-        }
-    }
+     void from_json(const nlohmann::json& j, IceParameters& st)
+     {
+         if (j.contains("usernameFragment")) {
+             j.at("usernameFragment").get_to(st.usernameFragment);
+         }
+         if (j.contains("password")) {
+             j.at("password").get_to(st.password);
+         }
+         if (j.contains("iceLite")) {
+             j.at("iceLite").get_to(st.iceLite);
+         }
+     }
 
     void to_json(nlohmann::json& j, const IceCandidate& st)
     {
@@ -467,35 +708,4 @@ namespace srv
         }
     }
 
-    void to_json(nlohmann::json& j, const DtlsFingerprint& st)
-{
-        j["algorithm"] = st.algorithm;
-        j["value"] = st.value;
-    }
-
-    void from_json(const nlohmann::json& j, DtlsFingerprint& st)
-    {
-        if (j.contains("algorithm")) {
-            j.at("algorithm").get_to(st.algorithm);
-        }
-        if (j.contains("value")) {
-            j.at("value").get_to(st.value);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const DtlsParameters& st)
-    {
-        j["role"] = st.role;
-        j["fingerprints"] = st.fingerprints;
-    }
-
-    void from_json(const nlohmann::json& j, DtlsParameters& st)
-    {
-        if (j.contains("role")) {
-            j.at("role").get_to(st.role);
-        }
-        if (j.contains("fingerprints")) {
-            j.at("fingerprints").get_to(st.fingerprints);
-        }
-    }
 }

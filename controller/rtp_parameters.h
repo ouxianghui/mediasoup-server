@@ -12,11 +12,16 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <absl/container/flat_hash_map.h>
+#include <absl/types/optional.h>
 #include "nlohmann/json.hpp"
+#include "flatbuffers/flexbuffers.h"
+#include "parameters.h"
+#include "FBS/rtpParameters.h"
+#include "FBS/rtpPacket.h"
 
 namespace srv
 {
-
     /**
      * Provides information on RTCP feedback messages for a specific codec. Those
      * messages can be transport layer feedback messages or codec-specific feedback
@@ -34,6 +39,8 @@ namespace srv
          * RTCP feedback parameter.
          */
         std::string parameter;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtcpFeedback> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
 
     void to_json(nlohmann::json& j, const RtcpFeedback& st);
@@ -82,13 +89,15 @@ namespace srv
          * The number of channels supported (e.g. two for stereo). Just for audio.
          * Default 1.
          */
-        int channels = 0;
+        int channels;
 
         /**
          * Codec specific parameters. Some parameters (such as 'packetization-mode'
          * and 'profile-level-id' in H264 or 'profile-id' in VP9) are critical for
          * codec matching.
          */
+        //Parameters parametersFbs;
+        
         std::map<std::string, nlohmann::json> parameters;
 
         /**
@@ -181,30 +190,43 @@ namespace srv
         /**
          * The value that goes in the RTP Payload Type Field. Must be unique.
          */
-        int payloadType = 0;
+        uint8_t payloadType = 0;
 
         /**
          * Codec clock rate expressed in Hertz.
          */
-        int clockRate = 0;
+        uint32_t clockRate = 0;
 
         /**
          * The number of channels supported (e.g. two for stereo). Just for audio.
          * Default 1.
          */
-        int channels = 0;
-
-        /**
-         * Codec-specific parameters available for signaling. Some parameters (such
-         * as 'packetization-mode' and 'profile-level-id' in H264 or 'profile-id' in
-         * VP9) are critical for codec matching.
-         */
-        std::map<std::string, nlohmann::json> parameters;
+        uint8_t channels = 0;
 
         /**
          * Transport layer and codec-specific feedback messages for this codec.
          */
         std::vector<RtcpFeedback> rtcpFeedback;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpCodecParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
+        
+        const Parameters& _getParameters() const;
+        
+        void _setParameters(const Parameters& parameters);
+        
+        const std::map<std::string, nlohmann::json>& getParameters() const;
+        
+        void setParameters(const std::map<std::string, nlohmann::json>& parameters);
+        
+    private:
+        /**
+         * Codec-specific parameters available for signaling. Some parameters (such
+         * as 'packetization-mode' and 'profile-level-id' in H264 or 'profile-id' in
+         * VP9) are critical for codec matching.
+         */
+        Parameters _parameters;
+        
+        std::map<std::string, nlohmann::json> parameters;
     };
 
     void to_json(nlohmann::json& j, const RtpCodecParameters& st);
@@ -234,22 +256,38 @@ namespace srv
          * If true, the value in the header is encrypted as per RFC 6904. Default false.
          */
         bool encrypt = false;
-
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpHeaderExtensionParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
+        
+        const Parameters& _getParameters() const;
+        
+        void _setParameters(const Parameters& parameters);
+        
+        const std::map<std::string, nlohmann::json>& getParameters() const;
+        
+        void setParameters(const std::map<std::string, nlohmann::json>& parameters);
+        
+    private:
         /**
          * Configuration parameters for the header extension.
          */
+        Parameters _parameters;
+        
         std::map<std::string, nlohmann::json> parameters;
     };
 
     void to_json(nlohmann::json& j, const RtpHeaderExtensionParameters& st);
     void from_json(const nlohmann::json& j, RtpHeaderExtensionParameters& st);
 
-    struct _rtx{
+    struct RtpRtxParameters
+    {
         uint32_t ssrc = 0;
+        
+        flatbuffers::Offset<FBS::RtpParameters::Rtx> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
 
-    void to_json(nlohmann::json& j, const _rtx& st);
-    void from_json(const nlohmann::json& j, _rtx& st);
+    void to_json(nlohmann::json& j, const RtpRtxParameters& st);
+    void from_json(const nlohmann::json& j, RtpRtxParameters& st);
 
     /**
      * Provides information relating to an encoding, which represents a media RTP
@@ -277,7 +315,7 @@ namespace srv
          * RTX stream information. It must contain a numeric ssrc field indicating
          * the RTX SSRC.
          */
-        _rtx rtx;
+        RtpRtxParameters rtx;
 
         /**
          * It indicates whether discontinuous RTP transmission will be used. Useful
@@ -299,6 +337,20 @@ namespace srv
         int scaleResolutionDownBy = 0;
 
         int maxBitrate = 0;
+   
+        bool hasCodecPayloadType { false };
+        
+        bool hasRtx { false };
+        
+        double maxFramerate { 0 };
+     
+        uint8_t spatialLayers { 1u };
+        
+        uint8_t temporalLayers { 1u };
+        
+        bool ksvc { false };
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpEncodingParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
 
     void to_json(nlohmann::json& j, const RtpEncodingParameters& st);
@@ -330,6 +382,8 @@ namespace srv
          * Whether RTCP-mux is used. Default true.
          */
         bool mux = true;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtcpParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
 
     void to_json(nlohmann::json& j, const RtcpParameters& st);
@@ -392,8 +446,75 @@ namespace srv
          * Parameters used for RTCP.
          */
         RtcpParameters rtcp;
+        
+        flatbuffers::Offset<FBS::RtpParameters::RtpParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
 
     void to_json(nlohmann::json& j, const RtpParameters& st);
     void from_json(const nlohmann::json& j, RtpParameters& st) ;
+
+    std::string rtpHeaderExtensionUriFromFbs(FBS::RtpParameters::RtpHeaderExtensionUri uri);
+
+    FBS::RtpParameters::RtpHeaderExtensionUri rtpHeaderExtensionUriToFbs(const std::string& uri);
+
+    struct RtpPacketDump {
+        uint8_t payloadType;
+        uint16_t sequenceNumber;
+        uint64_t timestamp;
+        bool marker;
+        uint32_t ssrc;
+        bool isKeyFrame;
+        uint64_t size;
+        uint64_t payloadSize;
+        uint8_t spatialLayer;
+        uint8_t temporalLayer;
+        std::string mid;
+        std::string rid;
+        std::string rrid;
+        absl::optional<uint16_t> wideSequenceNumber;
+        
+        srv::RtpPacketDump& operator=(const FBS::RtpPacket::Dump* dump) {
+            this->payloadType = dump->payloadType();
+            this->sequenceNumber = dump->sequenceNumber();
+            this->timestamp = dump->timestamp();
+            this->marker = dump->marker();
+            this->ssrc = dump->ssrc();
+            this->isKeyFrame = dump->isKeyFrame();
+            this->size = dump->size();
+            this->payloadSize = dump->payloadSize();
+            this->spatialLayer = dump->spatialLayer();
+            this->temporalLayer = dump->temporalLayer();
+            this->mid = dump->mid()->str();
+            this->rid = dump->rid()->str();
+            this->rrid = dump->rrid()->str();
+            if (dump->wideSequenceNumber()) {
+                this->wideSequenceNumber = dump->wideSequenceNumber().value();
+            }
+            return *this;
+        }
+    };
+
+    struct TraceInfo {};
+
+    struct KeyFrameTraceInfo : TraceInfo {
+        RtpPacketDump rtpPacket;
+        bool isRtx;
+    };
+
+    struct FirTraceInfo : TraceInfo {
+        uint32_t ssrc;
+    };
+
+    struct PliTraceInfo : TraceInfo {
+        uint32_t ssrc;
+    };
+
+    struct RtpTraceInfo : TraceInfo {
+        RtpPacketDump rtpPacket;
+        bool isRtx;
+    };
+
+    std::shared_ptr<RtpEncodingParameters> parseRtpEncodingParameters(const FBS::RtpParameters::RtpEncodingParameters* data);
+
+    std::shared_ptr<RtpParameters> parseRtpParameters(const FBS::RtpParameters::RtpParameters* data);
 }

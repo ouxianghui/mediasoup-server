@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -628,8 +628,6 @@ end_of_options:
 
     f = NCONF_get_string(conf, section, ENV_NAMEOPT);
 
-    if (f == NULL)
-        ERR_clear_error();
     if (f != NULL) {
         if (!set_nameopt(f)) {
             BIO_printf(bio_err, "Invalid name options: \"%s\"\n", f);
@@ -787,10 +785,8 @@ end_of_options:
         /* We can have sections in the ext file */
         if (extensions == NULL) {
             extensions = NCONF_get_string(extfile_conf, "default", "extensions");
-            if (extensions == NULL) {
-                ERR_clear_error();
+            if (extensions == NULL)
                 extensions = "default";
-            }
         }
     }
 
@@ -806,20 +802,15 @@ end_of_options:
     /*
      * EVP_PKEY_get_default_digest_name() returns 2 if the digest is
      * mandatory for this algorithm.
-     *
-     * That call may give back the name "UNDEF", which has these meanings:
-     *
-     * when def_ret == 2: the user MUST leave the digest unspecified
-     * when def_ret == 1: the user MAY leave the digest unspecified
      */
     if (def_ret == 2 && strcmp(def_dgst, "UNDEF") == 0) {
+        /* The signing algorithm requires there to be no digest */
         dgst = NULL;
     } else if (dgst == NULL
-               && (dgst = lookup_conf(conf, section, ENV_DEFAULT_MD)) == NULL
-               && strcmp(def_dgst, "UNDEF") != 0) {
+               && (dgst = lookup_conf(conf, section, ENV_DEFAULT_MD)) == NULL) {
         goto end;
     } else {
-        if (strcmp(dgst, "default") == 0 || strcmp(def_dgst, "UNDEF") == 0) {
+        if (strcmp(dgst, "default") == 0) {
             if (def_ret <= 0) {
                 BIO_puts(bio_err, "no default digest\n");
                 goto end;
@@ -833,8 +824,6 @@ end_of_options:
             char *tmp_email_dn = NULL;
 
             tmp_email_dn = NCONF_get_string(conf, section, ENV_DEFAULT_EMAIL_DN);
-            if (tmp_email_dn == NULL)
-                ERR_clear_error();
             if (tmp_email_dn != NULL && strcmp(tmp_email_dn, "no") == 0)
                 email_dn = 0;
         }
@@ -850,7 +839,6 @@ end_of_options:
         if (NCONF_get_string(conf, section, ENV_RAND_SERIAL) != NULL) {
             rand_ser = 1;
         } else {
-            ERR_clear_error();
             serialfile = lookup_conf(conf, section, ENV_SERIAL);
             if (serialfile == NULL)
                 goto end;
@@ -920,10 +908,8 @@ end_of_options:
         }
 
         if (days == 0) {
-            if (!NCONF_get_number(conf, section, ENV_DEFAULT_DAYS, &days)) {
-                ERR_clear_error();
+            if (!NCONF_get_number(conf, section, ENV_DEFAULT_DAYS, &days))
                 days = 0;
-            }
         }
         if (enddate == NULL && days == 0) {
             BIO_printf(bio_err, "cannot lookup how many days to certify for\n");
@@ -1048,7 +1034,7 @@ end_of_options:
             }
         }
         /*
-         * we have a stack of newly certified certificates and a database
+         * we have a stack of newly certified certificates and a data base
          * and serial number that need updating
          */
 
@@ -1149,7 +1135,7 @@ end_of_options:
             if (!rotate_index(dbfile, "new", "old"))
                 goto end;
 
-            BIO_printf(bio_err, "Database updated\n");
+            BIO_printf(bio_err, "Data Base Updated\n");
         }
     }
 
@@ -1175,28 +1161,22 @@ end_of_options:
             }
         }
 
-        crlnumberfile = NCONF_get_string(conf, section, ENV_CRLNUMBER);
-        if (crlnumberfile != NULL) {
+        if ((crlnumberfile = NCONF_get_string(conf, section, ENV_CRLNUMBER))
+            != NULL)
             if ((crlnumber = load_serial(crlnumberfile, NULL, 0, NULL))
                 == NULL) {
                 BIO_printf(bio_err, "error while loading CRL number\n");
                 goto end;
             }
-        } else {
-            ERR_clear_error();
-        }
 
         if (!crldays && !crlhours && !crlsec) {
             if (!NCONF_get_number(conf, section,
-                                  ENV_DEFAULT_CRL_DAYS, &crldays)) {
-                ERR_clear_error();
+                                  ENV_DEFAULT_CRL_DAYS, &crldays))
                 crldays = 0;
-            }
             if (!NCONF_get_number(conf, section,
-                                  ENV_DEFAULT_CRL_HOURS, &crlhours)) {
-                ERR_clear_error();
+                                  ENV_DEFAULT_CRL_HOURS, &crlhours))
                 crlhours = 0;
-            }
+            ERR_clear_error();
         }
         if ((crl_nextupdate == NULL) &&
                 (crldays == 0) && (crlhours == 0) && (crlsec == 0)) {
@@ -1336,7 +1316,7 @@ end_of_options:
             if (!rotate_index(dbfile, "new", "old"))
                 goto end;
 
-            BIO_printf(bio_err, "Database updated\n");
+            BIO_printf(bio_err, "Data Base Updated\n");
         }
     }
     ret = 0;
@@ -1778,7 +1758,7 @@ static int do_body(X509 **xret, EVP_PKEY *pkey, X509 *x509,
 
     if (verbose)
         BIO_printf(bio_err,
-                   "The subject name appears to be ok, checking database for clashes\n");
+                   "The subject name appears to be ok, checking data base for clashes\n");
 
     /* Build the correct Subject if no e-mail is wanted in the subject. */
     if (!email_dn) {
@@ -1867,7 +1847,7 @@ static int do_body(X509 **xret, EVP_PKEY *pkey, X509 *x509,
         else if (rrow[DB_type][0] == DB_TYPE_VAL)
             p = "Valid";
         else
-            p = "\ninvalid type, Database error\n";
+            p = "\ninvalid type, Data base error\n";
         BIO_printf(bio_err, "Type          :%s\n", p);;
         if (rrow[DB_type][0] == DB_TYPE_REV) {
             p = rrow[DB_exp_date];

@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2006-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -60,16 +60,13 @@ static int rsa_pub_encode(X509_PUBKEY *pk, const EVP_PKEY *pkey)
     if (!rsa_param_encode(pkey, &str, &strtype))
         return 0;
     penclen = i2d_RSAPublicKey(pkey->pkey.rsa, &penc);
-    if (penclen <= 0) {
-        ASN1_STRING_free(str);
+    if (penclen <= 0)
         return 0;
-    }
     if (X509_PUBKEY_set0_param(pk, OBJ_nid2obj(pkey->ameth->pkey_id),
                                strtype, str, penc, penclen))
         return 1;
 
     OPENSSL_free(penc);
-    ASN1_STRING_free(str);
     return 0;
 }
 
@@ -453,7 +450,6 @@ static RSA_PSS_PARAMS *rsa_ctx_to_pss(EVP_PKEY_CTX *pkctx)
     const EVP_MD *sigmd, *mgf1md;
     EVP_PKEY *pk = EVP_PKEY_CTX_get0_pkey(pkctx);
     int saltlen;
-    int saltlenMax = -1;
 
     if (EVP_PKEY_CTX_get_signature_md(pkctx, &sigmd) <= 0)
         return NULL;
@@ -461,27 +457,14 @@ static RSA_PSS_PARAMS *rsa_ctx_to_pss(EVP_PKEY_CTX *pkctx)
         return NULL;
     if (EVP_PKEY_CTX_get_rsa_pss_saltlen(pkctx, &saltlen) <= 0)
         return NULL;
-    if (saltlen == RSA_PSS_SALTLEN_DIGEST) {
+    if (saltlen == -1) {
         saltlen = EVP_MD_get_size(sigmd);
-    } else if (saltlen == RSA_PSS_SALTLEN_AUTO_DIGEST_MAX) {
-        /* FIPS 186-4 section 5 "The RSA Digital Signature Algorithm",
-         * subsection 5.5 "PKCS #1" says: "For RSASSA-PSS […] the length (in
-         * bytes) of the salt (sLen) shall satisfy 0 <= sLen <= hLen, where
-         * hLen is the length of the hash function output block (in bytes)."
-         *
-         * Provide a way to use at most the digest length, so that the default
-         * does not violate FIPS 186-4. */
-        saltlen = RSA_PSS_SALTLEN_MAX;
-        saltlenMax = EVP_MD_get_size(sigmd);
-    }
-    if (saltlen == RSA_PSS_SALTLEN_MAX || saltlen == RSA_PSS_SALTLEN_AUTO) {
+    } else if (saltlen == -2 || saltlen == -3) {
         saltlen = EVP_PKEY_get_size(pk) - EVP_MD_get_size(sigmd) - 2;
         if ((EVP_PKEY_get_bits(pk) & 0x7) == 1)
             saltlen--;
         if (saltlen < 0)
             return NULL;
-        if (saltlenMax >= 0 && saltlen > saltlenMax)
-            saltlen = saltlenMax;
     }
 
     return ossl_rsa_pss_params_create(sigmd, mgf1md, saltlen);
@@ -658,36 +641,6 @@ static int rsa_item_sign(EVP_MD_CTX *ctx, const ASN1_ITEM *it, const void *asn,
         size_t aid_len = 0;
         OSSL_PARAM params[2];
 
-        if (evp_pkey_ctx_is_legacy(pkctx)) {
-            /* No provider -> we cannot query it for algorithm ID. */
-            ASN1_STRING *os1 = NULL;
-
-            os1 = ossl_rsa_ctx_to_pss_string(pkctx);
-            if (os1 == NULL)
-                return 0;
-            /* Duplicate parameters if we have to */
-            if (alg2 != NULL) {
-                ASN1_STRING *os2 = ASN1_STRING_dup(os1);
-
-                if (os2 == NULL) {
-                    ASN1_STRING_free(os1);
-                    return 0;
-                }
-                if (!X509_ALGOR_set0(alg2, OBJ_nid2obj(EVP_PKEY_RSA_PSS),
-                                     V_ASN1_SEQUENCE, os2)) {
-                    ASN1_STRING_free(os1);
-                    ASN1_STRING_free(os2);
-                    return 0;
-                }
-            }
-            if (!X509_ALGOR_set0(alg1, OBJ_nid2obj(EVP_PKEY_RSA_PSS),
-                                 V_ASN1_SEQUENCE, os1)) {
-                    ASN1_STRING_free(os1);
-                    return 0;
-            }
-            return 3;
-        }
-
         params[0] = OSSL_PARAM_construct_octet_string(
             OSSL_SIGNATURE_PARAM_ALGORITHM_ID, aid, sizeof(aid));
         params[1] = OSSL_PARAM_construct_end();
@@ -699,13 +652,11 @@ static int rsa_item_sign(EVP_MD_CTX *ctx, const ASN1_ITEM *it, const void *asn,
 
         if (alg1 != NULL) {
             const unsigned char *pp = aid;
-
             if (d2i_X509_ALGOR(&alg1, &pp, aid_len) == NULL)
                 return 0;
         }
         if (alg2 != NULL) {
             const unsigned char *pp = aid;
-
             if (d2i_X509_ALGOR(&alg2, &pp, aid_len) == NULL)
                 return 0;
         }

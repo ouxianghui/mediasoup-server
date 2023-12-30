@@ -15,5 +15,5 @@ namespace srv
 {
     extern const RtpCapabilities _supportedRtpCapabilities;
 
-const RtpCapabilities& getSupportedRtpCapabilities();
+    const RtpCapabilities& getSupportedRtpCapabilities();
 }

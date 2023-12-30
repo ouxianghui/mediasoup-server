@@ -32,11 +32,6 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#if defined(__FreeBSD__) && !defined(__Userspace__)
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-#endif
-
 #include <netinet/sctp_os.h>
 #include <netinet/sctp_var.h>
 #include <netinet/sctp_pcb.h>
@@ -774,9 +769,9 @@ sctp_get_mbuf_for_msg(unsigned int space_needed, int want_header,
 	struct mbuf *m = NULL;
 #if defined(__FreeBSD__) || defined(__Userspace__)
 #if defined(__Userspace__)
-	m =  m_getm2(NULL, space_needed, how, type, want_header ? M_PKTHDR : 0, allonebuf);
+	m = m_getm2(NULL, space_needed, how, type, want_header ? M_PKTHDR : 0, allonebuf);
 #else
-	m =  m_getm2(NULL, space_needed, how, type, want_header ? M_PKTHDR : 0);
+	m = m_getm2(NULL, space_needed, how, type, want_header ? M_PKTHDR : 0);
 #endif
 	if (m == NULL) {
 		/* bad, no memory */
@@ -949,11 +944,10 @@ sctp_copy_out_packet_log(uint8_t *target, int length)
 	 * start copying up to length bytes out.
 	 * We return the number of bytes copied.
 	 */
-	int tocopy, this_copy;
+	int this_copy;
 	int *lenat;
 	int did_delay = 0;
 
-	tocopy = length;
 	if (length < (int)(2 * sizeof(int))) {
 		/* not enough room */
 		return (0);
@@ -981,7 +975,7 @@ sctp_copy_out_packet_log(uint8_t *target, int length)
 	memcpy((void *)lenat, (void *)SCTP_BASE_VAR(packet_log_buffer), this_copy);
 	if (SCTP_PKTLOG_WRITERS_NEED_LOCK) {
 		atomic_subtract_int(&SCTP_BASE_VAR(packet_log_writers),
-				    SCTP_PKTLOG_WRITERS_NEED_LOCK);
+		                    SCTP_PKTLOG_WRITERS_NEED_LOCK);
 	}
 	SCTP_IP_PKTLOG_UNLOCK();
 	return (this_copy + sizeof(int));

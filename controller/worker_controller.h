@@ -10,22 +10,19 @@
 #pragma once
 
 #include <memory>
-#include <tuple>
-#include <atomic>
-#include <unordered_set>
-#include <mutex>
-#include "nlohmann/json.hpp"
-#include "sigslot/signal.hpp"
-#include "types.h"
-#include "transport_controller.h"
-#include "router_controller.h"
-#include "webrtc_server_controller.h"
+#include "threadsafe_unordered_set.hpp"
+#include <uv.h>
+#include "interface/i_worker_controller.h"
+#include "utils.h"
+#include "FBS/request.h"
+#include "FBS/response.h"
+#include "FBS/message.h"
+#include "FBS/notification.h"
+#include "FBS/worker.h"
+#include "FBS/transport.h"
 
 namespace srv {
     
-    class Channel;
-    class PayloadChannel;
-
     struct WorkerSettings
     {
         /**
@@ -82,170 +79,61 @@ namespace srv {
     
     void to_json(nlohmann::json& j, const WorkerSettings& st);
     void from_json(const nlohmann::json& j, WorkerSettings& st);
+    
+    class Channel;
 
-    /**
-    * An object with the fields of the uv_rusage_t struct.
-    *
-    * - http://docs.libuv.org/en/v1.x/misc.html#c.uv_rusage_t
-    * - https://linux.die.net/man/2/getrusage
-    */
-    struct WorkerResourceUsage 
-    {
-        /* eslint-disable camelcase */
-        
-        /**
-        * User CPU time used (in ms).
-        */
-        int64_t ru_utime = 0;
-        
-        /**
-        * System CPU time used (in ms).
-        */
-        int64_t ru_stime = 0;
-        
-        /**
-        * Maximum resident set size.
-        */
-        int64_t ru_maxrss = 0;
-        
-        /**
-        * Integral shared memory size.
-        */
-        int64_t ru_ixrss = 0;
-        
-        /**
-        * Integral unshared data size.
-        */
-        int64_t ru_idrss = 0;
-        
-        /**
-        * Integral unshared stack size.
-        */
-        int64_t ru_isrss = 0;
-        
-        /**
-        * Page reclaims (soft page faults).
-        */
-        int64_t ru_minflt = 0;
-        
-        /**
-        * Page faults (hard page faults).
-        */
-        int64_t ru_majflt = 0;
-        
-        /**
-        * Swaps.
-        */
-        int64_t ru_nswap = 0;
-        
-        /**
-        * Block input operations.
-        */
-        int64_t ru_inblock = 0;
-        
-        /**
-        * Block output operations.
-        */
-        int64_t ru_oublock = 0;
-        
-        /**
-        * IPC messages sent.
-        */
-        int64_t ru_msgsnd = 0;
-        
-        /**
-        * IPC messages received.
-        */
-        int64_t ru_msgrcv = 0;
-        
-        /**
-        * Signals received.
-        */
-        int64_t ru_nsignals = 0;
-        
-        /**
-        * Voluntary context switches.
-        */
-        int64_t ru_nvcsw = 0;
-        
-        /**
-        * Involuntary context switches.
-        */
-        int64_t ru_nivcsw = 0;
-        
-        /* eslint-enable camelcase */
-    };
-
-    void to_json(nlohmann::json& j, const WorkerResourceUsage& st);
-    void from_json(const nlohmann::json& j, WorkerResourceUsage& st);
-
-    class WorkerController : public std::enable_shared_from_this<WorkerController>
+    class WorkerController : public IWorkerController, public std::enable_shared_from_this<WorkerController>
     {
     public:
         WorkerController(const std::shared_ptr<WorkerSettings>& settings);
         
         ~WorkerController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
-        void runWorker();
+        void runWorker() override;
         
-        bool closed();
+        int pid() override { return _process.pid; }
         
-        void setAppData(const nlohmann::json& data) { _appData = data; }
-        
-        std::shared_ptr<WebRtcServerController> webRtcServerController() { return !_webRtcServerControllers.empty() ? *_webRtcServerControllers.begin() : nullptr; }
-        
-        const nlohmann::json& appData() { return _appData; }
-        
-        nlohmann::json dump();
-        
-        std::shared_ptr<WorkerResourceUsage> getResourceUsage();
-        
-        void updateSettings(const std::string& logLevel, const std::vector<std::string>& logTags);
-        
-        std::shared_ptr<WebRtcServerController> createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData);
-        
-        std::shared_ptr<RouterController> createRouterController(const std::vector<RtpCodecCapability>& mediaCodecs, const nlohmann::json& appData);
-        
-    public:
-        sigslot::signal<> startSignal;
+        void close() override;
 
-        sigslot::signal<> closeSignal;
+        bool closed() override;
         
-        sigslot::signal<std::shared_ptr<WebRtcServerController>> newWebRtcServerSignal;
+        void setAppData(const nlohmann::json& data) override { _appData = data; }
         
-        sigslot::signal<std::shared_ptr<RouterController>> newRouterSignal;
+        std::shared_ptr<IWebRtcServerController> webRtcServerController() override;
+        
+        const nlohmann::json& appData() override { return _appData; }
+        
+        std::shared_ptr<WorkerDump> dump() override;
+        
+        std::shared_ptr<WorkerResourceUsage> getResourceUsage() override;
+        
+        void updateSettings(const std::string& logLevel, const std::vector<std::string>& logTags) override;
+        
+        std::shared_ptr<IWebRtcServerController> createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData) override;
+        
+        std::shared_ptr<IRouterController> createRouterController(const std::vector<RtpCodecCapability>& mediaCodecs, const nlohmann::json& appData) override;
 
     private:
         std::vector<std::string> getArgs(const std::shared_ptr<WorkerSettings>& settings);
         
-        void close();
+        void onWebRtcServerClose(std::shared_ptr<IWebRtcServerController> controller);
         
-        void onWebRtcServerClose(std::shared_ptr<WebRtcServerController> controller);
-        
-        void onRouterClose(std::shared_ptr<RouterController> controller);
-        
-        void getDump();
+        void onRouterClose(std::shared_ptr<IRouterController> controller);
         
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
-        
-        void onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen);
-        
-        
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
+    
     private:
         std::shared_ptr<WorkerSettings> _settings;
         
         // Channel instance.
         std::shared_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::shared_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };
@@ -253,15 +141,16 @@ namespace srv {
         // Custom app data.
         nlohmann::json _appData;
 
-        std::mutex _webRtcServersMutex;
         // WebRtcServers set.
-        std::unordered_set<std::shared_ptr<WebRtcServerController>> _webRtcServerControllers;
+        std::threadsafe_unordered_set<std::shared_ptr<IWebRtcServerController>> _webRtcServerControllers;
 
-        std::mutex _routersMutex;
         // Routers set.
-        std::unordered_set<std::shared_ptr<RouterController>> _routerControllers;
+        std::threadsafe_unordered_set<std::shared_ptr<IRouterController>> _routerControllers;
         
-        std::thread _thread;
+        uv_process_t _process;
+        
+        Loop _loop;
     };
     
+    std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response);
 }

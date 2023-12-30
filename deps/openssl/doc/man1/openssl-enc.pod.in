@@ -129,8 +129,7 @@ This option enables the use of PBKDF2 algorithm to derive the key.
 
 =item B<-pbkdf2>
 
-Use PBKDF2 algorithm with a default iteration count of 10000
-unless otherwise specified by the B<-iter> command line option.
+Use PBKDF2 algorithm with default iteration count unless otherwise specified.
 
 =item B<-nosalt>
 

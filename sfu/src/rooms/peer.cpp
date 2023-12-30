@@ -28,10 +28,15 @@
 #include "oatpp/core/utils/ConversionUtils.hpp"
 #include "utils/message.hpp"
 #include "srv_logger.h"
-#include "consumer_controller.h"
-#include "producer_controller.h"
-#include "data_consumer_controller.h"
-#include "data_producer_controller.h"
+#include "interface/i_consumer_controller.h"
+#include "interface/i_data_consumer_controller.h"
+#include "interface/i_data_producer_controller.h"
+#include "interface/i_producer_controller.h"
+#include "interface/i_transport_controller.h"
+#include "interface/i_router_controller.h"
+#include "interface/i_rtp_observer_controller.h"
+#include "interface/i_webrtc_server_controller.h"
+#include "interface/i_worker_controller.h"
 
 namespace
 {
@@ -358,9 +363,10 @@ void Peer::handleResponse(const nlohmann::json& response)
     SRV_LOGE("data: %s", data.dump().c_str());
     if (data.contains("method") && data["method"].get<std::string>() == "newConsumer" && data.contains("data")) {
         auto consumerId = data["data"]["id"].get<std::string>();
-        if (!consumerId.empty()) {
-            auto& controller = this->_data->consumerControllers[consumerId];
-            controller->resume();
+        if (!consumerId.empty() && this->_data->consumerControllers.contains(consumerId)) {
+            if (auto& controller = this->_data->consumerControllers[consumerId]) {
+                controller->resume();
+            }
         }
     }
 

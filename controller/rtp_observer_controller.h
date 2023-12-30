@@ -10,15 +10,7 @@
 #pragma once
 
 #include <memory>
-#include <vector>
-#include <atomic>
-#include <string>
-#include <functional>
-#include "nlohmann/json.hpp"
-#include "sigslot/signal.hpp"
-#include "types.h"
-#include "producer_controller.h"
-#include "consumer_controller.h"
+#include "interface/i_rtp_observer_controller.h"
 
 namespace srv {
 
@@ -36,59 +28,45 @@ namespace srv {
         std::string producerId;
     };
 
+    class Channel;
+    class IProducerController;
+
     struct RtpObserverConstructorOptions
     {
         RtpObserverObserverInternal internal;
         std::shared_ptr<Channel> channel;
-        std::shared_ptr<PayloadChannel> payloadChannel;
         nlohmann::json appData;
-        std::function<std::shared_ptr<ProducerController>(const std::string&)> getProducerController;
+        std::function<std::shared_ptr<IProducerController>(const std::string&)> getProducerController;
     };
-
-    class Channel;
-    class PayloadChannel;
     
-    class RtpObserverController : public std::enable_shared_from_this<RtpObserverController>
+    class RtpObserverController : public IRtpObserverController, public std::enable_shared_from_this<RtpObserverController>
     {
     public:
         RtpObserverController(const std::shared_ptr<RtpObserverConstructorOptions>& options);
         
         virtual ~RtpObserverController();
         
-        const std::string& id() { return _internal.rtpObserverId; }
+        const std::string& id() override { return _internal.rtpObserverId; }
 
-        bool paused() { return _paused; }
+        bool paused() override { return _paused; }
 
-        bool closed() { return _closed; }
+        bool closed() override { return _closed; }
         
-        void setAppData(const nlohmann::json& data) { _appData = data; }
+        void setAppData(const nlohmann::json& data) override { _appData = data; }
         
-        const nlohmann::json& appData() { return _appData; }
+        const nlohmann::json& appData() override { return _appData; }
         
-        void close();
+        void close() override;
         
-        void onRouterClosed();
+        void onRouterClosed() override;
         
-        void pause();
+        void pause() override;
         
-        void resume();
+        void resume() override;
         
-        void addProducer(const std::string& producerId);
+        void addProducer(const std::string& producerId) override;
 
-        void removeProducer(const std::string& producerId);
-        
-    public:
-        sigslot::signal<> routerCloseSignal;
-        
-        sigslot::signal<> closeSignal;
-        
-        sigslot::signal<> pauseSignal;
-        
-        sigslot::signal<> resumeSignal;
-        
-        sigslot::signal<std::shared_ptr<ProducerController>> addProducerSignal;
-        
-        sigslot::signal<std::shared_ptr<ProducerController>> removeProducerSignal;
+        void removeProducer(const std::string& producerId) override;
         
     protected:
         std::shared_ptr<RtpObserverConstructorOptions> _options;
@@ -97,9 +75,6 @@ namespace srv {
         RtpObserverObserverInternal _internal;
 
         std::weak_ptr<Channel> _channel;
-
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
 
         // Closed flag.
         std::atomic_bool _closed { false };
@@ -110,7 +85,7 @@ namespace srv {
         // Custom app data.
         nlohmann::json _appData;
 
-        std::function<std::shared_ptr<ProducerController>(const std::string&)> _getProducerController;
+        std::function<std::shared_ptr<IProducerController>(const std::string&)> _getProducerController;
     };
 
 }

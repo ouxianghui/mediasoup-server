@@ -10,6 +10,7 @@
 #include "audio_level_observer_controller.h"
 #include "srv_logger.h"
 #include "channel.h"
+#include "FBS/message.h"
 
 namespace srv {
 
@@ -45,38 +46,50 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.connect(&AudioLevelObserverController::onChannel, self);
     }
 
-    void AudioLevelObserverController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void AudioLevelObserverController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
-        SRV_LOGD("onChannel()");
+        //SRV_LOGD("onChannel()");
      
         if (targetId != _internal.rtpObserverId) {
             return;
         }
         
-        if (event == "volumes") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_array()) {
-                std::vector<AudioLevelObserverVolume> volumes;
-                for (const auto& item : js) {
+        if (event == FBS::Notification::Event::AUDIOLEVELOBSERVER_VOLUMES) {
+            std::vector<AudioLevelObserverVolume> aloVolumes;
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_AudioLevelObserver_VolumesNotification()) {
+                for (const auto& item : *nf->volumes()) {
+                    auto volume = parseVolume(item);
                     AudioLevelObserverVolume vol;
-                    std::string producerId = item["producerId"];
-                    vol.producerController = _getProducerController(producerId);
-                    vol.volume = item["volume"];
-                    volumes.push_back(vol);
+                    vol.producerController = _getProducerController(volume->producerId);
+                    vol.volume = volume->volume;
+                    aloVolumes.emplace_back(vol);
                 }
-                if (volumes.size() > 0) {
-                    this->volumesSignal(volumes);
+                if (aloVolumes.size() > 0) {
+                    this->volumesSignal(aloVolumes);
                 }
             }
         }
-        else if (event == "silence") {
+        else if (event == FBS::Notification::Event::AUDIOLEVELOBSERVER_SILENCE) {
             this->silenceSignal();
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
+    }
+
+    std::shared_ptr<Volume> parseVolume(const FBS::AudioLevelObserver::Volume* binary)
+    {
+        auto volume = std::make_shared<Volume>();
+        
+        volume->producerId = binary->producerId()->c_str();
+        volume->volume = binary->volume();
+        
+        return volume;
     }
 }

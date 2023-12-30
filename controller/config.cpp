@@ -114,6 +114,8 @@ namespace srv {
         {
             j["numWorkers"] = st.numWorkers;
             j["useWebRtcServer"] = st.useWebRtcServer;
+            j["multiprocess"] = st.multiprocess;
+            j["workerPath"] = st.workerPath;
             j["workerSettings"] = st.workerSettings;
             j["routerOptions"] = st.routerOptions;
             j["webRtcServerOptions"] = st.webRtcServerOptions;
@@ -128,6 +130,12 @@ namespace srv {
             }
             if (j.contains("useWebRtcServer")) {
                 j.at("useWebRtcServer").get_to(st.useWebRtcServer);
+            }
+            if (j.contains("multiprocess")) {
+                j.at("multiprocess").get_to(st.multiprocess);
+            }
+            if (j.contains("workerPath")) {
+                j.at("workerPath").get_to(st.workerPath);
             }
             if (j.contains("workerSettings")) {
                 j.at("workerSettings").get_to(st.workerSettings);

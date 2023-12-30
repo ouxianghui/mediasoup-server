@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2010-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -48,15 +48,13 @@
             cap->NAME[1] = ~cap->NAME[1];                               \
     }
 
-#define TOK_CPU_ALIAS(NAME, STRUCT_NAME)                                \
+#define TOK_CPU(NAME)                                                   \
     (sscanf(tok_begin,                                                  \
             " %" STR(LEN) "s %" STR(LEN) "s ",                          \
             tok[0], tok[1]) == 1                                        \
      && !strcmp(tok[0], #NAME)) {                                       \
-            memcpy(cap, &STRUCT_NAME, sizeof(*cap));                    \
+            memcpy(cap, &NAME, sizeof(*cap));                           \
     }
-
-#define TOK_CPU(NAME) TOK_CPU_ALIAS(NAME, NAME)
 
 #ifndef OSSL_IMPLEMENT_GETAUXVAL
 static sigjmp_buf ill_jmp;
@@ -672,11 +670,6 @@ static int parse_env(struct OPENSSL_s390xcap_st *cap)
                        0ULL},
     };
 
-    /*-
-     * z16 (2022) - z/Architecture POP
-     * Implements MSA and MSA1-9 (same as z15, no need to repeat).
-     */
-
     char *tok_begin, *tok_end, *buff, tok[S390X_STFLE_MAX][LEN + 1];
     int rc, off, i, n;
 
@@ -731,7 +724,6 @@ static int parse_env(struct OPENSSL_s390xcap_st *cap)
         else if TOK_CPU(z13)
         else if TOK_CPU(z14)
         else if TOK_CPU(z15)
-        else if TOK_CPU_ALIAS(z16, z15)
 
         /* whitespace(ignored) or invalid tokens */
         else {

@@ -12,27 +12,57 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <unistd.h>
 #include "srv_logger.h"
 #include "lib.hpp"
 #include "channel.h"
-#include "payload_channel.h"
 #include "router_controller.h"
 #include "webrtc_server_controller.h"
 #include "uuid.h"
 #include "ortc.h"
+#include "config.h"
+#include "message_builder.h"
 
 using namespace std::chrono_literals;
 
+namespace
+{
+    static int createPipe(int* fds)
+    {
+        if (pipe(fds) == -1) {
+            SRV_LOGE("pipe failed");
+            return -1;
+        }
+
+        if (fcntl(fds[0], F_SETFD, FD_CLOEXEC) == -1 || fcntl(fds[1], F_SETFD, FD_CLOEXEC) == -1) {
+            close(fds[0]);
+            close(fds[1]);
+            SRV_LOGE("fcntl failed");
+            return -1;
+        }
+
+        return 0;
+    }
+}
+
 namespace srv {
 
-    static const std::string WORKER_VERSION("3.12.13");
+    static int _consumerChannelFd[2] = {3, 5};
+    static int _producerChannelFd[2] = {6, 4};
+
+    static const std::string MEDIASOUP_VERSION("3.13.12");
     
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)
     {
-        _channel = std::make_shared<Channel>();
-        
-        _payloadChannel = std::make_shared<PayloadChannel>();
+        if (MSConfig->params()->mediasoup.multiprocess) {
+            createPipe(_consumerChannelFd);
+            createPipe(_producerChannelFd);
+            _channel = std::make_shared<Channel>(_producerChannelFd[0], _consumerChannelFd[1]);
+        }
+        else {
+            _channel = std::make_shared<Channel>();
+        }
     }
 
     WorkerController::~WorkerController()
@@ -57,6 +87,11 @@ namespace srv {
 
         std::vector<std::string> args;
         		
+        if (MSConfig->params()->mediasoup.multiprocess) {
+            std::string bin("mediasoup-worker");
+            args.emplace_back(bin);
+        }
+        
         if (!settings->logLevel.empty()) {
             std::string level("--logLevel=");
             level += settings->logLevel;
@@ -108,28 +143,126 @@ namespace srv {
     {
         auto args = getArgs(_settings);
         
-        int argc = static_cast<int>(args.size());
-        std::vector<char*> argv(argc);
-        argv[0] = const_cast<char*>(args[0].c_str());
-        for (size_t i = 0; i < args.size(); ++i) {
-            argv[i] = const_cast<char*>(args[i].c_str());
+        if (MSConfig->params()->mediasoup.multiprocess) {
+            // ediasoup_worker_run(argc,
+            //                     &argv[0],
+            //                     MEDIASOUP_VERSION.c_str(),
+            //                     _consumerChannelFd[0],
+            //                     _producerChannelFd[1],
+            //                     0,
+            //                     0,
+            //                     0,
+            //                     0,
+            //                     0,
+            //                     0
+            //                     );
+            // close();
+            
+            int argc = static_cast<int>(args.size() + 1);
+            std::vector<char*> argv(argc);
+            
+            for (size_t i = 0; i < args.size(); ++i) {
+                argv[i] = const_cast<char*>(args[i].c_str());
+            }
+            
+            argv[args.size()] = nullptr;
+            
+            uv_stdio_container_t childStdio[5];
+            
+            // fd 0 (stdin)   : Just ignore it.
+            // fd 1 (stdout)  : Pipe it for 3rd libraries that log their own stuff.
+            // fd 2 (stderr)  : Same as stdout.
+            // fd 3 (channel) : Producer Channel fd.
+            // fd 4 (channel) : Consumer Channel fd.
+            
+            std::string version("MEDIASOUP_VERSION");
+            version += "=";
+            version += MEDIASOUP_VERSION;
+            
+            char* env[2];
+            env[0] = (char*)version.c_str();
+            env[1] = nullptr;
+            
+            childStdio[0].flags = UV_IGNORE;
+            
+            childStdio[1].flags =  uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);;
+            childStdio[1].data.fd = 1;
+            
+            childStdio[2].flags =  uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);;
+            childStdio[2].data.fd = 2;
+            
+            childStdio[3].flags = uv_stdio_flags(UV_INHERIT_FD | UV_READABLE_PIPE);
+            childStdio[3].data.fd = _consumerChannelFd[0];
+            
+            childStdio[4].flags = uv_stdio_flags(UV_INHERIT_FD | UV_WRITABLE_PIPE);
+            childStdio[4].data.fd = _producerChannelFd[1];
+            
+            uv_process_options_t options;
+            memset(&options, 0, sizeof(uv_process_options_t));
+            
+            options.env = env;
+            options.stdio_count = 5;
+            options.stdio = childStdio;
+            //options.flags = UV_PROCESS_DETACHED;
+            
+            auto callback = [](uv_process_t* process, int64_t exit_status, int term_signal) {
+                assert(process);
+                
+                if (exit_status == 42) {
+                    SRV_LOGE("worker process failed due to wrong settings [pid:%d]", process->pid);
+                }
+                else {
+                    SRV_LOGE("worker process failed unexpectedly [pid:%d, code:%lld, signal:%d]", process->pid, exit_status, term_signal);
+                }
+                
+                if (auto workerController = static_cast<WorkerController*>(process->data)) {
+                    workerController->close();
+                }
+            };
+            
+            assert(!MSConfig->params()->mediasoup.workerPath.empty());
+            
+            options.exit_cb = (uv_exit_cb)callback;
+            options.file = MSConfig->params()->mediasoup.workerPath.c_str();
+            options.args = &argv[0];
+            
+            auto ret = uv_spawn(_loop.get(), &_process, &options);
+            if (ret != 0) {
+                SRV_LOGE("%s", uv_strerror(ret));
+                return;
+            }
+            
+            _process.data = static_cast<void*>(this);
+            
+            SRV_LOGD("launched mediasoup worker with PID %d\n", _process.pid);
+            
+            //uv_unref((uv_handle_t*)&_process);
+            
+            _loop.asyncRun();
+            
         }
-        
-        mediasoup_worker_run(argc,
-                             &argv[0],
-                             WORKER_VERSION.c_str(),
-                             0, 0, 0, 0,
-                             &Channel::channelRead,
-                             (void*)_channel.get(),
-                             &Channel::channelWrite,
-                             (void*)_channel.get(),
-                             &PayloadChannel::payloadChannelRead,
-                             (void*)_payloadChannel.get(),
-                             &PayloadChannel::payloadChannelWrite,
-                             (void*)_payloadChannel.get()
-                             );
-        
-        close();
+        else {
+            int argc = static_cast<int>(args.size());
+            std::vector<char*> argv(argc);
+            
+            for (size_t i = 0; i < args.size(); ++i) {
+                argv[i] = const_cast<char*>(args[i].c_str());
+            }
+            
+            mediasoup_worker_run(argc,
+                                 &argv[0],
+                                 MEDIASOUP_VERSION.c_str(),
+                                 0,
+                                 0,
+                                 0,
+                                 0,
+                                 &Channel::channelRead,
+                                 (void*)_channel.get(),
+                                 &Channel::channelWrite,
+                                 (void*)_channel.get()
+                                 );
+            close();
+        }
     }
 
     bool WorkerController::closed()
@@ -147,45 +280,101 @@ namespace srv {
         
         _closed = true;
         
+        _channel->notificationSignal.disconnect_all();
+        
         _channel->close();
         
-        _payloadChannel->close();
+        _webRtcServerControllers.for_each([](const auto& item){
+            item->onWorkerClosed();
+            item->closeSignal.disconnect_all();
+        });
         
-        {
-            std::lock_guard<std::mutex> lock(_webRtcServersMutex);
-            for (const auto& item: _webRtcServerControllers) {
-                item->onWorkerClosed();
-            }
-            _webRtcServerControllers.clear();
-        }
+        _webRtcServerControllers.clear();
         
-        {
-            std::lock_guard<std::mutex> lock(_routersMutex);
-            for (const auto& item: _routerControllers) {
-                item->onWorkerClosed();
-            }
-            _routerControllers.clear();
-        }
+        _routerControllers.for_each([](const auto& item) {
+            item->onWorkerClosed();
+            item->closeSignal.disconnect_all();
+        });
+        
+        _routerControllers.clear();
         
         this->closeSignal();
     }
 
-    nlohmann::json WorkerController::dump()
+    std::shared_ptr<IWebRtcServerController> WorkerController::webRtcServerController()
+    {
+        std::shared_ptr<IWebRtcServerController> controller;
+        _webRtcServerControllers.for_each([&controller](const auto& item){
+            controller = item;
+            return true;
+        });
+        
+        return controller;
+    }
+
+    std::shared_ptr<WorkerDump> WorkerController::dump()
     {
         SRV_LOGD("dump()");
-        return _channel->request("worker.dump", "", "{}");
+        
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_DUMP);
+        
+        auto respData = _channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto workerDumpResponse = response->body_as_Worker_DumpResponse();
+
+        return parseWorkerDumpResponse(workerDumpResponse);
     }
 
     std::shared_ptr<WorkerResourceUsage> WorkerController::getResourceUsage()
     {
         SRV_LOGD("getResourceUsage()");
         
-        auto jsUsage = _channel->request("worker.getResourceUsage", "", "{}");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_GET_RESOURCE_USAGE);
    
+        auto respData = _channel->request(reqId, reqData);
+        
         auto usage = std::make_shared<WorkerResourceUsage>();
-        if (jsUsage.is_object()) {
-            *usage = jsUsage;
-        }
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto resourceUsage = response->body_as_Worker_ResourceUsageResponse();
+        
+        usage->ru_utime = resourceUsage->ruUtime();
+        usage->ru_stime = resourceUsage->ruStime();
+        usage->ru_maxrss = resourceUsage->ruMaxrss();
+        usage->ru_ixrss = resourceUsage->ruIxrss();
+        usage->ru_idrss = resourceUsage->ruIdrss();
+        usage->ru_isrss = resourceUsage->ruIsrss();
+        usage->ru_minflt = resourceUsage->ruMinflt();
+        usage->ru_majflt = resourceUsage->ruMajflt();
+        usage->ru_nswap = resourceUsage->ruNswap();
+        usage->ru_inblock = resourceUsage->ruInblock();
+        usage->ru_oublock = resourceUsage->ruOublock();
+        usage->ru_msgsnd = resourceUsage->ruMsgsnd();
+        usage->ru_msgrcv = resourceUsage->ruMsgrcv();
+        usage->ru_nsignals = resourceUsage->ruNsignals();
+        usage->ru_nvcsw = resourceUsage->ruNvcsw();
+        usage->ru_nivcsw = resourceUsage->ruNivcsw();
         
         return usage;
     }
@@ -193,19 +382,29 @@ namespace srv {
     void WorkerController::updateSettings(const std::string& logLevel, const std::vector<std::string>& logTags)
     {
         SRV_LOGD("updateSettings()");
-    
-        nlohmann::json tags = nlohmann::json::array();
-        for (const auto& tag : logTags) {
-            tags.emplace_back(tag);
-        }
-        nlohmann::json reqData;
-        reqData["logLevel"] = logLevel;
-        reqData["logTags"] = tags;
         
-        _channel->request("worker.updateSettings", "", reqData.dump());
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->genRequestId();
+        
+        std::vector<::flatbuffers::Offset<::flatbuffers::String>> logTags_;
+        for (const auto& item : logTags) {
+            logTags_.emplace_back(builder.CreateString(item));
+        }
+        
+        auto reqOffset = FBS::Worker::CreateUpdateSettingsRequestDirect(builder, logLevel.c_str(), &logTags_);
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_UPDATE_SETTINGS,
+                                                     FBS::Request::Body::Worker_UpdateSettingsRequest,
+                                                     reqOffset);
+        
+        _channel->request(reqId, reqData);
     }
 
-    std::shared_ptr<WebRtcServerController> WorkerController::createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData)
+    std::shared_ptr<IWebRtcServerController> WorkerController::createWebRtcServerController(const std::shared_ptr<WebRtcServerOptions>& options, const nlohmann::json& appData)
     {
         SRV_LOGD("createWebRtcServer()");
 
@@ -223,15 +422,37 @@ namespace srv {
             return webRtcServerController;
         }
         
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->genRequestId();
+        
         std::string webRtcServerId = uuid::uuidv4();
         
-        nlohmann::json reqData;
-        reqData["webRtcServerId"] = webRtcServerId;
-        reqData["listenInfos"] = listenInfos;
+        std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> infos;
         
-        _channel->request("worker.createWebRtcServer", "", reqData.dump());
+        for (auto& info : listenInfos) {
+            auto info_ = FBS::Transport::CreateListenInfoDirect(builder,
+                                                                info.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                info.ip.c_str(),
+                                                                info.announcedIp.c_str(),
+                                                                info.port,
+                                                                info.sendBufferSize,
+                                                                info.recvBufferSize
+                                                                );
+            infos.emplace_back(info_);
+        }
+        
+        auto reqOffset = FBS::Worker::CreateCreateWebRtcServerRequestDirect(builder, webRtcServerId.c_str(), &infos);
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_CREATE_WEBRTCSERVER,
+                                                     FBS::Request::Body::Worker_CreateWebRtcServerRequest,
+                                                     reqOffset);
+        
+        _channel->request(reqId, reqData);
 
-        std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         WebRtcServerInternal internal { webRtcServerId };
         
         webRtcServerController = std::make_shared<WebRtcServerController>(internal, _channel, appData);
@@ -247,7 +468,7 @@ namespace srv {
         return webRtcServerController;
     }
 
-    std::shared_ptr<RouterController> WorkerController::createRouterController(const std::vector<RtpCodecCapability>& mediaCodecs, const nlohmann::json& appData)
+    std::shared_ptr<IRouterController> WorkerController::createRouterController(const std::vector<RtpCodecCapability>& mediaCodecs, const nlohmann::json& appData)
     {
         SRV_LOGD("createRouter()");
         
@@ -259,25 +480,31 @@ namespace srv {
         RouterInternal internal;
         internal.routerId = uuid::uuidv4();
         
-        nlohmann::json reqData;
-        reqData["routerId"] = internal.routerId;
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = _channel->genRequestId();
+        
+        auto reqOffset = FBS::Worker::CreateCreateRouterRequestDirect(builder, internal.routerId.c_str());
 
-        _channel->request("worker.createRouter", "", reqData.dump());
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     "",
+                                                     FBS::Request::Method::WORKER_CREATE_ROUTER,
+                                                     FBS::Request::Body::Worker_CreateRouterRequest,
+                                                     reqOffset);
 
+        _channel->request(reqId, reqData);
+        
         RouterData data;
         data.rtpCapabilities = rtpCapabilities;
+
+        routerController = std::make_shared<RouterController>(internal,
+                                                              data,
+                                                              _channel,
+                                                              appData);
+        routerController->init();
         
-        {
-            std::lock_guard<std::mutex> lock(_routersMutex);
-            routerController = std::make_shared<RouterController>(internal,
-                                                                  data,
-                                                                  _channel,
-                                                                  _payloadChannel,
-                                                                  appData);
-            routerController->init();
-            
-            _routerControllers.emplace(routerController);
-        }
+        _routerControllers.emplace(routerController);
         
         routerController->closeSignal.connect(&WorkerController::onRouterClose, shared_from_this());
         
@@ -286,15 +513,13 @@ namespace srv {
         return routerController;
     }
 
-    void WorkerController::onWebRtcServerClose(std::shared_ptr<WebRtcServerController> controller)
+    void WorkerController::onWebRtcServerClose(std::shared_ptr<IWebRtcServerController> controller)
     {
-        std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         _webRtcServerControllers.erase(controller);
     }
 
-    void WorkerController::onRouterClose(std::shared_ptr<RouterController> controller)
+    void WorkerController::onRouterClose(std::shared_ptr<IRouterController> controller)
     {
-        std::lock_guard<std::mutex> lock(_routersMutex);
         _routerControllers.erase(controller);
     }
 
@@ -306,34 +531,65 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->notificationSignal.connect(&WorkerController::onChannel, shared_from_this());
+        
+        _channel->notificationSignal.connect(&WorkerController::onChannel, shared_from_this());
     }
 
-    void WorkerController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void WorkerController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
-        if (event == "running") {
+        if (event == FBS::Notification::Event::WORKER_RUNNING) {
             this->startSignal();
             this->startSignal.disconnect_all();
-            //getDump();
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
-    }
-
-    void WorkerController::getDump()
-    {
-        auto val1 = dump();
-        std::cout << "----> val1: " << val1.dump() << std::endl;
-        
-        auto usage = getResourceUsage();
-        nlohmann::json val2 = *usage;
-        std::cout << "----> val2: " << val2.dump() << std::endl;
     }
 }
 
 namespace srv
 {
+
+    std::shared_ptr<WorkerDump> parseWorkerDumpResponse(const FBS::Worker::DumpResponse* response)
+    {
+        auto workerDump = std::make_shared<WorkerDump>();
+        
+        auto serverIds = response->webRtcServerIds();
+        
+        for (const auto& item : *serverIds) {
+            workerDump->webRtcServerIds.emplace_back(item->str());
+        }
+        
+        auto routerIds = response->routerIds();
+        
+        for (const auto& item : *routerIds) {
+            workerDump->routerIds.emplace_back(item->str());
+        }
+        
+        auto messageHandlers = response->channelMessageHandlers();
+        
+        auto requestHandlers = messageHandlers->channelRequestHandlers();
+        
+        for (const auto& item : *requestHandlers) {
+            workerDump->channelMessageHandlers.channelRequestHandlers.emplace_back(item->str());
+        }
+        
+        auto notificationHandlers = messageHandlers->channelNotificationHandlers();
+        
+        for (const auto& item : *notificationHandlers) {
+            workerDump->channelMessageHandlers.channelNotificationHandlers.emplace_back(item->str());
+        }
+        
+        if (auto liburing = response->liburing()) {
+            workerDump->liburing = std::make_shared<WorkerDump::LibUring>();
+            workerDump->liburing->sqeMissCount = liburing->sqeMissCount();
+            workerDump->liburing->sqeProcessCount = liburing->sqeProcessCount();
+            workerDump->liburing->userDataMissCount = liburing->userDataMissCount();
+        }
+        
+        return workerDump;
+    }
+
     void to_json(nlohmann::json& j, const WorkerSettings& st)
     {
         j["logLevel"] = st.logLevel;
@@ -371,78 +627,6 @@ namespace srv
         }
         if (j.contains("appData")) {
             j.at("appData").get_to(st.appData);
-        }
-    }
-
-    void to_json(nlohmann::json& j, const WorkerResourceUsage& st)
-    {
-        j["ru_utime"] = st.ru_utime;
-        j["ru_stime"] = st.ru_stime;
-        j["ru_maxrss"] = st.ru_maxrss;
-        j["ru_ixrss"] = st.ru_ixrss;
-        j["ru_idrss"] = st.ru_idrss;
-        j["ru_isrss"] = st.ru_isrss;
-        j["ru_minflt"] = st.ru_minflt;
-        j["ru_majflt"] = st.ru_majflt;
-        j["ru_nswap"] = st.ru_nswap;
-        j["ru_inblock"] = st.ru_inblock;
-        j["ru_oublock"] = st.ru_oublock;
-        j["ru_msgsnd"] = st.ru_msgsnd;
-        j["ru_msgrcv"] = st.ru_msgrcv;
-        j["ru_nsignals"] = st.ru_nsignals;
-        j["ru_nvcsw"] = st.ru_nvcsw;
-        j["ru_nivcsw"] = st.ru_nivcsw;
-    }
-
-    void from_json(const nlohmann::json& j, WorkerResourceUsage& st)
-    {
-        if (j.contains("ru_utime")) {
-            j.at("ru_utime").get_to(st.ru_utime);
-        }
-        if (j.contains("ru_stime")) {
-            j.at("ru_stime").get_to(st.ru_stime);
-        }
-        if (j.contains("ru_maxrss")) {
-            j.at("ru_maxrss").get_to(st.ru_maxrss);
-        }
-        if (j.contains("ru_ixrss")) {
-            j.at("ru_ixrss").get_to(st.ru_ixrss);
-        }
-        if (j.contains("ru_idrss")) {
-            j.at("ru_idrss").get_to(st.ru_idrss);
-        }
-        if (j.contains("ru_isrss")) {
-            j.at("ru_isrss").get_to(st.ru_isrss);
-        }
-        if (j.contains("ru_minflt")) {
-            j.at("ru_minflt").get_to(st.ru_minflt);
-        }
-        if (j.contains("ru_majflt")) {
-            j.at("ru_majflt").get_to(st.ru_majflt);
-        }
-        if (j.contains("ru_nswap")) {
-            j.at("ru_nswap").get_to(st.ru_nswap);
-        }
-        if (j.contains("ru_inblock")) {
-            j.at("ru_inblock").get_to(st.ru_inblock);
-        }
-        if (j.contains("ru_oublock")) {
-            j.at("ru_oublock").get_to(st.ru_oublock);
-        }
-        if (j.contains("ru_msgsnd")) {
-            j.at("ru_msgsnd").get_to(st.ru_msgsnd);
-        }
-        if (j.contains("ru_msgrcv")) {
-            j.at("ru_msgrcv").get_to(st.ru_msgrcv);
-        }
-        if (j.contains("ru_nsignals")) {
-            j.at("ru_nsignals").get_to(st.ru_nsignals);
-        }
-        if (j.contains("ru_nvcsw")) {
-            j.at("ru_nvcsw").get_to(st.ru_nvcsw);
-        }
-        if (j.contains("ru_nivcsw")) {
-            j.at("ru_nivcsw").get_to(st.ru_nivcsw);
         }
     }
 }

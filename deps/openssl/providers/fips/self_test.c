@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -15,11 +15,8 @@
 #include <openssl/fipskey.h>
 #include <openssl/err.h>
 #include <openssl/proverr.h>
-#include <openssl/rand.h>
-#include "internal/e_os.h"
-#include "internal/tsan_assist.h"
+#include "e_os.h"
 #include "prov/providercommon.h"
-#include "crypto/rand.h"
 
 /*
  * We're cheating here. Normally we don't allow RUN_ONCE usage inside the FIPS
@@ -50,6 +47,7 @@
 
 static int FIPS_conditional_error_check = 1;
 static CRYPTO_RWLOCK *self_test_lock = NULL;
+static CRYPTO_RWLOCK *fips_state_lock = NULL;
 static unsigned char fixed_key[32] = { FIPS_KEY_ELEMENTS };
 
 static CRYPTO_ONCE fips_self_test_init = CRYPTO_ONCE_STATIC_INIT;
@@ -61,6 +59,7 @@ DEFINE_RUN_ONCE_STATIC(do_fips_self_test_init)
      * platform then we just leak it deliberately.
      */
     self_test_lock = CRYPTO_THREAD_lock_new();
+    fips_state_lock = CRYPTO_THREAD_lock_new();
     return self_test_lock != NULL;
 }
 
@@ -156,12 +155,12 @@ void __TERM__cleanup(void) {
 # define DEP_INITIAL_STATE  FIPS_STATE_SELFTEST
 #endif
 
-static TSAN_QUALIFIER int FIPS_state = DEP_INITIAL_STATE;
+static int FIPS_state = DEP_INITIAL_STATE;
 
 #if defined(DEP_INIT_ATTRIBUTE)
 DEP_INIT_ATTRIBUTE void init(void)
 {
-    tsan_store(&FIPS_state, FIPS_STATE_SELFTEST);
+    FIPS_state = FIPS_STATE_SELFTEST;
 }
 #endif
 
@@ -169,66 +168,9 @@ DEP_INIT_ATTRIBUTE void init(void)
 DEP_FINI_ATTRIBUTE void cleanup(void)
 {
     CRYPTO_THREAD_lock_free(self_test_lock);
+    CRYPTO_THREAD_lock_free(fips_state_lock);
 }
 #endif
-
-/*
- * We need an explicit HMAC-SHA-256 KAT even though it is also
- * checked as part of the KDF KATs.  Refer IG 10.3.
- */
-static const unsigned char hmac_kat_pt[] = {
-    0xdd, 0x0c, 0x30, 0x33, 0x35, 0xf9, 0xe4, 0x2e,
-    0xc2, 0xef, 0xcc, 0xbf, 0x07, 0x95, 0xee, 0xa2
-};
-static const unsigned char hmac_kat_key[] = {
-    0xf4, 0x55, 0x66, 0x50, 0xac, 0x31, 0xd3, 0x54,
-    0x61, 0x61, 0x0b, 0xac, 0x4e, 0xd8, 0x1b, 0x1a,
-    0x18, 0x1b, 0x2d, 0x8a, 0x43, 0xea, 0x28, 0x54,
-    0xcb, 0xae, 0x22, 0xca, 0x74, 0x56, 0x08, 0x13
-};
-static const unsigned char hmac_kat_digest[] = {
-    0xf5, 0xf5, 0xe5, 0xf2, 0x66, 0x49, 0xe2, 0x40,
-    0xfc, 0x9e, 0x85, 0x7f, 0x2b, 0x9a, 0xbe, 0x28,
-    0x20, 0x12, 0x00, 0x92, 0x82, 0x21, 0x3e, 0x51,
-    0x44, 0x5d, 0xe3, 0x31, 0x04, 0x01, 0x72, 0x6b
-};
-
-static int integrity_self_test(OSSL_SELF_TEST *ev, OSSL_LIB_CTX *libctx)
-{
-    int ok = 0;
-    unsigned char out[EVP_MAX_MD_SIZE];
-    size_t out_len = 0;
-
-    OSSL_PARAM   params[2];
-    EVP_MAC     *mac = EVP_MAC_fetch(libctx, MAC_NAME, NULL);
-    EVP_MAC_CTX *ctx = EVP_MAC_CTX_new(mac);
-
-    OSSL_SELF_TEST_onbegin(ev, OSSL_SELF_TEST_TYPE_KAT_INTEGRITY,
-                               OSSL_SELF_TEST_DESC_INTEGRITY_HMAC);
-
-    params[0] = OSSL_PARAM_construct_utf8_string("digest", DIGEST_NAME, 0);
-    params[1] = OSSL_PARAM_construct_end();
-
-    if (ctx == NULL
-            || mac == NULL
-            || !EVP_MAC_init(ctx, hmac_kat_key, sizeof(hmac_kat_key), params)
-            || !EVP_MAC_update(ctx, hmac_kat_pt, sizeof(hmac_kat_pt))
-            || !EVP_MAC_final(ctx, out, &out_len, MAX_MD_SIZE))
-        goto err;
-
-    /* Optional corruption */
-    OSSL_SELF_TEST_oncorrupt_byte(ev, out);
-
-    if (out_len != sizeof(hmac_kat_digest)
-            || memcmp(out, hmac_kat_digest, out_len) != 0)
-        goto err;
-    ok = 1;
-err:
-    OSSL_SELF_TEST_onend(ev, ok);
-    EVP_MAC_free(mac);
-    EVP_MAC_CTX_free(ctx);
-    return ok;
-}
 
 /*
  * Calculate the HMAC SHA256 of data read using a BIO and read_cb, and verify
@@ -247,9 +189,6 @@ static int verify_integrity(OSSL_CORE_BIO *bio, OSSL_FUNC_BIO_read_ex_fn read_ex
     EVP_MAC *mac = NULL;
     EVP_MAC_CTX *ctx = NULL;
     OSSL_PARAM params[2], *p = params;
-
-    if (!integrity_self_test(ev, libctx))
-        goto err;
 
     OSSL_SELF_TEST_onbegin(ev, event_type, OSSL_SELF_TEST_DESC_INTEGRITY_HMAC);
 
@@ -290,7 +229,10 @@ err:
 
 static void set_fips_state(int state)
 {
-    tsan_store(&FIPS_state, state);
+    if (ossl_assert(CRYPTO_THREAD_write_lock(fips_state_lock) != 0)) {
+        FIPS_state = state;
+        CRYPTO_THREAD_unlock(fips_state_lock);
+    }
 }
 
 /* This API is triggered either on loading of the FIPS module or on demand */
@@ -304,13 +246,14 @@ int SELF_TEST_post(SELF_TEST_POST_PARAMS *st, int on_demand_test)
     unsigned char *indicator_checksum = NULL;
     int loclstate;
     OSSL_SELF_TEST *ev = NULL;
-    EVP_RAND *testrand = NULL;
-    EVP_RAND_CTX *rng;
 
     if (!RUN_ONCE(&fips_self_test_init, do_fips_self_test_init))
         return 0;
 
-    loclstate = tsan_load(&FIPS_state);
+    if (!CRYPTO_THREAD_read_lock(fips_state_lock))
+        return 0;
+    loclstate = FIPS_state;
+    CRYPTO_THREAD_unlock(fips_state_lock);
 
     if (loclstate == FIPS_STATE_RUNNING) {
         if (!on_demand_test)
@@ -322,17 +265,24 @@ int SELF_TEST_post(SELF_TEST_POST_PARAMS *st, int on_demand_test)
 
     if (!CRYPTO_THREAD_write_lock(self_test_lock))
         return 0;
-    loclstate = tsan_load(&FIPS_state);
-    if (loclstate == FIPS_STATE_RUNNING) {
+    if (!CRYPTO_THREAD_read_lock(fips_state_lock)) {
+        CRYPTO_THREAD_unlock(self_test_lock);
+        return 0;
+    }
+    if (FIPS_state == FIPS_STATE_RUNNING) {
+        CRYPTO_THREAD_unlock(fips_state_lock);
         if (!on_demand_test) {
             CRYPTO_THREAD_unlock(self_test_lock);
             return 1;
         }
         set_fips_state(FIPS_STATE_SELFTEST);
-    } else if (loclstate != FIPS_STATE_SELFTEST) {
+    } else if (FIPS_state != FIPS_STATE_SELFTEST) {
+        CRYPTO_THREAD_unlock(fips_state_lock);
         CRYPTO_THREAD_unlock(self_test_lock);
         ERR_raise(ERR_LIB_PROV, PROV_R_INVALID_STATE);
         return 0;
+    } else {
+        CRYPTO_THREAD_unlock(fips_state_lock);
     }
 
     if (st == NULL
@@ -405,20 +355,8 @@ int SELF_TEST_post(SELF_TEST_POST_PARAMS *st, int on_demand_test)
             goto end;
         }
     }
-
-    /* Verify that the RNG has been restored properly */
-    rng = ossl_rand_get0_private_noncreating(st->libctx);
-    if (rng != NULL)
-        if ((testrand = EVP_RAND_fetch(st->libctx, "TEST-RAND", NULL)) == NULL
-                || strcmp(EVP_RAND_get0_name(EVP_RAND_CTX_get0_rand(rng)),
-                          EVP_RAND_get0_name(testrand)) == 0) {
-            ERR_raise(ERR_LIB_PROV, PROV_R_SELF_TEST_KAT_FAILURE);
-            goto end;
-        }
-
     ok = 1;
 end:
-    EVP_RAND_free(testrand);
     OSSL_SELF_TEST_free(ev);
     OPENSSL_free(module_checksum);
     OPENSSL_free(indicator_checksum);
@@ -455,13 +393,20 @@ void ossl_set_error_state(const char *type)
 
 int ossl_prov_is_running(void)
 {
-    int res, loclstate;
-    static TSAN_QUALIFIER unsigned int rate_limit = 0;
+    int res;
+    static unsigned int rate_limit = 0;
 
-    loclstate = tsan_load(&FIPS_state);
-    res = loclstate == FIPS_STATE_RUNNING || loclstate == FIPS_STATE_SELFTEST;
-    if (loclstate == FIPS_STATE_ERROR)
-        if (tsan_counter(&rate_limit) < FIPS_ERROR_REPORTING_RATE_LIMIT)
+    if (!CRYPTO_THREAD_read_lock(fips_state_lock))
+        return 0;
+    res = FIPS_state == FIPS_STATE_RUNNING
+                        || FIPS_state == FIPS_STATE_SELFTEST;
+    if (FIPS_state == FIPS_STATE_ERROR) {
+        CRYPTO_THREAD_unlock(fips_state_lock);
+        if (!CRYPTO_THREAD_write_lock(fips_state_lock))
+            return 0;
+        if (rate_limit++ < FIPS_ERROR_REPORTING_RATE_LIMIT)
             ERR_raise(ERR_LIB_PROV, PROV_R_FIPS_MODULE_IN_ERROR_STATE);
+    }
+    CRYPTO_THREAD_unlock(fips_state_lock);
     return res;
 }

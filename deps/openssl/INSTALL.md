@@ -2,8 +2,8 @@ Build and Install
 =================
 
 This document describes installation on all supported operating
-systems: the Unix/Linux family (including macOS), OpenVMS,
-and Windows.
+systems (the Unix/Linux family, including macOS), OpenVMS,
+and Windows).
 
 Table of Contents
 =================
@@ -455,8 +455,7 @@ This source is ignored by the FIPS provider.
 
 ### rdcpu
 
-Use the `RDSEED` or `RDRAND` command on x86 or `RNDRRS` command on aarch64
-if provided by the CPU.
+Use the `RDSEED` or `RDRAND` command if provided by the CPU.
 
 ### librandom
 
@@ -797,22 +796,14 @@ By default OpenSSL will attempt to stay in memory until the process exits.
 This is so that libcrypto and libssl can be properly cleaned up automatically
 via an `atexit()` handler.  The handler is registered by libcrypto and cleans
 up both libraries.  On some platforms the `atexit()` handler will run on unload of
-libcrypto (if it has been dynamically loaded) rather than at process exit.
-
-This option can be used to stop OpenSSL from attempting to stay in memory until the
+libcrypto (if it has been dynamically loaded) rather than at process exit.  This
+option can be used to stop OpenSSL from attempting to stay in memory until the
 process exits.  This could lead to crashes if either libcrypto or libssl have
 already been unloaded at the point that the atexit handler is invoked, e.g.  on a
 platform which calls `atexit()` on unload of the library, and libssl is unloaded
-before libcrypto then a crash is likely to happen.
-
-Note that shared library pinning is not automatically disabled for static builds,
-i.e., `no-shared` does not imply `no-pinshared`. This may come as a surprise when
-linking libcrypto statically into a shared third-party library, because in this
-case the shared library will be pinned. To prevent this behaviour, you need to
-configure the static build using `no-shared` and `no-pinshared` together.
-
-Applications can suppress running of the `atexit()` handler at run time by
-using the `OPENSSL_INIT_NO_ATEXIT` option to `OPENSSL_init_crypto()`.
+before libcrypto then a crash is likely to happen.  Applications can suppress
+running of the `atexit()` handler at run time by using the
+`OPENSSL_INIT_NO_ATEXIT` option to `OPENSSL_init_crypto()`.
 See the man page for it for further details.
 
 ### no-posix-io
@@ -1028,7 +1019,7 @@ below and how these flags interact with those variables.
 
 Additional options that are not otherwise recognised are passed through as
 they are to the compiler as well.  Unix-style options beginning with a
-`-` or `+` and Windows-style options beginning with a `/` are recognised.
+`-` or `+` and Windows-style options beginning with a `/` are recognized.
 Again, consult your compiler documentation.
 
 If the option contains arguments separated by spaces, then the URL-style
@@ -1621,7 +1612,7 @@ working incorrectly. If you think you encountered a bug, please
 Along with a short description of the bug, please provide the complete
 configure command line and the relevant output including the error message.
 
-Note: To make the output readable, please add a 'code fence' (three backquotes
+Note: To make the output readable, pleace add a 'code fence' (three backquotes
 ` ``` ` on a separate line) before and after your output:
 
      ```

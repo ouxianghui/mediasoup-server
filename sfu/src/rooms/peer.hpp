@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include "threadsafe_unordered_map.hpp"
 #include "dto/dtos.hpp"
 #include "dto/config.hpp"
 #include "utils/statistics.hpp"
@@ -26,15 +27,16 @@
 #include "moodycamel/concurrentqueue.h"
 #include "types.h"
 
+
 using AcceptFunc = std::function<void(const nlohmann::json& request, const nlohmann::json& data)>;
 using RejectFunc = std::function<void(const nlohmann::json& request, int errorCode, const std::string& errorReason)>;
 
 namespace srv {
-    class TransportController;
-    class ProducerController;
-    class ConsumerController;
-    class DataProducerController;
-    class DataConsumerController;
+    class ITransportController;
+    class IProducerController;
+    class IConsumerController;
+    class IDataProducerController;
+    class IDataConsumerController;
 }
 
 class Room;
@@ -55,6 +57,8 @@ struct PeerInfo
     std::vector<nlohmann::json> producers;
 };
 
+class ProducerVideoQualityController;
+
 class PeerData
 {
 public:
@@ -66,11 +70,12 @@ public:
     nlohmann::json rtpCapabilities;
     nlohmann::json sctpCapabilities;
     
-    std::unordered_map<std::string, std::shared_ptr<srv::TransportController>> transportControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::ProducerController>> producerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::ConsumerController>> consumerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::DataProducerController>> dataProducerControllers;
-    std::unordered_map<std::string, std::shared_ptr<srv::DataConsumerController>> dataConsumerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::ITransportController>> transportControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IProducerController>> producerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IConsumerController>> consumerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IDataProducerController>> dataProducerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IDataConsumerController>> dataConsumerControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<ProducerVideoQualityController>> producerVideoQualityControllers;
 };
 
 class Peer : public oatpp::websocket::AsyncWebSocket::Listener, public std::enable_shared_from_this<Peer>

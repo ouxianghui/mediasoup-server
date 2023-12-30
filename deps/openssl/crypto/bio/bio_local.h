@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2005-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -7,7 +7,7 @@
  * https://www.openssl.org/source/license.html
  */
 
-#include "internal/e_os.h"
+#include "e_os.h"
 #include "internal/sockets.h"
 
 /* BEGIN BIO_ADDRINFO/BIO_ADDR stuff. */
@@ -31,6 +31,13 @@
 # endif
 # ifdef OPENSSL_BIO_H
 #  error openssl/bio.h included before bio_local.h
+# endif
+
+/*
+ * Undefine AF_UNIX on systems that define it but don't support it.
+ */
+# if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_VMS)
+#  undef AF_UNIX
 # endif
 
 # ifdef AI_PASSIVE
@@ -66,11 +73,11 @@ struct bio_addrinfo_st {
 
 union bio_addr_st {
     struct sockaddr sa;
-# if OPENSSL_USE_IPV6
+# ifdef AF_INET6
     struct sockaddr_in6 s_in6;
 # endif
     struct sockaddr_in s_in;
-# ifndef OPENSSL_NO_UNIX_SOCK
+# ifdef AF_UNIX
     struct sockaddr_un s_un;
 # endif
 };

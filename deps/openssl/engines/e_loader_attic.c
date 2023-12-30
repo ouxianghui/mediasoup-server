@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -226,7 +226,7 @@ static OSSL_STORE_INFO *new_EMBEDDED(const char *new_pem_name,
 /*-
  * The try_decode function is called to check if the blob of data can
  * be used by this handler, and if it can, decodes it into a supported
- * OpenSSL type and returns an OSSL_STORE_INFO with the decoded data.
+ * OpenSSL type and returns a OSSL_STORE_INFO with the decoded data.
  * Input:
  *    pem_name:     If this blob comes from a PEM file, this holds
  *                  the PEM name.  If it comes from another type of
@@ -254,7 +254,7 @@ static OSSL_STORE_INFO *new_EMBEDDED(const char *new_pem_name,
  *    libctx:       The library context to be used if applicable
  *    propq:        The property query string for any algorithm fetches
  * Output:
- *    an OSSL_STORE_INFO
+ *    a OSSL_STORE_INFO
  */
 typedef OSSL_STORE_INFO *(*file_try_decode_fn)(const char *pem_name,
                                                const char *pem_header,
@@ -1486,9 +1486,9 @@ static int file_name_check(OSSL_STORE_LOADER_CTX *ctx, const char *name)
      * Last, check that the rest of the extension is a decimal number, at
      * least one digit long.
      */
-    if (!isdigit((unsigned char)*p))
+    if (!isdigit(*p))
         return 0;
-    while (isdigit((unsigned char)*p))
+    while (isdigit(*p))
         p++;
 
 #ifdef __VMS

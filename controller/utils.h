@@ -16,6 +16,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <thread>
+#include <uv.h>
 
 namespace srv {
 
@@ -33,5 +35,24 @@ namespace srv {
 
         return dis(rng);
     }
+
+    class Loop
+    {
+    public:
+        Loop();
+        
+        ~Loop();
+        
+        uv_loop_t* get() { return _loop; }
+        
+        void run();
+        
+        void asyncRun();
+        
+    private:
+        uv_loop_t* _loop = nullptr;
+        
+        std::thread _thread;
+    };
 
 }

@@ -125,7 +125,7 @@
   my @lib_cflags_no_inst = ( $target{no_inst_lib_cflags} // @lib_cflags );
   my @lib_cflags_cont = ( $target{shared_cflag} || (),
                           @{$config{lib_cflags}}, @{$config{shared_cflag}},
-                          @cnf_cflags, '$(CFLAGS)');
+                          $cnf_cflags, '$(CFLAGS)');
   our $lib_cflags = join('', @lib_cflags, @lib_cflags_cont );
   our $lib_cflags_no_inst = join('', @lib_cflags_no_inst, @lib_cflags_cont );
   our $lib_ldflags =
@@ -161,7 +161,7 @@
   my @dso_cflags_no_inst = ( $target{no_inst_dso_cflags} // @dso_cflags );
   my @dso_cflags_cont = ( $target{module_cflag} || (),
                           @{$config{dso_cflags}}, @{$config{module_cflag}},
-                          @cnf_cflags, '$(CFLAGS)');
+                          $cnf_cflags, '$(CFLAGS)');
   our $dso_cflags = join('', @dso_cflags, @dso_cflags_cont );
   our $dso_cflags_no_inst = join('', @dso_cflags_no_inst, @dso_cflags_cont );
   our $dso_ldflags =
@@ -196,9 +196,13 @@
   my @bin_cflags = ( $target{bin_cflags} // () );
   my @bin_cflags_no_inst = ( $target{no_inst_bin_cflags} // @bin_cflags );
   my @bin_cflags_cont = ( @{$config{bin_cflags}},
-                          @cnf_cflags, '$(CFLAGS)');
+                          $cnf_cflags, '$(CFLAGS)');
   our $bin_cflags = join('', @bin_cflags, @bin_cflags_cont );
   our $bin_cflags_no_inst = join('', @bin_cflags_no_inst, @bin_cflags_cont );
+  our $bin_cflags =
+      join('', $target{bin_cflags} || (),
+               @{$config{bin_cflags}},
+               @cnf_cflags, '$(CFLAGS)');
   our $bin_ldflags =
       join('', $target{bin_lflags} || (),
                @{$config{bin_lflags}},
@@ -1238,28 +1242,16 @@ EOF
       # previous line's file spec as default, so if no directory spec
       # is present in the current line and the previous line has one that
       # doesn't apply, you're in for a surprise.
-      # Furthermore, we collect all object files and static libraries in
-      # an explicit cluster, to make it clear to the linker that these files
-      # shall be processed before shareable images.
-      # The shareable images are used with /SELECTIVE, to avoid warnings of
-      # multiply defined symbols when the module object files override some
-      # symbols that are present in the shareable image.
       my $write_opt1 =
-          join(",-\"\n\t",
-               "\@ WRITE OPT_FILE \"CLUSTER=_,,",
-               (map { my $x = $_ =~ /\[/ ? $_ : "[]".$_;
-                      "\@ WRITE OPT_FILE \"$x" } @objs),
-               (map { my $x = ($_->{lib} =~ /\[/) ? $_->{lib} : "[]".$_->{lib};
-                      "\@ WRITE OPT_FILE \"$x/LIB" }
-                grep { $_->{lib} =~ m|\.OLB$| }
-                @deps))
-          ."\"";
+          join(",-\"\n\t", map { my $x = $_ =~ /\[/ ? $_ : "[]".$_;
+                                 "WRITE OPT_FILE \"$x" } @objs).
+          "\"";
       my $write_opt2 =
-          join("\n\t",
-               (map { my $x = ($_->{lib} =~ /\[/) ? $_->{lib} : "[]".$_->{lib};
-                      "\@ WRITE OPT_FILE \"$x/SHARE/SELECTIVE\"" }
-                grep { $_->{lib} =~ m|\.EXE$| }
-                @deps))
+          join("\n\t", map { my $x = $_->{lib} =~ /\[/
+                                 ? $_->{lib} : "[]".$_->{lib};
+                             $x =~ s|(\.EXE)|$1/SHARE|;
+                             $x =~ s|(\.OLB)|$1/LIB|;
+                             "WRITE OPT_FILE \"$x\"" } @deps)
           || "\@ !";
       return <<"EOF"
 $dso : $deps
@@ -1314,30 +1306,30 @@ EOF
       # is present in the current line and the previous line has one that
       # doesn't apply, you're in for a surprise.
       my $write_opt1 =
-          "\@ WRITE OPT_FILE \"CASE_SENSITIVE=YES\"\n\t"
-          .join(",-\"\n\t",
-                "\@ WRITE OPT_FILE \"CLUSTER=_,,",
-                (map { my $x = $_ =~ /\[/ ? $_ : "[]".$_;
-                       "\@ WRITE OPT_FILE \"$x" } @objs),
-                (map { my $x = ($_->{lib} =~ /\[/) ? $_->{lib} : "[]".$_->{lib};
-                       # Special hack to include the MAIN object module
-                       # explicitly, if it's known that there is one.
-                       # |incmain| is defined in the rule generation further
-                       # down, with the necessary /INCLUDE=main option unless
-                       # the program has been determined to have a main function
-                       # already.
-                       $_->{attrs}->{has_main}
-                       ? "\@ WRITE OPT_FILE \"$x/LIB''incmain'"
-                       : "\@ WRITE OPT_FILE \"$x/LIB" }
-                 grep { $_->{lib} =~ m|\.OLB$| }
-                 @deps))
-          ."\"";
+          join(",-\"\n\t", map { my $x = $_ =~ /\[/ ? $_ : "[]".$_;
+                                 "\@ WRITE OPT_FILE \"$x" } @objs).
+          "\"";
       my $write_opt2 =
-          join("\n\t",
-               (map { my $x = $_->{lib} =~ /\[/ ? $_->{lib} : "[]".$_->{lib};
-                      "\@ WRITE OPT_FILE \"$x/SHARE/SELECTIVE\"" }
-                grep { $_->{lib} =~ m|\.EXE$| }
-                @deps))
+          join("\n\t", "WRITE OPT_FILE \"CASE_SENSITIVE=YES\"",
+                       map { my @lines = ();
+                             use Data::Dumper;
+                             my $x = $_->{lib} =~ /\[/
+                                 ? $_->{lib} : "[]".$_->{lib};
+                             if ($x =~ m|\.EXE$|) {
+                                 push @lines, "\@ WRITE OPT_FILE \"$x/SHARE\"";
+                             } elsif ($x =~ m|\.OLB$|) {
+                                 # Special hack to include the MAIN object
+                                 # module explicitly.  This will only be done
+                                 # if there isn't a 'main' in the program's
+                                 # object modules already.
+                                 my $main = $_->{attrs}->{has_main}
+                                     ? '/INCLUDE=main' : '';
+                                 push @lines,
+                                     "\@ IF nomain THEN WRITE OPT_FILE \"$x/LIB$main\"",
+                                     "\@ IF .NOT. nomain THEN WRITE OPT_FILE \"$x/LIB\""
+                             }
+                             @lines
+                           } @deps)
           || "\@ !";
       # The linking commands looks a bit complex, but it's for good reason.
       # When you link, say, foo.obj, bar.obj and libsomething.exe/share, and
@@ -1360,8 +1352,6 @@ EOF
       return <<"EOF"
 $bin : $deps
         $analyse_objs
-        @ incmain = "/INCLUDE=main"
-        @ IF .NOT. nomain THEN incmain = ""
         @ OPEN/WRITE/SHARE=READ OPT_FILE $binname.OPT
         $write_opt1
         $write_opt2

@@ -15,23 +15,17 @@
 #include "uuid.h"
 #include "ortc.h"
 #include "channel.h"
-#include "payload_channel.h"
 #include "utils.h"
+#include "consumer_controller.h"
+#include "producer_controller.h"
+#include "message_builder.h"
 
 namespace srv {
 
     PipeTransportController::PipeTransportController(const std::shared_ptr<PipeTransportConstructorOptions>& options)
-    : TransportController(options)
+    : AbstractTransportController(options)
     {
         SRV_LOGD("PipeTransportController()");
-        
-        const auto& data = options->data;
-        
-        _data["tuple"] = data["tuple"];
-        _data["sctpParameters"] = data["sctpParameters"];
-        _data["sctpState"] = data["sctpState"];
-        _data["rtx"] = data["rtx"];
-        _data["srtpParameters"] = data["srtpParameters"];
     }
 
     PipeTransportController::~PipeTransportController()
@@ -58,9 +52,9 @@ namespace srv {
 
         SRV_LOGD("close()");
         
-        this->_data["sctpState"] = "closed";
+        transportData()->sctpState = "closed";
 
-        TransportController::close();
+        AbstractTransportController::close();
     }
 
     void PipeTransportController::onRouterClosed()
@@ -71,45 +65,81 @@ namespace srv {
 
         SRV_LOGD("onRouterClosed()");
         
-        this->_data["sctpState"] = "closed";
+        transportData()->sctpState = "closed";
 
-        TransportController::onRouterClosed();
+        AbstractTransportController::onRouterClosed();
     }
 
-    nlohmann::json PipeTransportController::getStats()
+    std::shared_ptr<BaseTransportStats> PipeTransportController::getStats()
     {
         SRV_LOGD("getStats()");
         
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("transport.getStats", _internal.transportId, "{}");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder, reqId, _internal.transportId, FBS::Request::Method::TRANSPORT_GET_STATS);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto getStatsResponse = response->body_as_PipeTransport_GetStatsResponse();
+        
+        return parseGetStatsResponse(getStatsResponse);
     }
 
-    void PipeTransportController::connect(const nlohmann::json& reqData)
+    void PipeTransportController::connect(const std::shared_ptr<ConnectParams>& params)
     {
         SRV_LOGD("connect()");
         
-       // const reqData = { ip, port, srtpParameters };
+        assert(params);
 
         auto channel = _channel.lock();
         if (!channel) {
             return;
         }
         
-        auto data = channel->request("transport.connect", _internal.transportId, reqData.dump());
+        flatbuffers::FlatBufferBuilder builder;
 
-        // Update data.
-        this->_data["tuple"] = data["tuple"];
+        auto reqOffset = FBS::PipeTransport::CreateConnectRequestDirect(builder,
+                                                                        params->ip.c_str(),
+                                                                        params->port,
+                                                                        params->srtpParameters.serialize(builder)
+                                                                        );
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::PIPETRANSPORT_CONNECT,
+                                                     FBS::Request::Body::PipeTransport_ConnectRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto connectResponse = response->body_as_PipeTransport_ConnectResponse();
+        
+        transportData()->tuple = *parseTuple(connectResponse->tuple());
     }
 
-    std::shared_ptr<ConsumerController> PipeTransportController::consume(const std::shared_ptr<ConsumerOptions>& options)
+    std::shared_ptr<IConsumerController> PipeTransportController::consume(const std::shared_ptr<ConsumerOptions>& options)
     {
         SRV_LOGD("consume()");
         
-        std::shared_ptr<ConsumerController> consumerController;
+        std::shared_ptr<IConsumerController> consumerController;
         
         auto channel = _channel.lock();
         if (!channel) {
@@ -132,25 +162,40 @@ namespace srv {
         }
         
         auto consumableRtpParameters = producerController->consumableRtpParameters();
-        bool enableRtx = _data["rtx"];
+        bool enableRtx = transportData()->rtx;
         
         // This may throw.
         auto rtpParameters = ortc::getPipeConsumerRtpParameters(consumableRtpParameters, enableRtx);
         
         auto consumerId = uuid::uuidv4();
-        
-        nlohmann::json reqData;
-        reqData["consumerId"] = consumerId;
-        reqData["producerId"] = producerId;
-        reqData["kind"] = producerController->kind();
-        reqData["rtpParameters"] = rtpParameters;
-        reqData["type"] = pipe ? "pipe" : producerController->type();
-        reqData["consumableRtpEncodings"] = producerController->consumableRtpParameters().encodings;
 
-        nlohmann::json status = channel->request("transport.consume", _internal.transportId, reqData.dump());
+        flatbuffers::FlatBufferBuilder builder;
         
-        bool paused_ = status["paused"];
-        bool producerPaused_ = status["producerPaused"];
+        auto reqOffset = createConsumeRequest(builder,
+                                              consumerId,
+                                              producerController,
+                                              rtpParameters
+                                              );
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.transportId,
+                                                     FBS::Request::Method::TRANSPORT_CONSUME,
+                                                     FBS::Request::Body::Transport_ConsumeRequest,
+                                                     reqOffset);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto consumeResponse = response->body_as_Transport_ConsumeResponse();
+        
+        bool paused_ = consumeResponse->paused();
+        bool producerPaused_ = consumeResponse->producerPaused();
         
         ConsumerInternal internal;
         internal.transportId = _internal.transportId;
@@ -162,48 +207,43 @@ namespace srv {
         data.rtpParameters = rtpParameters;
         data.type = pipe ? "pipe" : producerController->type();
         
-        {
-            std::lock_guard<std::mutex> lock(_consumersMutex);
-            consumerController = std::make_shared<ConsumerController>(internal,
-                                                                      data,
-                                                                      _channel.lock(),
-                                                                      _payloadChannel.lock(),
-                                                                      appData,
-                                                                      paused_,
-                                                                      producerPaused_,
-                                                                      ConsumerScore(),
-                                                                      ConsumerLayers());
-            consumerController->init();
-            
-            _consumerControllers[consumerController->id()] = consumerController;
-            
-            auto wself = std::weak_ptr<TransportController>(TransportController::shared_from_this());
-            auto removeLambda = [id = consumerController->id(), wself]() {
-                auto self = wself.lock();
-                if (!self) {
-                    return;
-                }
-                if (auto ptc = std::dynamic_pointer_cast<PipeTransportController>(self)) {
-                    ptc->removeConsumerController(id);
-                }
-                else {
-                    assert(0);
-                }
-            };
-            
-            consumerController->closeSignal.connect(removeLambda);
-            consumerController->producerCloseSignal.connect(removeLambda);
-            
-            this->newConsumerSignal(consumerController);
-        }
+        consumerController = std::make_shared<ConsumerController>(internal,
+                                                                  data,
+                                                                  _channel.lock(),
+                                                                  appData,
+                                                                  paused_,
+                                                                  producerPaused_,
+                                                                  ConsumerScore(),
+                                                                  ConsumerLayers());
+        consumerController->init();
+        
+        _consumerControllers.emplace(std::make_pair(consumerController->id(), consumerController));
+        
+        auto wself = std::weak_ptr<ITransportController>(AbstractTransportController::shared_from_this());
+        auto removeLambda = [id = consumerController->id(), wself]() {
+            auto self = wself.lock();
+            if (!self) {
+                return;
+            }
+            if (auto ptc = std::dynamic_pointer_cast<PipeTransportController>(self)) {
+                ptc->removeConsumerController(id);
+            }
+            else {
+                assert(0);
+            }
+        };
+        
+        consumerController->closeSignal.connect(removeLambda);
+        consumerController->producerCloseSignal.connect(removeLambda);
+        
+        this->newConsumerSignal(consumerController);
 
         return consumerController;
     }
 
     void PipeTransportController::removeConsumerController(const std::string& id)
     {
-        std::lock_guard<std::mutex> lock(_consumersMutex);
-        if (_consumerControllers.find(id) != _consumerControllers.end()) {
+        if (_consumerControllers.contains(id)) {
             _consumerControllers.erase(id);
         }
     }
@@ -217,139 +257,126 @@ namespace srv {
             return;
         }
         
-        auto self = std::dynamic_pointer_cast<PipeTransportController>(TransportController::shared_from_this());
+        auto self = std::dynamic_pointer_cast<PipeTransportController>(AbstractTransportController::shared_from_this());
         channel->notificationSignal.connect(&PipeTransportController::onChannel, self);
     }
 
-    void PipeTransportController::onChannel(const std::string& targetId, const std::string& event, const std::string& data)
+    void PipeTransportController::onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data)
     {
-        SRV_LOGD("onChannel()");
+        //SRV_LOGD("onChannel()");
         
         if (targetId != _internal.transportId) {
             return;
         }
         
-        if (event == "sctpstatechange") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                auto sctpState = js["sctpState"];
-                this->_data["sctpState"] = sctpState;
-                this->sctpStateChangeSignal(sctpState);
+        if (event == FBS::Notification::Event::TRANSPORT_SCTP_STATE_CHANGE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_Transport_SctpStateChangeNotification()) {
+                transportData()->sctpState = parseSctpState(nf->sctpState());
+                this->sctpStateChangeSignal(transportData()->sctpState);
             }
         }
-        else if (event == "trace") {
-            auto js = nlohmann::json::parse(data);
-            if (js.is_object()) {
-                TransportTraceEventData eventData = js;
+        else if (event == FBS::Notification::Event::TRANSPORT_TRACE) {
+            auto message = FBS::Message::GetMessage(data.data());
+            auto notification = message->data_as_Notification();
+            if (auto nf = notification->body_as_Transport_TraceNotification()) {
+                auto eventData = *parseTransportTraceEventData(nf);
                 this->traceSignal(eventData);
             }
         }
         else {
-            SRV_LOGD("ignoring unknown event %s", event.c_str());
+            SRV_LOGD("ignoring unknown event %u", (uint8_t)event);
         }
     }
 }
 
-namespace srv
-{
-    void to_json(nlohmann::json& j, const PipeTransportStat& st)
+namespace srv {
+
+    std::shared_ptr<PipeTransportDump> parsePipeTransportDumpResponse(const FBS::PipeTransport::DumpResponse* binary)
     {
-        j["type"] = st.type;
-        j["transportId"] = st.transportId;
-        j["timestamp"] = st.timestamp;
-        j["sctpState"] = st.sctpState;
-
-        j["bytesReceived"] = st.bytesReceived;
-        j["recvBitrate"] = st.recvBitrate;
-        j["bytesSent"] = st.bytesSent;
-        j["sendBitrate"] = st.sendBitrate;
-        j["rtpBytesReceived"] = st.rtpBytesReceived;
-        j["rtpRecvBitrate"] = st.rtpRecvBitrate;
-
-        j["rtpBytesSent"] = st.rtpBytesSent;
-        j["rtpSendBitrate"] = st.rtpSendBitrate;
-        j["rtxBytesReceived"] = st.rtxBytesReceived;
-        j["rtxRecvBitrate"] = st.rtxRecvBitrate;
-        j["rtxBytesSent"] = st.rtxBytesSent;
-
-        j["rtxSendBitrate"] = st.rtxSendBitrate;
-        j["probationBytesSent"] = st.probationBytesSent;
-        j["probationSendBitrate"] = st.probationSendBitrate;
-        j["availableOutgoingBitrate"] = st.availableOutgoingBitrate;
-        j["availableIncomingBitrate"] = st.availableIncomingBitrate;
-        j["maxIncomingBitrate"] = st.maxIncomingBitrate;
-
-        j["tuple"] = st.tuple;
-    }
-
-    void from_json(const nlohmann::json& j, PipeTransportStat& st)
-    {
-        if (j.contains("type")) {
-            j.at("type").get_to(st.type);
-        }
-        if (j.contains("transportId")) {
-            j.at("transportId").get_to(st.transportId);
-        }
-        if (j.contains("timestamp")) {
-            j.at("timestamp").get_to(st.timestamp);
-        }
-        if (j.contains("sctpState")) {
-            j.at("sctpState").get_to(st.sctpState);
-        }
-        if (j.contains("bytesReceived")) {
-            j.at("bytesReceived").get_to(st.bytesReceived);
-        }
-        if (j.contains("recvBitrate")) {
-            j.at("recvBitrate").get_to(st.recvBitrate);
-        }
-        if (j.contains("bytesSent")) {
-            j.at("bytesSent").get_to(st.bytesSent);
-        }
-        if (j.contains("sendBitrate")) {
-            j.at("sendBitrate").get_to(st.sendBitrate);
-        }
-        if (j.contains("rtpBytesReceived")) {
-            j.at("rtpBytesReceived").get_to(st.rtpBytesReceived);
-        }
-        if (j.contains("rtpRecvBitrate")) {
-            j.at("rtpRecvBitrate").get_to(st.rtpRecvBitrate);
-        }
-        if (j.contains("rtpBytesSent")) {
-            j.at("rtpBytesSent").get_to(st.rtpBytesSent);
-        }
-        if (j.contains("rtpSendBitrate")) {
-            j.at("rtpSendBitrate").get_to(st.rtpSendBitrate);
-        }
-        if (j.contains("rtxBytesReceived")) {
-            j.at("rtxBytesReceived").get_to(st.rtxBytesReceived);
-        }
-        if (j.contains("rtxRecvBitrate")) {
-            j.at("rtxRecvBitrate").get_to(st.rtxRecvBitrate);
-        }
-        if (j.contains("rtxBytesSent")) {
-            j.at("rtxBytesSent").get_to(st.rtxBytesSent);
-        }
-        if (j.contains("rtxSendBitrate")) {
-            j.at("rtxSendBitrate").get_to(st.rtxSendBitrate);
-        }
-        if (j.contains("probationBytesSent")) {
-            j.at("probationBytesSent").get_to(st.probationBytesSent);
-        }
-        if (j.contains("probationSendBitrate")) {
-            j.at("probationSendBitrate").get_to(st.probationSendBitrate);
-        }
-        if (j.contains("availableOutgoingBitrate")) {
-            j.at("availableOutgoingBitrate").get_to(st.availableOutgoingBitrate);
-        }
-        if (j.contains("availableIncomingBitrate")) {
-            j.at("availableIncomingBitrate").get_to(st.availableIncomingBitrate);
-        }
-        if (j.contains("maxIncomingBitrate")) {
-            j.at("maxIncomingBitrate").get_to(st.maxIncomingBitrate);
+        auto dump = std::make_shared<PipeTransportDump>();
+        
+        auto baseDump = parseBaseTransportDump(binary->base());
+        
+        dump->id = baseDump->id;
+        dump->direct = baseDump->direct;
+        dump->producerIds = baseDump->producerIds;
+        dump->consumerIds = baseDump->consumerIds;
+        dump->mapSsrcConsumerId = baseDump->mapSsrcConsumerId;
+        dump->mapRtxSsrcConsumerId = baseDump->mapRtxSsrcConsumerId;
+        dump->recvRtpHeaderExtensions = baseDump->recvRtpHeaderExtensions;
+        dump->rtpListener = baseDump->rtpListener;
+        dump->maxMessageSize = baseDump->maxMessageSize;
+        dump->dataProducerIds = baseDump->dataProducerIds;
+        dump->dataConsumerIds = baseDump->dataConsumerIds;
+        dump->sctpParameters = baseDump->sctpParameters;
+        dump->sctpState = baseDump->sctpState;
+        dump->sctpListener = baseDump->sctpListener;
+        dump->traceEventTypes = baseDump->traceEventTypes;
+        
+        dump->tuple = *parseTuple(binary->tuple());
+        dump->rtx = binary->rtx();
+        
+        if (auto params = binary->srtpParameters()) {
+            dump->srtpParameters = *parseSrtpParameters(params);
         }
         
-        if (j.contains("tuple")) {
-            j.at("tuple").get_to(st.tuple);
+        return dump;
+    }
+
+    std::shared_ptr<PipeTransportStat> parseGetStatsResponse(const FBS::PipeTransport::GetStatsResponse* binary)
+    {
+        auto stats = std::make_shared<PipeTransportStat>();
+        
+        auto baseStats = parseBaseTransportStats(binary->base());
+        
+        stats->transportId = baseStats->transportId;
+        stats->timestamp = baseStats->timestamp;
+        stats->sctpState = baseStats->sctpState;
+        stats->bytesReceived = baseStats->bytesReceived;
+        stats->recvBitrate = baseStats->recvBitrate;
+        stats->bytesSent = baseStats->bytesSent;
+        stats->sendBitrate = baseStats->sendBitrate;
+        stats->rtpBytesReceived = baseStats->rtpBytesReceived;
+        stats->rtpRecvBitrate = baseStats->rtpRecvBitrate;
+        stats->rtpBytesSent = baseStats->rtpBytesSent;
+        stats->rtpSendBitrate = baseStats->rtpSendBitrate;
+        stats->rtxBytesReceived = baseStats->rtxBytesReceived;
+        stats->rtxRecvBitrate = baseStats->rtxRecvBitrate;
+        stats->rtxBytesSent = baseStats->rtxBytesSent;
+        stats->rtxSendBitrate = baseStats->rtxSendBitrate;
+        stats->probationBytesSent = baseStats->probationBytesSent;
+        stats->probationSendBitrate = baseStats->probationSendBitrate;
+        stats->availableOutgoingBitrate = baseStats->availableOutgoingBitrate;
+        stats->availableIncomingBitrate = baseStats->availableIncomingBitrate;
+        stats->maxIncomingBitrate = baseStats->maxIncomingBitrate;
+        
+        stats->type = "";
+        stats->tuple = *parseTuple(binary->tuple());
+        
+        return stats;
+    }
+
+    flatbuffers::Offset<FBS::Transport::ConsumeRequest> createConsumeRequest(flatbuffers::FlatBufferBuilder& builder,
+                                                                             const std::string& consumerId,
+                                                                             std::shared_ptr<IProducerController> producer,
+                                                                             const RtpParameters& rtpParameters)
+    {
+        auto rtpParametersOffset = rtpParameters.serialize(builder);
+        
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::RtpEncodingParameters>> consumableRtpEncodings;
+        for (const auto& encoding : producer->consumableRtpParameters().encodings) {
+            consumableRtpEncodings.emplace_back(encoding.serialize(builder));
         }
+        
+        return FBS::Transport::CreateConsumeRequestDirect(builder,
+                                                          consumerId.c_str(),
+                                                          producer->id().c_str(),
+                                                          producer->kind() == "audio" ? FBS::RtpParameters::MediaKind::AUDIO : FBS::RtpParameters::MediaKind::VIDEO,
+                                                          rtpParametersOffset,
+                                                          FBS::RtpParameters::Type::PIPE,
+                                                          &consumableRtpEncodings
+                                                          );
     }
 }

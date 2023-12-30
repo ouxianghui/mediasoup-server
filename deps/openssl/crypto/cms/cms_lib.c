@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2008-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -13,6 +13,7 @@
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 #include <openssl/asn1.h>
+#include <openssl/cms.h>
 #include <openssl/cms.h>
 #include "internal/sizes.h"
 #include "crypto/x509.h"
@@ -75,7 +76,6 @@ CMS_ContentInfo *CMS_ContentInfo_new(void)
 void CMS_ContentInfo_free(CMS_ContentInfo *cms)
 {
     if (cms != NULL) {
-        ossl_cms_env_enc_content_free(cms);
         OPENSSL_free(cms->ctx.propq);
         ASN1_item_free((ASN1_VALUE *)cms, ASN1_ITEM_rptr(CMS_ContentInfo));
     }
@@ -432,7 +432,7 @@ BIO *ossl_cms_DigestAlgorithm_init_bio(X509_ALGOR *digestAlgorithm,
     (void)ERR_pop_to_mark();
 
     mdbio = BIO_new(BIO_f_md());
-    if (mdbio == NULL || BIO_set_md(mdbio, digest) <= 0) {
+    if (mdbio == NULL || !BIO_set_md(mdbio, digest)) {
         ERR_raise(ERR_LIB_CMS, CMS_R_MD_BIO_INIT_ERROR);
         goto err;
     }
@@ -615,12 +615,11 @@ int CMS_add0_crl(CMS_ContentInfo *cms, X509_CRL *crl)
 
 int CMS_add1_crl(CMS_ContentInfo *cms, X509_CRL *crl)
 {
-    if (!X509_CRL_up_ref(crl))
-        return 0;
-    if (CMS_add0_crl(cms, crl))
-        return 1;
-    X509_CRL_free(crl);
-    return 0;
+    int r;
+    r = CMS_add0_crl(cms, crl);
+    if (r > 0)
+        X509_CRL_up_ref(crl);
+    return r;
 }
 
 STACK_OF(X509) *CMS_get1_certs(CMS_ContentInfo *cms)

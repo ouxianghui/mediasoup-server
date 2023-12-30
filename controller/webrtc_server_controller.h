@@ -10,53 +10,21 @@
 #pragma once
 
 #include <memory>
-#include <vector>
-#include <atomic>
-#include <unordered_map>
-#include <mutex>
-#include "nlohmann/json.hpp"
-#include "sigslot/signal.hpp"
-#include "types.h"
+#include "threadsafe_unordered_map.hpp"
+#include "interface/i_transport_controller.h"
+#include "interface/i_webrtc_server_controller.h"
+#include "FBS/webRtcServer.h"
 
 namespace srv {
 
-    class Channel;
     class WebRtcTransportController;
-
-    struct WebRtcServerListenInfo
-    {
-        /**
-         * Network protocol.
-         * options: tcp | udp
-         */
-        std::string protocol;
-
-        /**
-         * Listening IPv4 or IPv6.
-         */
-        std::string ip;
-
-        /**
-         * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
-         * private IP).
-         */
-        std::string announcedIp;
-
-        /**
-         * Listening port.
-         */
-        int32_t port = 0;
-    };
-
-    void to_json(nlohmann::json& j, const WebRtcServerListenInfo& st);
-    void from_json(const nlohmann::json& j, WebRtcServerListenInfo& st);
 
     struct WebRtcServerOptions
     {
         /**
          * Listen infos.
          */
-        std::vector<WebRtcServerListenInfo> listenInfos;
+        std::vector<TransportListenInfo> listenInfos;
 
         /**
          * Custom application data.
@@ -67,47 +35,33 @@ namespace srv {
     void to_json(nlohmann::json& j, const WebRtcServerOptions& st);
     void from_json(const nlohmann::json& j, WebRtcServerOptions& st);
 
-    struct WebRtcServerInternal
-    {
-        std::string webRtcServerId;
-    };
-
-    class WebRtcServerController : public std::enable_shared_from_this<WebRtcServerController> {
+    class WebRtcServerController : public IWebRtcServerController, public std::enable_shared_from_this<WebRtcServerController> {
     public:
         WebRtcServerController(const WebRtcServerInternal& internal, std::weak_ptr<Channel> channel, const nlohmann::json& appData);
         
         ~WebRtcServerController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
-        const std::string& id() { return _id; }
+        const std::string& id() override { return _id; }
         
-        bool closed() { return _closed; }
+        void setAppData(const nlohmann::json& data) override { _appData = data; }
         
-        void setAppData(const nlohmann::json& data) { _appData = data; }
+        const nlohmann::json& appData() override { return _appData; }
+    
+        void close() override;
+
+        bool closed() override { return _closed; }
+
+        void handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& controller) override;
         
-        const nlohmann::json& appData() { return _appData; }
+        std::shared_ptr<WebRtcServerDump> dump() override;
         
-        void handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& controller);
-        
-        nlohmann::json dump();
-        
-        void onWorkerClosed();
-        
-    public:
-        sigslot::signal<> workerCloseSignal;
-        
-        sigslot::signal<std::shared_ptr<WebRtcServerController>> closeSignal;
-        
-        sigslot::signal<std::shared_ptr<WebRtcTransportController>> webrtcTransportHandledSignal;
-        
-        sigslot::signal<std::shared_ptr<WebRtcTransportController>> webrtcTransportUnhandledSignal;
-        
+        void onWorkerClosed() override;
+
     private:
-        void close();
-        
         void onWebRtcTransportClose(const std::string& id_);
         
     private:
@@ -122,8 +76,15 @@ namespace srv {
         // Custom app data.
         nlohmann::json _appData;
         
-        std::mutex _webRtcTransportsMutex;
-        std::unordered_map<std::string, std::shared_ptr<WebRtcTransportController>> _webRtcTransportMap;
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<WebRtcTransportController>> _webRtcTransportMap;
     };
+
+    std::shared_ptr<IpPort> parseIpPort(const FBS::WebRtcServer::IpPort* binary);
+
+    std::shared_ptr<IceUserNameFragment> parseIceUserNameFragment(const FBS::WebRtcServer::IceUserNameFragment* binary);
+
+    std::shared_ptr<TupleHash> parseTupleHash(const FBS::WebRtcServer::TupleHash* binary);
+
+    std::shared_ptr<WebRtcServerDump> parseWebRtcServerDump(const FBS::WebRtcServer::DumpResponse* data);
 
 }

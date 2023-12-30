@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -14,7 +14,7 @@
 /* We need to use some STORE deprecated APIs */
 #define OPENSSL_SUPPRESS_DEPRECATED
 
-#include "internal/e_os.h"
+#include "e_os.h"
 
 #include <openssl/crypto.h>
 #include <openssl/err.h>
@@ -114,17 +114,13 @@ OSSL_STORE_open_ex(const char *uri, OSSL_LIB_CTX *libctx, const char *propq,
         scheme = schemes[i];
         OSSL_TRACE1(STORE, "Looking up scheme %s\n", scheme);
 #ifndef OPENSSL_NO_DEPRECATED_3_0
-        ERR_set_mark();
         if ((loader = ossl_store_get0_loader_int(scheme)) != NULL) {
-            ERR_clear_last_mark();
             no_loader_found = 0;
             if (loader->open_ex != NULL)
                 loader_ctx = loader->open_ex(loader, uri, libctx, propq,
                                              ui_method, ui_data);
             else
                 loader_ctx = loader->open(loader, uri, ui_method, ui_data);
-        } else {
-            ERR_pop_to_mark();
         }
 #endif
         if (loader == NULL
@@ -428,14 +424,14 @@ OSSL_STORE_INFO *OSSL_STORE_load(OSSL_STORE_CTX *ctx)
 
             load_data.v = NULL;
             load_data.ctx = ctx;
-            ctx->error_flag = 0;
 
             if (!ctx->fetched_loader->p_load(ctx->loader_ctx,
                                              ossl_store_handle_load_result,
                                              &load_data,
                                              ossl_pw_passphrase_callback_dec,
                                              &ctx->pwdata)) {
-                ctx->error_flag = 1;
+                if (!OSSL_STORE_eof(ctx))
+                    ctx->error_flag = 1;
                 return NULL;
             }
             v = load_data.v;
@@ -627,7 +623,7 @@ OSSL_STORE_INFO *OSSL_STORE_INFO_new_CRL(X509_CRL *crl)
 }
 
 /*
- * Functions to try to extract data from an OSSL_STORE_INFO.
+ * Functions to try to extract data from a OSSL_STORE_INFO.
  */
 int OSSL_STORE_INFO_get_type(const OSSL_STORE_INFO *info)
 {

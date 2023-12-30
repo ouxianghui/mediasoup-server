@@ -7,7 +7,6 @@ release. For more details please read the CHANGES file.
 OpenSSL Releases
 ----------------
 
- - [OpenSSL 3.1](#openssl-31)
  - [OpenSSL 3.0](#openssl-30)
  - [OpenSSL 1.1.1](#openssl-111)
  - [OpenSSL 1.1.0](#openssl-110)
@@ -15,48 +14,6 @@ OpenSSL Releases
  - [OpenSSL 1.0.1](#openssl-101)
  - [OpenSSL 1.0.0](#openssl-100)
  - [OpenSSL 0.9.x](#openssl-09x)
-
-OpenSSL 3.1
------------
-
-### Major changes between OpenSSL 3.1.3 and OpenSSL 3.1.4 [24 Oct 2023]
-
-  * Mitigate incorrect resize handling for symmetric cipher keys and IVs.
-    ([CVE-2023-5363])
-
-### Major changes between OpenSSL 3.1.2 and OpenSSL 3.1.3 [19 Sep 2023]
-
-  * Fix POLY1305 MAC implementation corrupting XMM registers on Windows
-    ([CVE-2023-4807])
-
-### Major changes between OpenSSL 3.1.1 and OpenSSL 3.1.2 [1 Aug 2023]
-
-  * Fix excessive time spent checking DH q parameter value ([CVE-2023-3817])
-  * Fix DH_check() excessive time with over sized modulus ([CVE-2023-3446])
-  * Do not ignore empty associated data entries with AES-SIV ([CVE-2023-2975])
-  * When building with the `enable-fips` option and using the resulting
-    FIPS provider, TLS 1.2 will, by default, mandate the use of an
-    extended master secret and the Hash and HMAC DRBGs will not operate
-    with truncated digests.
-
-### Major changes between OpenSSL 3.1.0 and OpenSSL 3.1.1 [30 May 2023]
-
-  * Mitigate for very slow `OBJ_obj2txt()` performance with gigantic OBJECT
-    IDENTIFIER sub-identities.  ([CVE-2023-2650])
-  * Fixed buffer overread in AES-XTS decryption on ARM 64 bit platforms
-    ([CVE-2023-1255])
-  * Fixed documentation of X509_VERIFY_PARAM_add0_policy() ([CVE-2023-0466])
-  * Fixed handling of invalid certificate policies in leaf certificates
-    ([CVE-2023-0465])
-  * Limited the number of nodes created in a policy tree ([CVE-2023-0464])
-
-### Major changes between OpenSSL 3.0 and OpenSSL 3.1.0 [14 Mar 2023]
-
-  * SSL 3, TLS 1.0, TLS 1.1, and DTLS 1.0 only work at security level 0.
-  * Performance enhancements and new platform support including new
-    assembler code algorithm implementations.
-  * Deprecated LHASH statistics functions.
-  * FIPS 140-3 compliance changes.
 
 OpenSSL 3.0
 -----------
@@ -126,7 +83,7 @@ OpenSSL 3.0
   * Enhanced 'openssl list' with many new options.
   * Added migration guide to man7.
   * Implemented support for fully "pluggable" TLSv1.3 groups.
-  * Added support for Kernel TLS (KTLS).
+  * Added suport for Kernel TLS (KTLS).
   * Changed the license to the Apache License v2.0.
   * Moved all variations of the EVP ciphers CAST5, BF, IDEA, SEED, RC2,
     RC4, RC5, and DES to the legacy provider.
@@ -169,7 +126,7 @@ OpenSSL 3.0
   * Deprecated ERR_put_error(), ERR_get_error_line(), ERR_get_error_line_data(),
     ERR_peek_error_line_data(), ERR_peek_last_error_line_data() and
     ERR_func_error_string().
-  * Added OSSL_PROVIDER_available(), to check provider availability.
+  * Added OSSL_PROVIDER_available(), to check provider availibility.
   * Added 'openssl mac' that uses the EVP_MAC API.
   * Added 'openssl kdf' that uses the EVP_KDF API.
   * Add OPENSSL_info() and 'openssl info' to get built-in data.
@@ -1473,17 +1430,6 @@ OpenSSL 0.9.x
   * Support for various new platforms
 
 <!-- Links -->
-
-[CVE-2023-5363]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-5363
-[CVE-2023-4807]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-4807
-[CVE-2023-3817]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-3817
-[CVE-2023-3446]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-3446
-[CVE-2023-2975]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-2975
-[CVE-2023-2650]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-2650
-[CVE-2023-1255]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-1255
-[CVE-2023-0466]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-0466
-[CVE-2023-0465]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-0465
-[CVE-2023-0464]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-0464
 [CVE-2023-0401]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-0401
 [CVE-2023-0286]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-0286
 [CVE-2023-0217]: https://www.openssl.org/news/vulnerabilities.html#CVE-2023-0217
@@ -1494,7 +1440,7 @@ OpenSSL 0.9.x
 [CVE-2022-4203]: https://www.openssl.org/news/vulnerabilities.html#CVE-2022-4203
 [CVE-2022-3996]: https://www.openssl.org/news/vulnerabilities.html#CVE-2022-3996
 [CVE-2022-2274]: https://www.openssl.org/news/vulnerabilities.html#CVE-2022-2274
-[CVE-2022-2097]: https://www.openssl.org/news/vulnerabilities.html#CVE-2022-2097
+[CVE-2022-2097]: https://www.openssl.org/news/vulnerabilities.html#CVE-2022-2274
 [CVE-2020-1971]: https://www.openssl.org/news/vulnerabilities.html#CVE-2020-1971
 [CVE-2020-1967]: https://www.openssl.org/news/vulnerabilities.html#CVE-2020-1967
 [CVE-2019-1563]: https://www.openssl.org/news/vulnerabilities.html#CVE-2019-1563

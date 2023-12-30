@@ -10,129 +10,65 @@
 #pragma once
 
 #include <memory>
-#include <vector>
-#include <atomic>
-#include <string>
-#include <unordered_map>
-#include "nlohmann/json.hpp"
-#include "sigslot/signal.hpp"
-#include "types.h"
+#include "interface/i_data_producer_controller.h"
 #include "sctp_parameters.h"
+#include "FBS/dataProducer.h"
 
 namespace srv {
 
-    struct DataProducerOptions
-    {
-        /**
-         * DataProducer id (just for Router.pipeToRouter() method).
-         */
-        std::string id;
-
-        /**
-         * SCTP parameters defining how the endpoint is sending the data.
-         * Just if messages are sent over SCTP.
-         */
-        SctpStreamParameters sctpStreamParameters;
-
-        /**
-         * A label which can be used to distinguish this DataChannel from others.
-         */
-        std::string label;
-
-        /**
-         * Name of the sub-protocol used by this DataChannel.
-         */
-        std::string protocol;
-
-        /**
-         * Custom application data.
-         */
-        nlohmann::json appData;
-    };
-
-    struct DataProducerStat
-    {
-        std::string type;
-        int64_t timestamp;
-        std::string label;
-        std::string protocol;
-        int32_t messagesReceived;
-        int32_t bytesReceived;
-    };
-
-    void to_json(nlohmann::json& j, const DataProducerStat& st);
-    void from_json(const nlohmann::json& j, DataProducerStat& st);
-
-    struct DataProducerInternal
-    {
-        std::string transportId;
-        std::string dataProducerId;
-    };
-
-    struct DataProducerData
-    {
-        // Options: 'sctp' | 'direct'
-        std::string type;
-        SctpStreamParameters sctpStreamParameters;
-        std::string label;
-        std::string protocol;
-    };
-
     class Channel;
-    class PayloadChannel;
 
-    class DataProducerController : public std::enable_shared_from_this<DataProducerController>
+    class DataProducerController : public IDataProducerController, public std::enable_shared_from_this<DataProducerController>
     {
     public:
         DataProducerController(const DataProducerInternal& internal,
                                const DataProducerData& data,
                                const std::shared_ptr<Channel>& channel,
-                               std::shared_ptr<PayloadChannel> payloadChannel,
+                               bool paused,
                                const nlohmann::json& appData);
         
         virtual ~DataProducerController();
         
-        void init();
+        void init() override;
         
-        void destroy();
+        void destroy() override;
         
-        const std::string& id() { return _internal.dataProducerId; }
+        const std::string& id() override { return _internal.dataProducerId; }
 
-        bool closed() { return _closed; }
+        const std::string& type() override { return _data.type; }
 
-        const std::string& type() { return _data.type; }
+        const SctpStreamParameters& sctpStreamParameters() override { return _data.sctpStreamParameters; }
 
-        const SctpStreamParameters& sctpStreamParameters() { return _data.sctpStreamParameters; }
+        const std::string& label() override { return _data.label; }
 
-        const std::string& label() { return _data.label; }
+        const std::string& protocol() override { return _data.protocol; }
 
-        const std::string& protocol() { return _data.protocol; }
-
-        void setAppData(const nlohmann::json& data) { _appData = data; }
+        void setAppData(const nlohmann::json& data) override { _appData = data; }
         
-        const nlohmann::json& appData() { return _appData; }
+        const nlohmann::json& appData() override { return _appData; }
         
-        void close();
+        void pause() override;
         
-        void onTransportClosed();
+        void resume() override;    
+            
+        bool paused() override { return _paused; }
         
-        nlohmann::json dump();
+        void close() override;
         
-        nlohmann::json getStats();
+        bool closed() override { return _closed; }
 
-        void send(const uint8_t* payload, size_t payloadLen, bool isBinary = false);
+        void onTransportClosed() override;
+        
+        std::shared_ptr<DataProducerDump> dump() override;
+        
+        std::vector<std::shared_ptr<DataProducerStat>> getStats() override;
+
+        void send(const std::vector<uint8_t>& data, const std::vector<uint16_t>& subchannels, uint16_t requiredSubchannel, bool isBinary = false) override;
         
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
-        
-        void onPayloadChannel(const std::string& targetId, const std::string& event, const std::string& data, const uint8_t* payload, size_t payloadLen);
-        
-    public:
-        sigslot::signal<> transportCloseSignal;
-        
-        sigslot::signal<> closeSignal;
+        void onChannel(const std::string& targetId, const std::string& event, const std::string& data) {}
         
     private:
         // Internal data.
@@ -144,15 +80,22 @@ namespace srv {
         // Channel instance.
         std::weak_ptr<Channel> _channel;
 
-        // PayloadChannel instance.
-        std::weak_ptr<PayloadChannel> _payloadChannel;
-
         // Closed flag.
         std::atomic_bool _closed { false };
+        
+        std::atomic_bool _paused = { false };
 
         // Custom app data.
         nlohmann::json _appData;
-
     };
+
+    FBS::DataProducer::Type dataProducerTypeToFbs(const std::string& type);
+
+    std::string dataProducerTypeFromFbs(FBS::DataProducer::Type type);
+
+    std::shared_ptr<DataProducerDump> parseDataProducerDumpResponse(const FBS::DataProducer::DumpResponse* data);
+
+    std::shared_ptr<DataProducerStat> parseDataProducerStats(const FBS::DataProducer::GetStatsResponse* binary);
+
 
 }

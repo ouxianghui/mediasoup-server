@@ -6,15 +6,10 @@ project(${PROJECT_NAME})
 include (TestBigEndian)
 TEST_BIG_ENDIAN(IS_BIG_ENDIAN)
 
-#set(MAIN_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../)
-#set(PROJECT_INCLUDE_DIR ${MAIN_DIR}/release/include ${MAIN_DIR}/worker/include  )
-#set(PROJECT_LIB_DIR ${MAIN_DIR}/release/lib)
-#set(WORKER_INCLUDE_DIR ${MAIN_DIR}/worker/include)
-#set(LIB_WEBRTC_INCLUDE_DIR ${MAIN_DIR}/deps/libwebrtc ${MAIN_DIR}/deps/libwebrtc/libwebrtc ${MAIN_DIR}/deps/libwebrtc/deps/abseil-cpp)
-#set(PROJECT_RELEASE_DIR ${MAIN_DIR}/release)
 IF(NOT WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 ENDIF()
+
 message("\n=========== libwebrtc Build Configuration ===========\n")
 message(STATUS "MAIN_DIR : " ${MAIN_DIR})
 message(STATUS "PROJECT_INCLUDE_DIR : " ${PROJECT_INCLUDE_DIR})
@@ -24,11 +19,16 @@ message(STATUS "CMAKE_INSTALL_PREFIX : " ${CMAKE_INSTALL_PREFIX})
 
 message("")
 
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    add_definitions(-DMS_LIBURING_SUPPORTED)
+ENDIF()
+
 # C++ standard requirements.
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(mediasoup_worker_headers
+"include/Channel/ChannelNotification.hpp"
 "include/Channel/ChannelNotifier.hpp"
 "include/Channel/ChannelRequest.hpp"
 "include/Channel/ChannelSocket.hpp"
@@ -41,10 +41,6 @@ set(mediasoup_worker_headers
 "include/LogLevel.hpp"
 "include/Logger.hpp"
 "include/MediaSoupErrors.hpp"
-"include/PayloadChannel/PayloadChannelNotification.hpp"
-"include/PayloadChannel/PayloadChannelNotifier.hpp"
-"include/PayloadChannel/PayloadChannelRequest.hpp"
-"include/PayloadChannel/PayloadChannelSocket.hpp"
 "include/RTC/ActiveSpeakerObserver.hpp"
 "include/RTC/AudioLevelObserver.hpp"
 "include/RTC/BweType.hpp"
@@ -137,20 +133,17 @@ set(mediasoup_worker_headers
 "include/Utils.hpp"
 "include/Worker.hpp"
 "include/common.hpp"
-"include/handles/SignalsHandler.hpp"
-"include/handles/TcpConnectionHandler.hpp"
-"include/handles/TcpServerHandler.hpp"
-"include/handles/Timer.hpp"
-"include/handles/UdpSocketHandler.hpp"
-"include/handles/UnixStreamSocket.hpp"
+"include/handles/SignalHandle.hpp"
+"include/handles/TcpConnectionHandle.hpp"
+"include/handles/TcpServerHandle.hpp"
+"include/handles/TimerHandle.hpp"
+"include/handles/UdpSocketHandle.hpp"
+"include/handles/UnixStreamSocketHandle.hpp"
 "include/lib.hpp"
 )
 
 set(mediasoup_worker_sources
-"src/Channel/ChannelNotifier.cpp"
-"src/Channel/ChannelRequest.cpp"
-"src/Channel/ChannelSocket.cpp"
-"src/ChannelMessageRegistrator.cpp"
+"src/lib.cpp"
 "src/DepLibSRTP.cpp"
 "src/DepLibUV.cpp"
 "src/DepLibWebRTC.cpp"
@@ -158,17 +151,25 @@ set(mediasoup_worker_sources
 "src/DepUsrSCTP.cpp"
 "src/Logger.cpp"
 "src/MediaSoupErrors.cpp"
-"src/PayloadChannel/PayloadChannelNotification.cpp"
-"src/PayloadChannel/PayloadChannelNotifier.cpp"
-"src/PayloadChannel/PayloadChannelRequest.cpp"
-"src/PayloadChannel/PayloadChannelSocket.cpp"
+"src/Settings.cpp"
+"src/Worker.cpp"
+"src/ChannelMessageRegistrator.cpp"
+"src/Utils/Crypto.cpp"
+"src/Utils/File.cpp"
+"src/Utils/IP.cpp"
+"src/Utils/String.cpp"
+"src/handles/SignalHandle.cpp"
+"src/handles/TcpConnectionHandle.cpp"
+"src/handles/TcpServerHandle.cpp"
+"src/handles/TimerHandle.cpp"
+"src/handles/UdpSocketHandle.cpp"
+"src/handles/UnixStreamSocketHandle.cpp"
+"src/Channel/ChannelNotifier.cpp"
+"src/Channel/ChannelRequest.cpp"
+"src/Channel/ChannelNotification.cpp"
+"src/Channel/ChannelSocket.cpp"
 "src/RTC/ActiveSpeakerObserver.cpp"
 "src/RTC/AudioLevelObserver.cpp"
-"src/RTC/Codecs/H264.cpp"
-"src/RTC/Codecs/H264_SVC.cpp"
-"src/RTC/Codecs/Opus.cpp"
-"src/RTC/Codecs/VP8.cpp"
-"src/RTC/Codecs/VP9.cpp"
 "src/RTC/Consumer.cpp"
 "src/RTC/DataConsumer.cpp"
 "src/RTC/DataProducer.cpp"
@@ -183,47 +184,9 @@ set(mediasoup_worker_sources
 "src/RTC/PlainTransport.cpp"
 "src/RTC/PortManager.cpp"
 "src/RTC/Producer.cpp"
-"src/RTC/RTCP/Bye.cpp"
-"src/RTC/RTCP/CompoundPacket.cpp"
-"src/RTC/RTCP/Feedback.cpp"
-"src/RTC/RTCP/FeedbackPs.cpp"
-"src/RTC/RTCP/FeedbackPsAfb.cpp"
-"src/RTC/RTCP/FeedbackPsFir.cpp"
-"src/RTC/RTCP/FeedbackPsLei.cpp"
-"src/RTC/RTCP/FeedbackPsPli.cpp"
-"src/RTC/RTCP/FeedbackPsRemb.cpp"
-"src/RTC/RTCP/FeedbackPsRpsi.cpp"
-"src/RTC/RTCP/FeedbackPsSli.cpp"
-"src/RTC/RTCP/FeedbackPsTst.cpp"
-"src/RTC/RTCP/FeedbackPsVbcm.cpp"
-"src/RTC/RTCP/FeedbackRtp.cpp"
-"src/RTC/RTCP/FeedbackRtpEcn.cpp"
-"src/RTC/RTCP/FeedbackRtpNack.cpp"
-"src/RTC/RTCP/FeedbackRtpSrReq.cpp"
-"src/RTC/RTCP/FeedbackRtpTllei.cpp"
-"src/RTC/RTCP/FeedbackRtpTmmb.cpp"
-"src/RTC/RTCP/FeedbackRtpTransport.cpp"
-"src/RTC/RTCP/Packet.cpp"
-"src/RTC/RTCP/ReceiverReport.cpp"
-"src/RTC/RTCP/Sdes.cpp"
-"src/RTC/RTCP/SenderReport.cpp"
-"src/RTC/RTCP/XR.cpp"
-"src/RTC/RTCP/XrDelaySinceLastRr.cpp"
-"src/RTC/RTCP/XrReceiverReferenceTime.cpp"
 "src/RTC/RateCalculator.cpp"
 "src/RTC/Router.cpp"
 "src/RTC/RtcLogger.cpp"
-"src/RTC/RtpDictionaries/Media.cpp"
-"src/RTC/RtpDictionaries/Parameters.cpp"
-"src/RTC/RtpDictionaries/RtcpFeedback.cpp"
-"src/RTC/RtpDictionaries/RtcpParameters.cpp"
-"src/RTC/RtpDictionaries/RtpCodecMimeType.cpp"
-"src/RTC/RtpDictionaries/RtpCodecParameters.cpp"
-"src/RTC/RtpDictionaries/RtpEncodingParameters.cpp"
-"src/RTC/RtpDictionaries/RtpHeaderExtensionParameters.cpp"
-"src/RTC/RtpDictionaries/RtpHeaderExtensionUri.cpp"
-"src/RTC/RtpDictionaries/RtpParameters.cpp"
-"src/RTC/RtpDictionaries/RtpRtxParameters.cpp"
 "src/RTC/RtpListener.cpp"
 "src/RTC/RtpObserver.cpp"
 "src/RTC/RtpPacket.cpp"
@@ -234,7 +197,6 @@ set(mediasoup_worker_sources
 "src/RTC/RtpStreamSend.cpp"
 "src/RTC/RtxStream.cpp"
 "src/RTC/SctpAssociation.cpp"
-"src/RTC/SctpDictionaries/SctpStreamParameters.cpp"
 "src/RTC/SctpListener.cpp"
 "src/RTC/SenderBandwidthEstimator.cpp"
 "src/RTC/SeqManager.cpp"
@@ -254,75 +216,60 @@ set(mediasoup_worker_sources
 "src/RTC/UdpSocket.cpp"
 "src/RTC/WebRtcServer.cpp"
 "src/RTC/WebRtcTransport.cpp"
-"src/Settings.cpp"
-"src/Utils/Crypto.cpp"
-"src/Utils/File.cpp"
-"src/Utils/IP.cpp"
-"src/Utils/String.cpp"
-"src/Worker.cpp"
-"src/handles/SignalsHandler.cpp"
-"src/handles/TcpConnectionHandler.cpp"
-"src/handles/TcpServerHandler.cpp"
-"src/handles/Timer.cpp"
-"src/handles/UdpSocketHandler.cpp"
-"src/handles/UnixStreamSocket.cpp"
-"src/lib.cpp"
-"src/main.cpp"
+"src/RTC/Codecs/H264.cpp"
+"src/RTC/Codecs/H264_SVC.cpp"
+"src/RTC/Codecs/VP8.cpp"
+"src/RTC/Codecs/VP9.cpp"
+"src/RTC/Codecs/Opus.cpp"
+"src/RTC/RtpDictionaries/Parameters.cpp"
+"src/RTC/RtpDictionaries/RtcpFeedback.cpp"
+"src/RTC/RtpDictionaries/RtcpParameters.cpp"
+"src/RTC/RtpDictionaries/RtpCodecMimeType.cpp"
+"src/RTC/RtpDictionaries/RtpCodecParameters.cpp"
+"src/RTC/RtpDictionaries/RtpEncodingParameters.cpp"
+"src/RTC/RtpDictionaries/RtpHeaderExtensionParameters.cpp"
+"src/RTC/RtpDictionaries/RtpHeaderExtensionUri.cpp"
+"src/RTC/RtpDictionaries/RtpParameters.cpp"
+"src/RTC/RtpDictionaries/RtpRtxParameters.cpp"
+"src/RTC/SctpDictionaries/SctpStreamParameters.cpp"
+"src/RTC/RTCP/Packet.cpp"
+"src/RTC/RTCP/CompoundPacket.cpp"
+"src/RTC/RTCP/SenderReport.cpp"
+"src/RTC/RTCP/ReceiverReport.cpp"
+"src/RTC/RTCP/Sdes.cpp"
+"src/RTC/RTCP/Bye.cpp"
+"src/RTC/RTCP/Feedback.cpp"
+"src/RTC/RTCP/FeedbackPs.cpp"
+"src/RTC/RTCP/FeedbackRtp.cpp"
+"src/RTC/RTCP/FeedbackRtpNack.cpp"
+"src/RTC/RTCP/FeedbackRtpTmmb.cpp"
+"src/RTC/RTCP/FeedbackRtpSrReq.cpp"
+"src/RTC/RTCP/FeedbackRtpTllei.cpp"
+"src/RTC/RTCP/FeedbackRtpEcn.cpp"
+"src/RTC/RTCP/FeedbackRtpTransport.cpp"
+"src/RTC/RTCP/FeedbackPsPli.cpp"
+"src/RTC/RTCP/FeedbackPsSli.cpp"
+"src/RTC/RTCP/FeedbackPsRpsi.cpp"
+"src/RTC/RTCP/FeedbackPsFir.cpp"
+"src/RTC/RTCP/FeedbackPsTst.cpp"
+"src/RTC/RTCP/FeedbackPsVbcm.cpp"
+"src/RTC/RTCP/FeedbackPsLei.cpp"
+"src/RTC/RTCP/FeedbackPsAfb.cpp"
+"src/RTC/RTCP/FeedbackPsRemb.cpp"
+"src/RTC/RTCP/XR.cpp"
+"src/RTC/RTCP/XrDelaySinceLastRr.cpp"
+"src/RTC/RTCP/XrReceiverReferenceTime.cpp"
 )
+
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux")
+    set(mediasoup_worker_headers ${mediasoup_worker_headers} "include/DepLibUring.hpp")
+    set(mediasoup_worker_sources ${mediasoup_worker_sources} "include/DepLibUring.cpp")
+ENDIF()
 
 add_library(${PROJECT_NAME}
     ${mediasoup_worker_sources}
     ${mediasoup_worker_headers}
 )
-#add_executable(${PROJECT_NAME}
-#    ${mediasoup_worker_sources}
-#    ${mediasoup_worker_headers}
-#)
-#[[
-TODO:
-
-# FIPS.
-      [ 'openssl_fips != ""', {
-        'defines': [ 'BUD_FIPS_ENABLED=1' ]
-      }],
-# Platform-specifics.
-
-      [ 'OS == "mac" and mediasoup_asan == "true"', {
-        'xcode_settings':
-        {
-          'OTHER_CFLAGS': [ '-fsanitize=address' ],
-          'OTHER_LDFLAGS': [ '-fsanitize=address' ]
-        }
-      }],
-
-      [ 'OS == "linux" and mediasoup_asan == "true"', {
-        'cflags': [ '-fsanitize=address' ],
-        'ldflags': [ '-fsanitize=address' ]
-      }],
-# Dependency-specifics.
-
-      [ 'sctp_debug == "true"', {
-        'defines': [ 'SCTP_DEBUG' ]
-      }]
-[ 'OS in "linux freebsd"', {
-        'ldflags': [ '-Wl,--whole-archive <(libopenssl) -Wl,--no-whole-archive' ]
-      }],
-[ 'OS == "win"', {
-
-        # Handle multi files with same name.
-        # https://stackoverflow.com/a/22936230/2085408
-        # https://docs.microsoft.com/en-us/dotnet/api/microsoft.visualstudio.vcprojectengine.vcclcompilertool.objectfile?view=visualstudiosdk-2017#Microsoft_VisualStudio_VCProjectEngine_VCCLCompilerTool_ObjectFile
-        'msvs_settings': {
-          'VCCLCompilerTool': { 'ObjectFile': ['$(IntDir)\%(RelativeDir)\%(Filename).obj'], },
-        },
-
-        # Output Directory setting for msvc.
-        # https://github.com/nodejs/node-gyp/issues/1242#issuecomment-310921441
-        'msvs_configuration_attributes': {
-          'OutputDirectory': '$(SolutionDir)\\out\\$(Configuration)\\'
-        }
-      }],
-]]
 
 if(IS_BIG_ENDIAN)
     target_compile_definitions(${PROJECT_NAME} PRIVATE "MS_BIG_ENDIAN")
@@ -349,17 +296,18 @@ ENDIF(CMAKE_SYSTEM_NAME MATCHES "Linux")
 
 IF(UNIX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC")
 ENDIF()
+
 message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})
+
 IF(APPLE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
     set_property(TARGET ${PROJECT_NAME}
         PROPERTY XCODE_ATTRIBUTE_WARNING_CFLAGS
-        -std=c++14
+        -std=c++17
         PROPERTY XCODE_ATTRIBUTE_OTHER_CPLUSPLUSFLAGS
-
     )
 ENDIF()
 
@@ -367,36 +315,21 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
     include
     ../deps/json/single_include/nlohmann
+    ../release/include/fbs
+    ../release/include/srtp2
 )
 
-target_link_libraries(${PROJECT_NAME}
-    #netstring
-    #uv
-    #ssl
-    # crypto
-    #srtp2
-    #libwebrtc
-)
 # Public (interface) headers from dependencies.
 target_include_directories(${PROJECT_NAME} PUBLIC
 	${PROJECT_INCLUDE_DIR}
   ${LIB_WEBRTC_INCLUDE_DIR}
   ${LIB_WEBRTC_INCLUDE_DIR}/libwebrtc
-  ${LIB_WEBRTC_INCLUDE_DIR}/deps/abseil-cpp
-	
+  ${LIB_WEBRTC_INCLUDE_DIR}/../abseil-cpp
 )
+
 LINK_DIRECTORIES(
 	${PROJECT_LIB_DIR}
 )
-IF(WIN32)
-    target_link_libraries(${PROJECT_NAME}
-        #usrsctp-static
-    )
-ELSE()
-    target_link_libraries(${PROJECT_NAME}
-        #usrsctp
-    )
-ENDIF()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION lib)
 #install(FILES ${mediasoup_worker_headers} DESTINATION include/worker)

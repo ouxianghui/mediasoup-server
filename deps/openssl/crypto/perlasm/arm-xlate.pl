@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2015-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2015-2020 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -22,7 +22,6 @@ my $dotinlocallabels=($flavour=~/linux/)?1:0;
 ################################################################
 my $arch = sub {
     if ($flavour =~ /linux/)	{ ".arch\t".join(',',@_); }
-    elsif ($flavour =~ /win64/) { ".arch\t".join(',',@_); }
     else			{ ""; }
 };
 my $fpu = sub {
@@ -38,7 +37,6 @@ my $rodata = sub {
 };
 my $hidden = sub {
     if ($flavour =~ /ios/)	{ ".private_extern\t".join(',',@_); }
-    elsif ($flavour =~ /win64/) { ""; }
     else			{ ".hidden\t".join(',',@_); }
 };
 my $comm = sub {
@@ -87,15 +85,6 @@ my $type = sub {
 					"#endif";
 				  }
 			        }
-    elsif ($flavour =~ /win64/) { if (join(',',@_) =~ /(\w+),%function/) {
-                # See https://sourceware.org/binutils/docs/as/Pseudo-Ops.html
-                # Per https://docs.microsoft.com/en-us/windows/win32/debug/pe-format#coff-symbol-table,
-                # the type for functions is 0x20, or 32.
-                ".def $1\n".
-                "   .type 32\n".
-                ".endef";
-            }
-        }
     else			{ ""; }
 };
 my $size = sub {
@@ -170,8 +159,9 @@ while(my $line=<>) {
     }
 
     {
-	if ($line =~ s|(^[\.\w]+)\:\s*||) {
-	    my $label = $1;
+	$line =~ s|(^[\.\w]+)\:\s*||;
+	my $label = $1;
+	if ($label) {
 	    printf "%s:",($GLOBALS{$label} or $label);
 	}
     }

@@ -11,6 +11,8 @@
 
 #include <memory>
 #include "rtp_observer_controller.h"
+#include "FBS/notification.h"
+#include "FBS/audioLevelObserver.h"
 
 namespace srv {
 
@@ -43,13 +45,27 @@ namespace srv {
         /**
          * The audio Producer instance.
          */
-        std::shared_ptr<ProducerController> producerController;
+        std::shared_ptr<IProducerController> producerController;
 
         /**
          * The average volume (in dBvo from -127 to 0) of the audio Producer in the
          * last interval.
          */
-        int32_t volume;
+        int8_t volume;
+    };
+
+    struct Volume
+    {
+        /**
+         * The audio Producer Id.
+         */
+        std::string producerId;
+
+        /**
+         * The average volume (in dBvo from -127 to 0) of the audio Producer in the
+         * last interval.
+         */
+        int8_t volume;
     };
 
     struct AudioLevelObserverConstructorOptions : RtpObserverConstructorOptions {};
@@ -73,7 +89,8 @@ namespace srv {
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
     };
 
+    std::shared_ptr<Volume> parseVolume(const FBS::AudioLevelObserver::Volume* binary);
 }

@@ -11,7 +11,8 @@
 
 #include <string>
 #include <vector>
-#include "nlohmann/json.hpp"
+#include "flatbuffers/flexbuffers.h"
+#include "FBS/srtpParameters.h"
 
 namespace srv
 {
@@ -33,8 +34,13 @@ namespace srv
         * SRTP keying material (master key and salt) in Base64.
         */
         std::string keyBase64;
+        
+        flatbuffers::Offset<FBS::SrtpParameters::SrtpParameters> serialize(flatbuffers::FlatBufferBuilder& builder) const;
     };
 
-    void to_json(nlohmann::json& j, const SrtpParameters& st);
-    void from_json(const nlohmann::json& j, SrtpParameters& st);
+    std::string cryptoSuiteFromFbs(const FBS::SrtpParameters::SrtpCryptoSuite cryptoSuite);
+
+    FBS::SrtpParameters::SrtpCryptoSuite cryptoSuiteToFbs(const std::string& cryptoSuite);
+
+    std::shared_ptr<SrtpParameters> parseSrtpParameters(const FBS::SrtpParameters::SrtpParameters* binary);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2015-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -395,26 +395,6 @@ static int digest_update_fn(void *ctx, const unsigned char *buf, size_t buflen)
     return EVP_DigestUpdate(ctx, buf, buflen);
 }
 
-static int test_duplicate_md_ctx(EVP_TEST *t, EVP_MD_CTX *mctx)
-{
-    char dont[] = "touch";
-
-    if (!TEST_ptr(mctx))
-        return 0;
-    if (!EVP_DigestFinalXOF(mctx, (unsigned char *)dont, 0)) {
-        EVP_MD_CTX_free(mctx);
-        t->err = "DIGESTFINALXOF_ERROR";
-        return 0;
-    }
-    if (!TEST_str_eq(dont, "touch")) {
-        EVP_MD_CTX_free(mctx);
-        t->err = "DIGESTFINALXOF_ERROR";
-        return 0;
-    }
-    EVP_MD_CTX_free(mctx);
-    return 1;
-}
-
 static int digest_test_run(EVP_TEST *t)
 {
     DIGEST_DATA *expected = t->data;
@@ -456,19 +436,26 @@ static int digest_test_run(EVP_TEST *t)
     xof = (EVP_MD_get_flags(expected->digest) & EVP_MD_FLAG_XOF) != 0;
     if (xof) {
         EVP_MD_CTX *mctx_cpy;
+        char dont[] = "touch";
 
         if (!TEST_ptr(mctx_cpy = EVP_MD_CTX_new())) {
             goto err;
         }
-        if (!TEST_true(EVP_MD_CTX_copy(mctx_cpy, mctx))) {
+        if (!EVP_MD_CTX_copy(mctx_cpy, mctx)) {
             EVP_MD_CTX_free(mctx_cpy);
             goto err;
-        } else if (!test_duplicate_md_ctx(t, mctx_cpy)) {
+        }
+        if (!EVP_DigestFinalXOF(mctx_cpy, (unsigned char *)dont, 0)) {
+            EVP_MD_CTX_free(mctx_cpy);
+            t->err = "DIGESTFINALXOF_ERROR";
             goto err;
         }
-
-        if (!test_duplicate_md_ctx(t, EVP_MD_CTX_dup(mctx)))
+        if (!TEST_str_eq(dont, "touch")) {
+            EVP_MD_CTX_free(mctx_cpy);
+            t->err = "DIGESTFINALXOF_ERROR";
             goto err;
+        }
+        EVP_MD_CTX_free(mctx_cpy);
 
         got_len = expected->output_len;
         if (!EVP_DigestFinalXOF(mctx, got, got_len)) {
@@ -708,7 +695,7 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
     size_t in_len, out_len, donelen = 0;
     int ok = 0, tmplen, chunklen, tmpflen, i;
     EVP_CIPHER_CTX *ctx_base = NULL;
-    EVP_CIPHER_CTX *ctx = NULL, *duped;
+    EVP_CIPHER_CTX *ctx = NULL;
 
     t->err = "TEST_FAILURE";
     if (!TEST_ptr(ctx_base = EVP_CIPHER_CTX_new()))
@@ -845,12 +832,6 @@ static int cipher_test_enc(EVP_TEST *t, int enc,
     } else {
         EVP_CIPHER_CTX_free(ctx);
         ctx = ctx_base;
-    }
-    /* Likewise for dup */
-    duped = EVP_CIPHER_CTX_dup(ctx);
-    if (duped != NULL) {
-        EVP_CIPHER_CTX_free(ctx);
-        ctx = duped;
     }
     ERR_pop_to_mark();
 
@@ -2759,13 +2740,6 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
     if (p != NULL)
         *p++ = '\0';
 
-    if (strcmp(name, "r") == 0
-        && OSSL_PARAM_locate_const(defs, name) == NULL) {
-        TEST_info("skipping, setting 'r' is unsupported");
-        t->skip = 1;
-        goto end;
-    }
-
     rv = OSSL_PARAM_allocate_from_text(kdata->p, defs, name, p,
                                        p != NULL ? strlen(p) : 0, NULL);
     *++kdata->p = OSSL_PARAM_construct_end();
@@ -2779,7 +2753,6 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
             TEST_info("skipping, '%s' is disabled", p);
             t->skip = 1;
         }
-        goto end;
     }
     if (p != NULL
         && (strcmp(name, "cipher") == 0
@@ -2787,15 +2760,7 @@ static int kdf_test_ctrl(EVP_TEST *t, EVP_KDF_CTX *kctx,
         && is_cipher_disabled(p)) {
         TEST_info("skipping, '%s' is disabled", p);
         t->skip = 1;
-        goto end;
     }
-    if (p != NULL
-        && (strcmp(name, "mac") == 0)
-        && is_mac_disabled(p)) {
-        TEST_info("skipping, '%s' is disabled", p);
-        t->skip = 1;
-    }
- end:
     OPENSSL_free(name);
     return 1;
 }
@@ -2817,7 +2782,6 @@ static int kdf_test_run(EVP_TEST *t)
     KDF_DATA *expected = t->data;
     unsigned char *got = NULL;
     size_t got_len = expected->output_len;
-    EVP_KDF_CTX *ctx;
 
     if (!EVP_KDF_CTX_set_params(expected->ctx, expected->params)) {
         t->err = "KDF_CTRL_ERROR";
@@ -2826,10 +2790,6 @@ static int kdf_test_run(EVP_TEST *t)
     if (!TEST_ptr(got = OPENSSL_malloc(got_len == 0 ? 1 : got_len))) {
         t->err = "INTERNAL_ERROR";
         goto err;
-    }
-    if ((ctx = EVP_KDF_CTX_dup(expected->ctx)) != NULL) {
-        EVP_KDF_CTX_free(expected->ctx);
-        expected->ctx = ctx;
     }
     if (EVP_KDF_derive(expected->ctx, got, got_len, NULL) <= 0) {
         t->err = "KDF_DERIVE_ERROR";
@@ -3723,11 +3683,11 @@ static int prov_available(char *providers)
     int more = 1;
 
     while (more) {
-        for (; isspace((unsigned char)(*providers)); providers++)
+        for (; isspace(*providers); providers++)
             continue;
         if (*providers == '\0')
             break;               /* End of the road */
-        for (p = providers; *p != '\0' && !isspace((unsigned char)(*p)); p++)
+        for (p = providers; *p != '\0' && !isspace(*p); p++)
             continue;
         if (*p == '\0')
             more = 0;

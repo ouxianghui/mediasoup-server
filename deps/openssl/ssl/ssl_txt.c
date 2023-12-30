@@ -151,7 +151,7 @@ int SSL_SESSION_print(BIO *bp, const SSL_SESSION *x)
 
     if (istls13) {
         if (BIO_printf(bp, "    Max Early Data: %u\n",
-                       (unsigned int)x->ext.max_early_data) <= 0)
+                       x->ext.max_early_data) <= 0)
             goto err;
     }
 

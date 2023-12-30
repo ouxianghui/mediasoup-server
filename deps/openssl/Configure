@@ -597,12 +597,13 @@ my @disable_cascades = (
 
     "crypto-mdebug"     => [ "crypto-mdebug-backtrace" ],
 
-    "module"            => [ "dynamic-engine", "fips" ],
+    # If no modules, then no dynamic engines either
+    "module"            => [ "dynamic-engine" ],
 
     # Without shared libraries, dynamic engines aren't possible.
     # This is due to them having to link with libcrypto and register features
     # using the ENGINE functionality, and since that relies on global tables,
-    # those *have* to be exactly the same as the ones accessed from the app,
+    # those *have* to be exacty the same as the ones accessed from the app,
     # which cannot be guaranteed if shared libraries aren't present.
     # (note that even with shared libraries, both the app and dynamic engines
     # must be linked with the same library)
@@ -614,6 +615,8 @@ my @disable_cascades = (
     # Without position independent code, there can be no shared libraries
     # or modules.
     "pic"               => [ "shared", "module" ],
+
+    "module"            => [ "fips", "dso" ],
 
     "engine"            => [ "dynamic-engine", grep(/eng$/, @disablables) ],
     "dynamic-engine"    => [ "loadereng" ],
@@ -1420,7 +1423,7 @@ if ($target =~ /^mingw/ && `$config{CC} --target-help 2>&1` =~ m/-mno-cygwin/m)
         }
 
 if ($target =~ /linux.*-mips/ && !$disabled{asm}
-        && !grep { $_ =~ /-m(ips|arch=)/ } (@{$config{CFLAGS}})) {
+        && !grep { $_ !~ /-m(ips|arch=)/ } (@{$config{CFLAGS}})) {
         # minimally required architecture flags for assembly modules
         my $value;
         $value = '-mips2' if ($target =~ /mips32/);
@@ -1544,7 +1547,7 @@ my %predefined_CXX = $config{CXX}
 
 unless ($disabled{asm}) {
     # big endian systems can use ELFv2 ABI
-    if ($target eq "linux-ppc64" || $target eq "BSD-ppc64") {
+    if ($target eq "linux-ppc64") {
         $target{perlasm_scheme} = "linux64v2" if ($predefined_C{_CALL_ELF} == 2);
     }
 }
@@ -1675,7 +1678,20 @@ $config{CFLAGS} = [ map { $_ eq '--ossl-strict-warnings'
 unless ($disabled{afalgeng}) {
     $config{afalgeng}="";
     if (grep { $_ eq 'afalgeng' } @{$target{enable}}) {
-        push @{$config{engdirs}}, "afalg";
+        my $minver = 4*10000 + 1*100 + 0;
+        if ($config{CROSS_COMPILE} eq "") {
+            my $verstr = `uname -r`;
+            my ($ma, $mi1, $mi2) = split("\\.", $verstr);
+            ($mi2) = $mi2 =~ /(\d+)/;
+            my $ver = $ma*10000 + $mi1*100 + $mi2;
+            if ($ver < $minver) {
+                disable('too-old-kernel', 'afalgeng');
+            } else {
+                push @{$config{engdirs}}, "afalg";
+            }
+        } else {
+            disable('cross-compiling', 'afalgeng');
+        }
     } else {
         disable('not-linux', 'afalgeng');
     }
@@ -1775,7 +1791,7 @@ my %skipdir = ();
 my %disabled_info = ();         # For configdata.pm
 foreach my $what (sort keys %disabled) {
     # There are deprecated disablables that translate to themselves.
-    # They cause disabling cascades, but should otherwise not register.
+    # They cause disabling cascades, but should otherwise not regiter.
     next if $deprecated_disablables{$what};
     # The generated $disabled{"deprecated-x.y"} entries are special
     # and treated properly elsewhere

@@ -1,7 +1,7 @@
 {
-	"domain": "192.168.0.104",
+	"domain": "192.168.0.101",
 	"https": {
-		"listenIp": "192.168.0.104",
+		"listenIp": "192.168.0.101",
 		"listenPort": 4443,
 		"tls": {
 			"cert": "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_cert.crt",
@@ -9,12 +9,14 @@
 		}
 	},
 	"mediasoup": {
-		"numWorkers": 4,
+		"numWorkers": 2,
 		"useWebRtcServer": true,
+		"multiprocess": false,
+		"workerPath": "/Users/jackie.ou/Desktop/Research/dev/mediasoup/worker/out/Release/mediasoup-worker",
 		"workerSettings": {
 			"dtlsCertificateFile": "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_cert.crt",
 			"dtlsPrivateKeyFile":  "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_key.pem",
-			"logLevel": "warn",
+			"logLevel": "debug",
 			"logTags": [
 				"info",
 				"ice",
@@ -31,7 +33,7 @@
 			],
 			"rtcMinPort": 40000,
 			"rtcMaxPort": 49999
-		},
+		}, 
 		"routerOptions": {
 			"mediaCodecs": [{
 					"kind": "audio",
@@ -84,31 +86,31 @@
 			"listenInfos": [{
 					"protocol": "udp",
 					"ip": "0.0.0.0",
-					"announcedIp": "192.168.0.104",
-					"port": 44444
+					"announcedIp": "192.168.0.101",
+					"port": 44487
 				},
 				{
 					"protocol": "tcp",
 					"ip": "0.0.0.0",
-					"announcedIp": "192.168.0.104",
-					"port": 44444
+					"announcedIp": "192.168.0.101",
+					"port": 44487
 				}
 			]
 		},
 		"webRtcTransportOptions": {
 			"listenIps": [{
 				"ip": "0.0.0.0",
-				"announcedIp": "192.168.0.104"
+				"announcedIp": "192.168.0.101"
 			}],
-			"initialAvailableOutgoingBitrate": 1000000,
+			"initialAvailableOutgoingBitrate": 1300000,
 			"minimumAvailableOutgoingBitrate": 600000,
 			"maxSctpMessageSize": 262144,
-			"maxIncomingBitrate": 1500000
+			"maxIncomingBitrate": 2500000
 		},
 		"plainTransportOptions": {
 			"listenIp": {
 				"ip": "0.0.0.0",
-				"announcedIp": "192.168.0.104"
+				"announcedIp": "192.168.0.101"
 			},
 			"maxSctpMessageSize": 262144
 		}

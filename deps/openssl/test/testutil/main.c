@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2018 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -15,7 +15,6 @@
 int main(int argc, char *argv[])
 {
     int ret = EXIT_FAILURE;
-    int setup_res;
 
     test_open_streams();
 
@@ -27,11 +26,11 @@ int main(int argc, char *argv[])
     if (!setup_test_framework(argc, argv))
         goto end;
 
-    if ((setup_res = setup_tests()) > 0) {
+    if (setup_tests()) {
         ret = run_tests(argv[0]);
         cleanup_tests();
         opt_check_usage();
-    } else if (setup_res == 0) {
+    } else {
         opt_help(test_get_options());
     }
 end:

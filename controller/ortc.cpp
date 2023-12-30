@@ -16,7 +16,27 @@
 #include "h264_profile_level_id.h"
 #include "utils.h"
 
-#define MSC_CLASS "ortc"
+#define SRV_CLASS "ortc"
+
+namespace Utils
+{
+    class Json
+    {
+    public:
+        static bool IsPositiveInteger(const nlohmann::json& value)
+        {
+            if (value.is_number_unsigned()) {
+                return true;
+            }
+            else if (value.is_number_integer()) {
+                return value.get<int64_t>() >= 0;
+            }
+            else {
+                return false;
+            }
+        }
+    };
+}
 
 namespace srv {
     
@@ -961,7 +981,7 @@ namespace srv {
             RtpCodecParameters associatedMediaCodec;
             bool matched = false;
             int apt = 0;
-            for (auto & pair : codec.parameters) {
+            for (auto & pair : codec.getParameters()) {
                 if (pair.first == "apt") {
                     apt = pair.second;
                 }
@@ -1020,7 +1040,7 @@ namespace srv {
         auto mappedSsrc = srv::getRandomInteger(100000000, 999999999);
         
         for (auto &encoding : params.encodings) {
-            RtpMappingEncoding mappedEncoding;
+            RtpEncodingMapping mappedEncoding;
             
             mappedEncoding.mappedSsrc = mappedSsrc++;
             
@@ -1093,7 +1113,7 @@ namespace srv {
             consumableCodec.payloadType = matchedCapCodec.preferredPayloadType;
             consumableCodec.clockRate = matchedCapCodec.clockRate;
             consumableCodec.channels = matchedCapCodec.channels;
-            consumableCodec.parameters = codec.parameters; // Keep the Producer codec parameters.
+            consumableCodec.setParameters(codec.getParameters()); // Keep the Producer codec parameters.
             consumableCodec.rtcpFeedback = matchedCapCodec.rtcpFeedback;
             
             consumableParams.codecs.push_back(consumableCodec);
@@ -1123,7 +1143,7 @@ namespace srv {
                 consumableRtxCodec.mimeType = consumableCapRtxCodec.mimeType;
                 consumableRtxCodec.payloadType = consumableCapRtxCodec.preferredPayloadType;
                 consumableRtxCodec.clockRate = consumableCapRtxCodec.clockRate;
-                consumableRtxCodec.parameters = consumableCapRtxCodec.parameters;
+                consumableRtxCodec.setParameters(consumableCapRtxCodec.parameters);
                 consumableRtxCodec.rtcpFeedback = consumableCapRtxCodec.rtcpFeedback;
                 consumableParams.codecs.push_back(consumableRtxCodec);
             }
@@ -1260,7 +1280,7 @@ namespace srv {
                 for (auto& mediaCodec : consumerParams.codecs) {
                     nlohmann::json jmediaCodec = mediaCodec;
                     int capapt = 0;
-                    for (auto & pair : codec.parameters) {
+                    for (auto & pair : codec.getParameters()) {
                         if (pair.first == "apt") {
                             capapt = pair.second;
                         }
@@ -1485,13 +1505,12 @@ namespace srv {
         
         return consumerParams;
     }
-
 }
 
 
 namespace srv {
 
-    void from_json(const nlohmann::json& j, RtpMappingCodec& st) {
+    void from_json(const nlohmann::json& j, RtpCodecMapping& st) {
         if (j.contains("payloadType")) {
             j.at("payloadType").get_to(st.payloadType);
         }
@@ -1500,12 +1519,12 @@ namespace srv {
         }
     }
 
-    void to_json(nlohmann::json& j, RtpMappingCodec& st) {
+    void to_json(nlohmann::json& j, RtpCodecMapping& st) {
         j["payloadType"] = st.payloadType;
         j["mappedPayloadType"] = st.mappedPayloadType;
     }
 
-    void from_json(const nlohmann::json& j, RtpMappingEncoding& st) {
+    void from_json(const nlohmann::json& j, RtpEncodingMapping& st) {
         if (j.contains("ssrc")) {
             j.at("ssrc").get_to(st.ssrc);
         }
@@ -1520,7 +1539,7 @@ namespace srv {
         }
     }
 
-    void to_json(nlohmann::json& j, RtpMappingEncoding& st) {
+    void to_json(nlohmann::json& j, RtpEncodingMapping& st) {
         j["ssrc"] = st.ssrc;
         j["rid"] = st.rid;
         j["scalabilityMode"] = st.scalabilityMode;
@@ -1541,4 +1560,122 @@ namespace srv {
         j["encodings"] = st.encodings;
     }
 
+    flatbuffers::Offset<FBS::RtpParameters::RtpMapping> RtpMappingFbs::serialize(flatbuffers::FlatBufferBuilder& builder) const
+    {
+        // Add rtpMapping.codecs.
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::CodecMapping>> codecs;
+
+        for (const auto& kv : this->codecs) {
+            codecs.emplace_back(FBS::RtpParameters::CreateCodecMapping(builder, kv.first, kv.second));
+        }
+
+        // Add rtpMapping.encodings.
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::EncodingMapping>> encodings;
+        encodings.reserve(this->encodings.size());
+
+        for (const auto& encodingMapping : this->encodings) {
+            encodings.emplace_back(FBS::RtpParameters::CreateEncodingMappingDirect(
+              builder,
+              encodingMapping.rid.c_str(),
+              encodingMapping.ssrc != 0u ? flatbuffers::Optional<uint32_t>(encodingMapping.ssrc)
+                                         : flatbuffers::nullopt,
+              nullptr, /* capability mode. NOTE: Present in NODE*/
+              encodingMapping.mappedSsrc));
+        }
+
+        // Build rtpMapping.
+        auto rtpMapping = FBS::RtpParameters::CreateRtpMappingDirect(builder, &codecs, &encodings);
+        
+        return rtpMapping;
+    }
+
+    void convert(const nlohmann::json& data, RtpMappingFbs& rtpMapping)
+    {
+        auto jsonRtpMappingIt = data.find("rtpMapping");
+
+        if (jsonRtpMappingIt == data.end() || !jsonRtpMappingIt->is_object()) {
+            SRV_THROW_TYPE_ERROR("missing rtpMapping");
+        }
+
+        auto jsonCodecsIt = jsonRtpMappingIt->find("codecs");
+
+        if (jsonCodecsIt == jsonRtpMappingIt->end() || !jsonCodecsIt->is_array()) {
+            SRV_THROW_TYPE_ERROR("missing rtpMapping.codecs");
+        }
+
+        for (auto& codec : *jsonCodecsIt) {
+            if (!codec.is_object())
+            {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.codecs (not an object)");
+            }
+
+            auto jsonPayloadTypeIt = codec.find("payloadType");
+
+            if (jsonPayloadTypeIt == codec.end() || !Utils::Json::IsPositiveInteger(*jsonPayloadTypeIt)) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.codecs (missing payloadType)");
+            }
+
+            auto jsonMappedPayloadTypeIt = codec.find("mappedPayloadType");
+
+            if (jsonMappedPayloadTypeIt == codec.end() || !Utils::Json::IsPositiveInteger(*jsonMappedPayloadTypeIt)) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.codecs (missing mappedPayloadType)");
+            }
+
+            rtpMapping.codecs[jsonPayloadTypeIt->get<uint8_t>()] = jsonMappedPayloadTypeIt->get<uint8_t>();
+        }
+
+        auto jsonEncodingsIt = jsonRtpMappingIt->find("encodings");
+
+        if (jsonEncodingsIt == jsonRtpMappingIt->end() || !jsonEncodingsIt->is_array()) {
+            SRV_THROW_TYPE_ERROR("missing rtpMapping.encodings");
+        }
+
+        rtpMapping.encodings.reserve(jsonEncodingsIt->size());
+
+        for (auto& encoding : *jsonEncodingsIt) {
+            if (!encoding.is_object()) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings");
+            }
+
+            rtpMapping.encodings.emplace_back();
+
+            auto& encodingMapping = rtpMapping.encodings.back();
+
+            // ssrc is optional.
+            auto jsonSsrcIt = encoding.find("ssrc");
+
+            if (jsonSsrcIt != encoding.end() && Utils::Json::IsPositiveInteger(*jsonSsrcIt)) {
+                encodingMapping.ssrc = jsonSsrcIt->get<uint32_t>();
+            }
+
+            // rid is optional.
+            auto jsonRidIt = encoding.find("rid");
+
+            if (jsonRidIt != encoding.end() && jsonRidIt->is_string()) {
+                encodingMapping.rid = jsonRidIt->get<std::string>();
+            }
+
+            // However ssrc or rid must be present (if more than 1 encoding).
+            if (jsonEncodingsIt->size() > 1 && jsonSsrcIt == encoding.end() && jsonRidIt == encoding.end()) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings (missing ssrc or rid)");
+            }
+
+            // // If there is no mid and a single encoding, ssrc or rid must be present.
+            // if (rtpParameters.mid.empty() &&
+            //     jsonEncodingsIt->size() == 1 &&
+            //     jsonSsrcIt == encoding.end() &&
+            //     jsonRidIt == encoding.end()) {
+            //     SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings (missing ssrc or rid, or rtpParameters.mid)");
+            // }
+
+            // mappedSsrc is mandatory.
+            auto jsonMappedSsrcIt = encoding.find("mappedSsrc");
+
+            if (jsonMappedSsrcIt == encoding.end() || !Utils::Json::IsPositiveInteger(*jsonMappedSsrcIt)) {
+                SRV_THROW_TYPE_ERROR("wrong entry in rtpMapping.encodings (missing mappedSsrc)");
+            }
+
+            encodingMapping.mappedSsrc = jsonMappedSsrcIt->get<uint32_t>();
+        }
+    }
 }

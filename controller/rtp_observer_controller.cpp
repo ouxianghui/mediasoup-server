@@ -12,8 +12,8 @@
 #include "types.h"
 #include "uuid.h"
 #include "channel.h"
-#include "payload_channel.h"
-
+#include "FBS/rtpObserver.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -21,6 +21,10 @@ namespace srv {
     : _options(options)
     {
         SRV_LOGD("RtpObserverController()");
+        _internal = options->internal;
+        _channel = options->channel;
+        _getProducerController = options->getProducerController;
+        _appData = options->appData;
     }
 
     RtpObserverController::~RtpObserverController()
@@ -43,18 +47,23 @@ namespace srv {
         if (!channel) {
             return;
         }
+        
         channel->notificationSignal.disconnect(shared_from_this());
+    
+        flatbuffers::FlatBufferBuilder builder;
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
+        auto reqId = channel->genRequestId();
         
-        nlohmann::json reqData;
-        reqData["rtpObserverId"] = _internal.rtpObserverId;
+        auto reqOffset = FBS::Router::CreateCloseRtpObserverRequestDirect(builder, _internal.rtpObserverId.c_str());
         
-        channel->request("router.closeRtpObserver", _internal.routerId, reqData.dump());
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.routerId,
+                                                     FBS::Request::Method::ROUTER_CLOSE_RTPOBSERVER,
+                                                     FBS::Request::Body::Router_CloseRtpObserverRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
         
         this->closeSignal();
     }
@@ -74,13 +83,8 @@ namespace srv {
         if (!channel) {
             return;
         }
-        channel->notificationSignal.disconnect(shared_from_this());
         
-        auto payloadChannel = _payloadChannel.lock();
-        if (!payloadChannel) {
-            return;
-        }
-        payloadChannel->notificationSignal.disconnect(shared_from_this());
+        channel->notificationSignal.disconnect(shared_from_this());
         
         this->routerCloseSignal();
         
@@ -98,8 +102,17 @@ namespace srv {
         
         bool wasPaused = _paused;
 
-        channel->request("rtpObserver.pause", _internal.rtpObserverId, "{}");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_PAUSE);
 
+        channel->request(reqId, reqData);
+        
         _paused = true;
 
         // Emit observer event.
@@ -119,8 +132,17 @@ namespace srv {
         
         bool wasPaused = _paused;
 
-        channel->request("rtpObserver.resume", _internal.rtpObserverId, "{}");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_RESUME);
 
+        channel->request(reqId, reqData);
+        
         _paused = false;
 
         // Emit observer event.
@@ -154,11 +176,21 @@ namespace srv {
             return;
         }
 
-        nlohmann::json reqData;
-        reqData["producerId"] = producerId;
-
-        channel->request("rtpObserver.addProducer", _internal.rtpObserverId, reqData.dump());
-
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqOffset = FBS::RtpObserver::CreateAddProducerRequestDirect(builder, producerId.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_ADD_PRODUCER,
+                                                     FBS::Request::Body::RtpObserver_AddProducerRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
+        
         this->addProducerSignal(producer);
     }
 
@@ -187,11 +219,21 @@ namespace srv {
             return;
         }
 
-        nlohmann::json reqData;
-        reqData["producerId"] = producerId;
-
-        channel->request("rtpObserver.removeProducer", _internal.rtpObserverId, reqData.dump());
-
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqOffset = FBS::RtpObserver::CreateRemoveProducerRequestDirect(builder, producerId.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _internal.rtpObserverId,
+                                                     FBS::Request::Method::RTPOBSERVER_REMOVE_PRODUCER,
+                                                     FBS::Request::Body::RtpObserver_RemoveProducerRequest,
+                                                     reqOffset);
+        
+        channel->request(reqId, reqData);
+        
         this->removeProducerSignal(producer);
     }
 

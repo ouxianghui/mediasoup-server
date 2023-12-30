@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2015-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2015-2022 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -44,8 +44,6 @@ my @files = qw(
                 evpciph_aes_stitched.txt
                 evpciph_des3_common.txt
                 evpkdf_hkdf.txt
-                evpkdf_kbkdf_counter.txt
-                evpkdf_kbkdf_kmac.txt
                 evpkdf_pbkdf1.txt
                 evpkdf_pbkdf2.txt
                 evpkdf_ss.txt
@@ -84,7 +82,7 @@ push @files, qw(
 my @defltfiles = qw(
                      evpciph_aes_ocb.txt
                      evpciph_aes_siv.txt
-                     evpciph_aria.txt
+                     evpciph_aria.txt 
                      evpciph_bf.txt
                      evpciph_camellia.txt
                      evpciph_camellia_cts.txt
@@ -175,8 +173,7 @@ sub test_errors { # actually tests diagnostics of OSSL_STORE
 }
 
 SKIP: {
-    skip "DSA not disabled or ERR disabled", 2
-        if !disabled("dsa") || disabled("err");
+    skip "DSA not disabled", 2 if !disabled("dsa");
 
     ok(test_errors(key => 'server-dsa-key.pem',
                    out => 'server-dsa-key.err'),

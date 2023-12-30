@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -20,9 +20,6 @@
 #include <openssl/sha.h>
 #include "dsa_local.h"
 #include <openssl/asn1.h>
-
-#define MIN_DSA_SIGN_QBITS   128
-#define MAX_DSA_SIGN_RETRIES 8
 
 static DSA_SIG *dsa_do_sign(const unsigned char *dgst, int dlen, DSA *dsa);
 static int dsa_sign_setup_no_digest(DSA *dsa, BN_CTX *ctx_in, BIGNUM **kinvp,
@@ -78,7 +75,6 @@ DSA_SIG *ossl_dsa_do_sign_int(const unsigned char *dgst, int dlen, DSA *dsa)
     int reason = ERR_R_BN_LIB;
     DSA_SIG *ret = NULL;
     int rv = 0;
-    int retries = 0;
 
     if (dsa->params.p == NULL
         || dsa->params.q == NULL
@@ -133,10 +129,7 @@ DSA_SIG *ossl_dsa_do_sign_int(const unsigned char *dgst, int dlen, DSA *dsa)
      *   s := blind^-1 * k^-1 * (blind * m + blind * r * priv_key) mod q
      */
 
-    /*
-     * Generate a blinding value
-     * The size of q is tested in dsa_sign_setup() so there should not be an infinite loop here.
-     */
+    /* Generate a blinding value */
     do {
         if (!BN_priv_rand_ex(blind, BN_num_bits(dsa->params.q) - 1,
                              BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ANY, 0, ctx))
@@ -171,19 +164,14 @@ DSA_SIG *ossl_dsa_do_sign_int(const unsigned char *dgst, int dlen, DSA *dsa)
         goto err;
 
     /*
-     * Redo if r or s is zero as required by FIPS 186-4: Section 4.6
-     * This is very unlikely.
-     * Limit the retries so there is no possibility of an infinite
-     * loop for bad domain parameter values.
+     * Redo if r or s is zero as required by FIPS 186-3: this is very
+     * unlikely.
      */
-    if (BN_is_zero(ret->r) || BN_is_zero(ret->s)) {
-        if (retries++ > MAX_DSA_SIGN_RETRIES) {
-            reason = DSA_R_TOO_MANY_RETRIES;
-            goto err;
-        }
+    if (BN_is_zero(ret->r) || BN_is_zero(ret->s))
         goto redo;
-    }
+
     rv = 1;
+
  err:
     if (rv == 0) {
         ERR_raise(ERR_LIB_DSA, reason);
@@ -224,10 +212,7 @@ static int dsa_sign_setup(DSA *dsa, BN_CTX *ctx_in,
     /* Reject obviously invalid parameters */
     if (BN_is_zero(dsa->params.p)
         || BN_is_zero(dsa->params.q)
-        || BN_is_zero(dsa->params.g)
-        || BN_is_negative(dsa->params.p)
-        || BN_is_negative(dsa->params.q)
-        || BN_is_negative(dsa->params.g)) {
+        || BN_is_zero(dsa->params.g)) {
         ERR_raise(ERR_LIB_DSA, DSA_R_INVALID_PARAMETERS);
         return 0;
     }
@@ -235,6 +220,7 @@ static int dsa_sign_setup(DSA *dsa, BN_CTX *ctx_in,
         ERR_raise(ERR_LIB_DSA, DSA_R_MISSING_PRIVATE_KEY);
         return 0;
     }
+
     k = BN_new();
     l = BN_new();
     if (k == NULL || l == NULL)
@@ -250,8 +236,7 @@ static int dsa_sign_setup(DSA *dsa, BN_CTX *ctx_in,
     /* Preallocate space */
     q_bits = BN_num_bits(dsa->params.q);
     q_words = bn_get_top(dsa->params.q);
-    if (q_bits < MIN_DSA_SIGN_QBITS
-        || !bn_wexpand(k, q_words + 2)
+    if (!bn_wexpand(k, q_words + 2)
         || !bn_wexpand(l, q_words + 2))
         goto err;
 
@@ -441,6 +426,7 @@ static int dsa_do_verify(const unsigned char *dgst, int dgst_len,
 static int dsa_init(DSA *dsa)
 {
     dsa->flags |= DSA_FLAG_CACHE_MONT_P;
+    ossl_ffc_params_init(&dsa->params);
     dsa->dirty_cnt++;
     return 1;
 }

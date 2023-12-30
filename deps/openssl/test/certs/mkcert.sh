@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
 # Copyright (c) 2016 Viktor Dukhovni <openssl-users@dukhovni.org>.
 # All rights reserved.
 #
@@ -119,12 +119,11 @@ genca() {
     local OPTIND=1
     local purpose=
 
-    while getopts p:c: o
+    while getopts p: o
     do
         case $o in
         p) purpose="$OPTARG";;
-        c) certpol="$OPTARG";;
-        *) echo "Usage: $0 genca [-p EKU][-c policyoid] cn keyname certname cakeyname cacertname" >&2
+        *) echo "Usage: $0 genca [-p EKU] cn keyname certname cakeyname cacertname" >&2
            return 1;;
         esac
     done
@@ -147,10 +146,6 @@ genca() {
     if [ -n "$NC" ]; then
         exts=$(printf "%s\nnameConstraints = %s\n" "$exts" "$NC")
     fi
-    if [ -n "$certpol" ]; then
-        exts=$(printf "%s\ncertificatePolicies = %s\n" "$exts" "$certpol")
-    fi
-
     csr=$(req "$key" "CN = $cn") || return 1
     echo "$csr" |
         cert "$cert" "$exts" -CA "${cacert}.pem" -CAkey "${cakey}.pem" \

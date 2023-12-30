@@ -4,12 +4,12 @@ set(PROJECT_NAME "controller")
 project(${PROJECT_NAME})
 
 # C++ standard requirements.
-set(CMAKE_CXX_STANDAR 14)
+set(CMAKE_CXX_STANDAR 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 IF(UNIX)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++14")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -g -gdwarf-2 -Wall -Wendif-labels -W -Wno-unused-parameter -Wall -Wextra -Wno-unused-parameter -std=c++17")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC")
 ENDIF()
 message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})
@@ -17,20 +17,15 @@ message(STATUS "CMAKE_CXX_FLAGS : " ${CMAKE_CXX_FLAGS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 set(headers
-  # i_consumer_controller.h
-  # i_data_consumer_controller.h
-  # i_data_producer_controller.h
-  # i_direct_transport_controller.h
-  # i_pipe_transport_controller.h
-  # i_plain_transport_controller.h
-  # i_producer_controller.h
-  # i_router_controller.h
-  # i_webrtc_server_controller.h
-  # i_webrtc_transport_controller.h
-  # i_worker_controller.h
-  # i_rtp_observer_controller.h
-  # i_router_controller.h
-  # i_webrtc_server_controller.h
+  interface/i_consumer_controller.h 
+  interface/i_data_consumer_controller.h 
+  interface/i_data_producer_controller.h 
+  interface/i_producer_controller.h 
+  interface/i_transport_controller.h 
+  interface/i_router_controller.h 
+  interface/i_rtp_observer_controller.h 
+  interface/i_webrtc_server_controller.h 
+  interface/i_worker_controller.h 
   config.h
   rtc_export.h
   common_types.h
@@ -40,10 +35,14 @@ set(headers
   h264_profile_level_id.h
   ortc.h
   engine.h
+  unix_stream_socket_handle.h
   srv_logger.h
+  message_builder.h
+  channel_socket.h
   channel.h
-  payload_channel.h
   worker_controller.h
+  rtp_stream.h
+  parameters.h
   srtp_parameters.h
   sctp_parameters.h
   scalability_mode.h
@@ -54,7 +53,7 @@ set(headers
   active_speaker_observer_controller.h
   router_controller.h
   webrtc_server_controller.h
-  transport_controller.h
+  abstract_transport_controller.h
   direct_transport_controller.h
   plain_transport_controller.h
   pipe_transport_controller.h
@@ -66,14 +65,20 @@ set(headers
 )
 
 set(sources
+  types.cpp
   config.cpp
+  utils.cpp
   uuid.cpp
   h264_profile_level_id.cc
   ortc.cpp
   engine.cpp
+  unix_stream_socket_handle.cpp
+  message_builder.cpp
+  channel_socket.cpp
   channel.cpp
-  payload_channel.cpp
   worker_controller.cpp
+  rtp_stream.cpp
+  parameters.cpp
   srtp_parameters.cpp
   sctp_parameters.cpp
   scalability_mode.cpp
@@ -84,7 +89,7 @@ set(sources
   active_speaker_observer_controller.cpp
   router_controller.cpp
   webrtc_server_controller.cpp
-  transport_controller.cpp
+  abstract_transport_controller.cpp
   direct_transport_controller.cpp
   plain_transport_controller.cpp
   pipe_transport_controller.cpp
@@ -109,8 +114,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   ${LIB_WEBRTC_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/json/single_include
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libwebrtc/deps/abseil-cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/libsdptransform
   ${CMAKE_CURRENT_SOURCE_DIR}/../deps/asio/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/../deps/stl
+  ${CMAKE_CURRENT_SOURCE_DIR}/../release/include/fbs
   ${PROJECT_INCLUDE_DIR}
 )
 

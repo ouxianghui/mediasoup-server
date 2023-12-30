@@ -11,6 +11,7 @@
 #include "srv_logger.h"
 #include "channel.h"
 #include "webrtc_transport_controller.h"
+#include "message_builder.h"
 
 namespace srv {
 
@@ -37,16 +38,33 @@ namespace srv {
         SRV_LOGD("destroy()");
     }
 
-    nlohmann::json WebRtcServerController::dump()
+    std::shared_ptr<WebRtcServerDump> WebRtcServerController::dump()
     {
         SRV_LOGD("dump()");
 
         auto channel = _channel.lock();
         if (!channel) {
-            return nlohmann::json();
+            return nullptr;
         }
         
-        return channel->request("webRtcServer.dump", _id, "{}");
+        flatbuffers::FlatBufferBuilder builder;
+        
+        auto reqId = channel->genRequestId();
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _id,
+                                                     FBS::Request::Method::WEBRTCSERVER_DUMP);
+        
+        auto respData = channel->request(reqId, reqData);
+        
+        auto message = FBS::Message::GetMessage(respData.data());
+        
+        auto response = message->data_as_Response();
+        
+        auto dumpResponse = response->body_as_WebRtcServer_DumpResponse();
+        
+        return parseWebRtcServerDump(dumpResponse);
     }
 
     void WebRtcServerController::onWorkerClosed()
@@ -58,13 +76,10 @@ namespace srv {
         SRV_LOGD("workerClosed()");
 
         _closed = true;
-
-        {
-            std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-            // NOTE: No need to close WebRtcTransports since they are closed by their
-            // respective Router parents.
-            _webRtcTransportMap.clear();
-        }
+        
+        // NOTE: No need to close WebRtcTransports since they are closed by their
+        // respective Router parents.
+        _webRtcTransportMap.clear();
 
         this->workerCloseSignal();
 
@@ -82,39 +97,43 @@ namespace srv {
 
         _closed = true;
 
-        nlohmann::json reqData;
-        reqData["webRtcServerId"] = _id;
-
         auto channel = _channel.lock();
         if (!channel) {
             return;
         }
+     
+        flatbuffers::FlatBufferBuilder builder;
         
-        channel->request("worker.closeWebRtcServer", "", reqData.dump());
+        auto reqId = channel->genRequestId();
+        
+        auto reqOffset = FBS::Worker::CreateCloseWebRtcServerRequestDirect(builder, _id.c_str());
+        
+        auto reqData = MessageBuilder::createRequest(builder,
+                                                     reqId,
+                                                     _id,
+                                                     FBS::Request::Method::WORKER_WEBRTCSERVER_CLOSE,
+                                                     FBS::Request::Body::Worker_CloseWebRtcServerRequest,
+                                                     reqOffset);
 
-        {
-            std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-            
-            // Close every WebRtcTransport.
-            for (const auto& webRtcTransport : _webRtcTransportMap) {
-                auto transport = webRtcTransport.second;
-                
-                transport->onListenServerClosed();
-                
-                this->webrtcTransportUnhandledSignal(transport);
-            }
-            _webRtcTransportMap.clear();
-        }
+        channel->request(reqId, reqData);
+        
+        std::threadsafe_unordered_map<std::string, std::shared_ptr<WebRtcTransportController>> webRtcTransportMap = _webRtcTransportMap.value();
+        
+        // Close every WebRtcTransport.
+        webRtcTransportMap.for_each ([this](const auto& webRtcTransport) {
+            auto transport = webRtcTransport.second;
+            transport->onWebRtcServerClosed();
+            this->webrtcTransportUnhandledSignal(transport);
+        });
+        
+        _webRtcTransportMap.clear();
 
         this->closeSignal(shared_from_this());
     }
 
     void WebRtcServerController::handleWebRtcTransport(const std::shared_ptr<WebRtcTransportController>& transportController)
     {
-        {
-            std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-            _webRtcTransportMap[transportController->id()] = transportController;
-        }
+        _webRtcTransportMap.emplace(std::make_pair(transportController->id(), transportController));
 
         // Emit observer event.
         this->webrtcTransportHandledSignal(transportController);
@@ -124,8 +143,7 @@ namespace srv {
 
     void WebRtcServerController::onWebRtcTransportClose(const std::string& id_)
     {
-        std::lock_guard<std::mutex> lock(_webRtcTransportsMutex);
-        if (_webRtcTransportMap.find(id_) != _webRtcTransportMap.end()) {
+        if (_webRtcTransportMap.contains(id_)) {
             auto controller = _webRtcTransportMap[id_];
             this->webrtcTransportUnhandledSignal(controller);
             _webRtcTransportMap.erase(id_);
@@ -135,6 +153,69 @@ namespace srv {
 
 namespace srv
 {
+    std::shared_ptr<IpPort> parseIpPort(const FBS::WebRtcServer::IpPort* binary)
+    {
+        auto ipPort = std::make_shared<IpPort>();
+        
+        ipPort->ip = binary->ip()->str();
+        ipPort->port = binary->port();
+        
+        return ipPort;
+    }
+
+    std::shared_ptr<IceUserNameFragment> parseIceUserNameFragment(const FBS::WebRtcServer::IceUserNameFragment* binary)
+    {
+        auto fragment = std::make_shared<IceUserNameFragment>();
+        
+        fragment->localIceUsernameFragment = binary->localIceUsernameFragment()->str();
+        fragment->webRtcTransportId = binary->webRtcTransportId()->str();
+        
+        return fragment;
+    }
+
+    std::shared_ptr<TupleHash> parseTupleHash(const FBS::WebRtcServer::TupleHash* binary)
+    {
+        auto tupleHash = std::make_shared<TupleHash>();
+        
+        tupleHash->tupleHash = binary->tupleHash();
+        tupleHash->webRtcTransportId = binary->webRtcTransportId()->str();
+        
+        return tupleHash;
+    }
+
+    std::shared_ptr<WebRtcServerDump> parseWebRtcServerDump(const FBS::WebRtcServer::DumpResponse* data)
+    {
+        auto dump = std::make_shared<WebRtcServerDump>();
+        
+        dump->id = data->id()->str();
+        
+        for (const auto& item : *data->udpSockets()) {
+            IpPort ip = *parseIpPort(item);
+            dump->udpSockets.emplace_back(ip);
+        }
+        
+        for (const auto& item : *data->tcpServers()) {
+            IpPort ip = *parseIpPort(item);
+            dump->tcpServers.emplace_back(ip);
+        }
+        
+        for (const auto& item : *data->webRtcTransportIds()) {
+            dump->webRtcTransportIds.emplace_back(item->str());
+        }
+        
+        for (const auto& item : *data->localIceUsernameFragments()) {
+            IceUserNameFragment fragment = *parseIceUserNameFragment(item);
+            dump->localIceUsernameFragments.emplace_back(fragment);
+        }
+        
+        for (const auto& item : *data->tupleHashes()) {
+            TupleHash hash = *parseTupleHash(item);
+            dump->tupleHashes.emplace_back(hash);
+        }
+        
+        return dump;
+    }
+
     void to_json(nlohmann::json& js, const WebRtcServerListenInfo& st)
     {
         js["protocol"] = st.protocol;

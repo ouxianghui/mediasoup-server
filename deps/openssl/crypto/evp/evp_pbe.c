@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -77,10 +77,6 @@ static const EVP_PBE_CTL builtin_pbe[] = {
      NID_id_GostR3411_2012_256, 0},
     {EVP_PBE_TYPE_PRF, NID_id_tc26_hmac_gost_3411_2012_512, -1,
      NID_id_GostR3411_2012_512, 0},
-    {EVP_PBE_TYPE_PRF, NID_hmac_sha3_224, -1, NID_sha3_224, 0},
-    {EVP_PBE_TYPE_PRF, NID_hmac_sha3_256, -1, NID_sha3_256, 0},
-    {EVP_PBE_TYPE_PRF, NID_hmac_sha3_384, -1, NID_sha3_384, 0},
-    {EVP_PBE_TYPE_PRF, NID_hmac_sha3_512, -1, NID_sha3_512, 0},
     {EVP_PBE_TYPE_PRF, NID_hmacWithSHA512_224, -1, NID_sha512_224, 0},
     {EVP_PBE_TYPE_PRF, NID_hmacWithSHA512_256, -1, NID_sha512_256, 0},
     {EVP_PBE_TYPE_KDF, NID_id_pbkdf2, -1, -1, PKCS5_v2_PBKDF2_keyivgen, &PKCS5_v2_PBKDF2_keyivgen_ex},
@@ -140,7 +136,7 @@ int EVP_PBE_CipherInit_ex(ASN1_OBJECT *pbe_obj, const char *pass, int passlen,
         md = md_fetch = EVP_MD_fetch(libctx, OBJ_nid2sn(md_nid), propq);
         /* Fallback to legacy method */
         if (md == NULL)
-            md = EVP_get_digestbynid(md_nid);
+            EVP_get_digestbynid(md_nid);
 
         if (md == NULL) {
             (void)ERR_clear_last_mark();

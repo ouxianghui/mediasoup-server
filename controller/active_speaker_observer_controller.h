@@ -11,6 +11,8 @@
 
 #include <memory>
 #include "rtp_observer_controller.h"
+#include "FBS/notification.h"
+#include "FBS/activeSpeakerObserver.h"
 
 namespace srv {
 
@@ -24,12 +26,14 @@ namespace srv {
         nlohmann::json appData;
     };
 
+    class IProducerController;
+
     struct ActiveSpeakerObserverDominantSpeaker
     {
         /**
          * The audio Producer instance.
          */
-        std::shared_ptr<ProducerController> producerController;
+        std::shared_ptr<IProducerController> producerController;
     };
 
     struct RtpObserverObserverConstructorOptions : RtpObserverConstructorOptions {};
@@ -52,7 +56,7 @@ namespace srv {
     private:
         void handleWorkerNotifications();
         
-        void onChannel(const std::string& targetId, const std::string& event, const std::string& data);
+        void onChannel(const std::string& targetId, FBS::Notification::Event event, const std::vector<uint8_t>& data);
     };
 
 }

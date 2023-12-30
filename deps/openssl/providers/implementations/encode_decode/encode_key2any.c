@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -168,7 +168,7 @@ static X509_PUBKEY *key_to_pubkey(const void *key, int key_nid,
  * EncryptedPrivateKeyInfo structure (defined by PKCS#8).  They require
  * that there's an intent to encrypt, anything else is an error.
  *
- * key_to_pki_* primarily produce encoded output with the private key data
+ * key_to_pki_* primarly produce encoded output with the private key data
  * in a PrivateKeyInfo structure (also defined by PKCS#8).  However, if
  * there is an intent to encrypt the data, the corresponding key_to_epki_*
  * function is used instead.
@@ -858,17 +858,14 @@ static int prepare_rsa_params(const void *rsa, int nid, int save,
                 case 1:
                     if ((str = OPENSSL_malloc(str_sz)) == NULL
                         || !WPACKET_init_der(&pkt, str, str_sz)) {
-                        WPACKET_cleanup(&pkt);
                         goto err;
                     }
                     break;
                 }
                 if (!ossl_DER_w_RSASSA_PSS_params(&pkt, -1, pss)
                     || !WPACKET_finish(&pkt)
-                    || !WPACKET_get_total_written(&pkt, &str_sz)) {
-                    WPACKET_cleanup(&pkt);
+                    || !WPACKET_get_total_written(&pkt, &str_sz))
                     goto err;
-                }
                 WPACKET_cleanup(&pkt);
 
                 /*

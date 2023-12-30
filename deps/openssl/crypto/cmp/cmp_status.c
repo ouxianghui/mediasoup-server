@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2007-2021 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright Nokia 2007-2019
  * Copyright Siemens AG 2015-2019
  *
@@ -30,12 +30,9 @@
 
 int ossl_cmp_pkisi_get_status(const OSSL_CMP_PKISI *si)
 {
-    int res ;
-
     if (!ossl_assert(si != NULL && si->status != NULL))
         return -1;
-    res = ossl_cmp_asn1_get_int(si->status);
-    return res == -2 ? -1 : res;
+    return ossl_cmp_asn1_get_int(si->status);
 }
 
 const char *ossl_cmp_PKIStatus_to_string(int status)

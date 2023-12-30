@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -203,6 +203,16 @@ static void *keymgmt_from_algorithm(int name_id,
     return keymgmt;
 }
 
+EVP_KEYMGMT *evp_keymgmt_fetch_by_number(OSSL_LIB_CTX *ctx, int name_id,
+                                         const char *properties)
+{
+    return evp_generic_fetch_by_number(ctx,
+                                       OSSL_OP_KEYMGMT, name_id, properties,
+                                       keymgmt_from_algorithm,
+                                       (int (*)(void *))EVP_KEYMGMT_up_ref,
+                                       (void (*)(void *))EVP_KEYMGMT_free);
+}
+
 EVP_KEYMGMT *evp_keymgmt_fetch_from_prov(OSSL_PROVIDER *prov,
                                          const char *name,
                                          const char *properties)
@@ -368,7 +378,7 @@ void *evp_keymgmt_gen(const EVP_KEYMGMT *keymgmt, void *genctx,
 
 void evp_keymgmt_gen_cleanup(const EVP_KEYMGMT *keymgmt, void *genctx)
 {
-    if (keymgmt->gen_cleanup != NULL)
+    if (keymgmt->gen != NULL)
         keymgmt->gen_cleanup(genctx);
 }
 

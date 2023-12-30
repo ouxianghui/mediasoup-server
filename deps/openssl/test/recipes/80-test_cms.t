@@ -50,7 +50,7 @@ my ($no_des, $no_dh, $no_dsa, $no_ec, $no_ec2m, $no_rc2, $no_zlib)
 
 $no_rc2 = 1 if disabled("legacy");
 
-plan tests => 18;
+plan tests => 16;
 
 ok(run(test(["pkcs7_test"])), "test pkcs7");
 
@@ -452,10 +452,10 @@ my @smime_cms_cades_tests = (
 my @smime_cms_cades_ko_tests = (
     [ "sign content DER format, RSA key, not CAdES-BES compatible",
       [ @prov, "-sign", "-in", $smcont, "-outform", "DER", "-nodetach",
-        "-certfile", $smroot, "-signer", $smrsa1, "-out", "cades-ko.cms" ],
+        "-certfile", $smroot, "-signer", $smrsa1, "-out", "{output}.cms" ],
       "fail to verify token since requiring CAdES-BES compatibility",
-      [ @prov, "-verify", "-cades", "-in", "cades-ko.cms", "-inform", "DER",
-        "-CAfile", $smroot, "-out", "cades-ko.txt" ],
+      [ @prov, "-verify", "-cades", "-in", "{output}.cms", "-inform", "DER",
+        "-CAfile", $smroot, "-out", "{output}.txt" ],
       \&final_compare
     ]
 );
@@ -636,34 +636,6 @@ my @smime_cms_param_tests = (
     ]
 );
 
-my @smime_cms_param_tests_autodigestmax = (
-    [ "signed content test streaming PEM format, RSA keys, PSS signature, saltlen=auto-digestmax, digestsize < maximum salt length",
-      [ "{cmd1}", @prov, "-sign", "-in", $smcont, "-outform", "PEM", "-nodetach",
-        "-signer", $smrsa1, "-md", "sha256",
-        "-keyopt", "rsa_padding_mode:pss", "-keyopt", "rsa_pss_saltlen:auto-digestmax",
-        "-out", "{output}.cms" ],
-      # digest is SHA-256, which produces 32, bytes of output
-      sub { my %opts = @_; rsapssSaltlen("$opts{output}.cms") == 32; },
-      [ "{cmd2}", @defaultprov, "-verify", "-in", "{output}.cms", "-inform", "PEM",
-        "-CAfile", $smroot, "-out", "{output}.txt" ],
-      \&final_compare
-    ],
-
-    [ "signed content test streaming PEM format, RSA keys, PSS signature, saltlen=auto-digestmax, digestsize > maximum salt length",
-      [ "{cmd1}", @defaultprov, "-sign", "-in", $smcont, "-outform", "PEM", "-nodetach",
-        "-signer", $smrsa1024, "-md", "sha512",
-        "-keyopt", "rsa_padding_mode:pss", "-keyopt", "rsa_pss_saltlen:auto-digestmax",
-        "-out", "{output}.cms" ],
-      # digest is SHA-512, which produces 64, bytes of output, but an RSA-PSS
-      # signature with a 1024 bit RSA key can only accomodate 62
-      sub { my %opts = @_; rsapssSaltlen("$opts{output}.cms") == 62; },
-      [ "{cmd2}", @defaultprov, "-verify", "-in", "{output}.cms", "-inform", "PEM",
-        "-CAfile", $smroot, "-out", "{output}.txt" ],
-      \&final_compare
-    ]
-);
-
-
 my @contenttype_cms_test = (
     [ "signed content test - check that content type is added to additional signerinfo, RSA keys",
       [ "{cmd1}", @prov, "-sign", "-binary", "-nodetach", "-stream", "-in", $smcont,
@@ -761,21 +733,7 @@ subtest "CMS <=> CMS consistency tests\n" => sub {
 
 subtest "CMS <=> CMS consistency tests, modified key parameters\n" => sub {
     plan tests =>
-        (scalar @smime_cms_param_tests) + (scalar @smime_cms_comp_tests) +
-        (scalar @smime_cms_param_tests_autodigestmax) + 1;
-
-    ok(run(app(["openssl", "cms", @prov,
-                "-sign", "-in", $smcont,
-                "-outform", "PEM",
-                "-nodetach",
-                "-signer", $smrsa1,
-                "-keyopt", "rsa_padding_mode:pss",
-                "-keyopt", "rsa_pss_saltlen:auto-digestmax",
-                "-out", "digestmaxtest.cms"])));
-    # Providers that do not support rsa_pss_saltlen:auto-digestmax will parse
-    # it as 0
-    my $no_autodigestmax = rsapssSaltlen("digestmaxtest.cms") == 0;
-    1 while unlink "digestmaxtest.cms";
+        (scalar @smime_cms_param_tests) + (scalar @smime_cms_comp_tests);
 
     runner_loop(prefix => 'cms2cms-mod', cmd1 => 'cms', cmd2 => 'cms',
                 tests => [ @smime_cms_param_tests ]);
@@ -787,15 +745,6 @@ subtest "CMS <=> CMS consistency tests, modified key parameters\n" => sub {
       runner_loop(prefix => 'cms2cms-comp', cmd1 => 'cms', cmd2 => 'cms',
                   tests => [ @smime_cms_comp_tests ]);
     }
-
-  SKIP: {
-    skip("rsa_pss_saltlen:auto-digestmax not supported",
-         scalar @smime_cms_param_tests_autodigestmax)
-       if $no_autodigestmax;
-
-       runner_loop(prefix => 'cms2cms-comp', 'cmd1' => 'cms', cmd2 => 'cms',
-                   tests => [ @smime_cms_param_tests_autodigestmax ]);
-  }
 };
 
 # Returns the number of matches of a Content Type Attribute in a binary file.
@@ -945,7 +894,6 @@ subtest "CAdES ko tests\n" => sub {
       SKIP: {
         my $skip_reason = check_availability($$_[0]);
         skip $skip_reason, 1 if $skip_reason;
-        1 while unlink "cades-ko.txt";
 
         ok(run(app(["openssl", "cms", @{$$_[1]}])), $$_[0]);
         ok(!run(app(["openssl", "cms", @{$$_[3]}])), $$_[2]);
@@ -1041,33 +989,8 @@ with({ exit_checker => sub { return shift == 6; } },
     sub {
         ok(run(app(['openssl', 'cms', '-encrypt',
                     '-in', srctop_file("test", "smcont.txt"),
-                    '-aes128', '-stream', '-recip',
+                    '-stream', '-recip',
                     srctop_file("test/smime-certs", "badrsa.pem"),
                    ])),
             "Check failure during BIO setup with -stream is handled correctly");
     });
-
-# Test case for return value mis-check reported in #21986
-with({ exit_checker => sub { return shift == 3; } },
-    sub {
-        SKIP: {
-          skip "DSA is not supported in this build", 1 if $no_dsa;
-
-          ok(run(app(['openssl', 'cms', '-sign',
-                      '-in', srctop_file("test", "smcont.txt"),
-                      '-signer', srctop_file("test/smime-certs", "smdsa1.pem"),
-                      '-md', 'SHAKE256'])),
-            "issue#21986");
-        }
-    });
-
-# Test for problem reported in #22225
-with({ exit_checker => sub { return shift == 3; } },
-    sub {
-	ok(run(app(['openssl', 'cms', '-encrypt',
-		    '-in', srctop_file("test", "smcont.txt"),
-		    '-aes-256-ctr', '-recip',
-		    catfile($smdir, "smec1.pem"),
-		   ])),
-	   "Check for failure when cipher does not have an assigned OID (issue#22225)");
-     });

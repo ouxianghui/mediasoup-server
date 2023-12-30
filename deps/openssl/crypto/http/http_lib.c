@@ -1,5 +1,5 @@
 /*
- * Copyright 2001-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2001-2021 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -19,13 +19,6 @@ static void init_pstring(char **pstr)
 {
     if (pstr != NULL) {
         *pstr = NULL;
-    }
-}
-
-static void init_pint(int *pint)
-{
-    if (pint != NULL) {
-        *pint = 0;
     }
 }
 
@@ -61,7 +54,6 @@ int OSSL_parse_url(const char *url, char **pscheme, char **puser, char **phost,
     init_pstring(puser);
     init_pstring(phost);
     init_pstring(pport);
-    init_pint(pport_num);
     init_pstring(ppath);
     init_pstring(pfrag);
     init_pstring(pquery);
@@ -91,9 +83,9 @@ int OSSL_parse_url(const char *url, char **pscheme, char **puser, char **phost,
     else
         host = p;
 
-    /* parse hostname/address as far as needed here */
+    /* parse host name/address as far as needed here */
     if (host[0] == '[') {
-        /* IPv6 literal, which may include ':' */
+        /* ipv6 literal, which may include ':' */
         host_end = strchr(host + 1, ']');
         if (host_end == NULL)
             goto parse_err;
@@ -261,9 +253,9 @@ static int use_proxy(const char *no_proxy, const char *server)
      * compatible with other HTTP client implementations like wget, curl and git
      */
     if (no_proxy == NULL)
-        no_proxy = ossl_safe_getenv("no_proxy");
+        no_proxy = getenv("no_proxy");
     if (no_proxy == NULL)
-        no_proxy = ossl_safe_getenv(OPENSSL_NO_PROXY);
+        no_proxy = getenv(OPENSSL_NO_PROXY);
 
     if (no_proxy != NULL)
         found = strstr(no_proxy, server);
@@ -283,9 +275,10 @@ const char *OSSL_HTTP_adapt_proxy(const char *proxy, const char *no_proxy,
      * compatible with other HTTP client implementations like wget, curl and git
      */
     if (proxy == NULL)
-        proxy = ossl_safe_getenv(use_ssl ? "https_proxy" : "http_proxy");
+        proxy = getenv(use_ssl ? "https_proxy" : "http_proxy");
     if (proxy == NULL)
-        proxy = ossl_safe_getenv(use_ssl ? OPENSSL_HTTP_PROXY : OPENSSL_HTTPS_PROXY);
+        proxy = getenv(use_ssl ? OPENSSL_HTTP_PROXY :
+                       OPENSSL_HTTPS_PROXY);
 
     if (proxy == NULL || *proxy == '\0' || !use_proxy(no_proxy, server))
         return NULL;

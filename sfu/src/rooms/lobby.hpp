@@ -10,7 +10,7 @@
 #pragma once
 
 #include <memory>
-#include <unordered_map>
+#include "threadsafe_unordered_map.hpp"
 #include <mutex>
 #include "room.hpp"
 #include "utils/statistics.hpp"
@@ -63,9 +63,7 @@ public:
     void onBeforeDestroy_NonBlocking(const std::shared_ptr<AsyncWebSocket>& socket) override;
     
 public:
-    std::mutex _roomMapMutex;
-    
-    std::unordered_map<std::string, std::shared_ptr<Room>> _roomMap;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<Room>> _roomMap;
     
 private:
     OATPP_COMPONENT(std::shared_ptr<Statistics>, _statistics);

@@ -27,3 +27,7 @@ fi
 
 make -j7
 make install
+
+if [ -d "${main_dir}/release/lib64" ]; then
+cp ${main_dir}/release/lib64/lib* ${main_dir}/release/lib
+fi

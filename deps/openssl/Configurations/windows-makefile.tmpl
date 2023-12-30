@@ -765,7 +765,7 @@ EOF
           my $generator;
           if ($gen0 =~ /\.pl$/) {
               $generator = '"$(PERL)"'.$gen_incs.' "'.$gen0.'"'.$gen_args
-                  .' "$(PERLASM_SCHEME)"'.$incs.' '.$cppflags.$defs.' $(PROCESSOR)';
+                  .' "$(PERLASM_SCHEME)"'.$incs.' '.$cppflags.$defs.' $(PROCESSSOR)';
           } elsif ($gen0 =~ /\.S$/) {
               $generator = undef;
           } else {
@@ -780,7 +780,7 @@ EOF
           }
           return <<"EOF";
 $target: "$gen0" $deps
-	\$(CPP) /D__ASSEMBLER__ $incs $cppflags $defs "$gen0" > \$@.i
+	\$(CPP) $incs $cppflags $defs "$gen0" > \$@.i
 	move /Y \$@.i \$@
 EOF
       } elsif ($gen0 =~ m|^.*\.in$|) {

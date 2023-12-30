@@ -238,6 +238,16 @@ namespace std
             }
         }
         
+        void for_each2(std::function<bool(const value_type&)> __bl)
+        {
+            std::shared_lock<std::shared_timed_mutex> lock(__mutex_);
+            for (const auto& v : __internal_set_) {
+                if (__bl(v)) {
+                    return;
+                }
+            }
+        }
+        
         void for_all(std::function<void(const set_type&)> __bl)
         {
             std::unique_lock<std::shared_timed_mutex> lock(__mutex_);

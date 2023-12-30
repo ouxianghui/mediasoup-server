@@ -284,25 +284,32 @@ namespace srv {
         
         _channel->close();
         
-        {
-            std::lock_guard<std::mutex> lock(_webRtcServersMutex);
-            for (const auto& item: _webRtcServerControllers) {
-                item->onWorkerClosed();
-                item->closeSignal.disconnect_all();
-            }
-            _webRtcServerControllers.clear();
-        }
+        _webRtcServerControllers.for_each([](const auto& item){
+            item->onWorkerClosed();
+            item->closeSignal.disconnect_all();
+        });
         
-        {
-            std::lock_guard<std::mutex> lock(_routersMutex);
-            for (const auto& item: _routerControllers) {
-                item->onWorkerClosed();
-                item->closeSignal.disconnect_all();
-            }
-            _routerControllers.clear();
-        }
+        _webRtcServerControllers.clear();
+        
+        _routerControllers.for_each([](const auto& item) {
+            item->onWorkerClosed();
+            item->closeSignal.disconnect_all();
+        });
+        
+        _routerControllers.clear();
         
         this->closeSignal();
+    }
+
+    std::shared_ptr<IWebRtcServerController> WorkerController::webRtcServerController()
+    {
+        std::shared_ptr<IWebRtcServerController> controller;
+        _webRtcServerControllers.for_each([&controller](const auto& item){
+            controller = item;
+            return true;
+        });
+        
+        return controller;
     }
 
     std::shared_ptr<WorkerDump> WorkerController::dump()
@@ -446,7 +453,6 @@ namespace srv {
         
         _channel->request(reqId, reqData);
 
-        std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         WebRtcServerInternal internal { webRtcServerId };
         
         webRtcServerController = std::make_shared<WebRtcServerController>(internal, _channel, appData);
@@ -491,17 +497,14 @@ namespace srv {
         
         RouterData data;
         data.rtpCapabilities = rtpCapabilities;
+
+        routerController = std::make_shared<RouterController>(internal,
+                                                              data,
+                                                              _channel,
+                                                              appData);
+        routerController->init();
         
-        {
-            std::lock_guard<std::mutex> lock(_routersMutex);
-            routerController = std::make_shared<RouterController>(internal,
-                                                                  data,
-                                                                  _channel,
-                                                                  appData);
-            routerController->init();
-            
-            _routerControllers.emplace(routerController);
-        }
+        _routerControllers.emplace(routerController);
         
         routerController->closeSignal.connect(&WorkerController::onRouterClose, shared_from_this());
         
@@ -512,13 +515,11 @@ namespace srv {
 
     void WorkerController::onWebRtcServerClose(std::shared_ptr<IWebRtcServerController> controller)
     {
-        std::lock_guard<std::mutex> lock(_webRtcServersMutex);
         _webRtcServerControllers.erase(controller);
     }
 
     void WorkerController::onRouterClose(std::shared_ptr<IRouterController> controller)
     {
-        std::lock_guard<std::mutex> lock(_routersMutex);
         _routerControllers.erase(controller);
     }
 

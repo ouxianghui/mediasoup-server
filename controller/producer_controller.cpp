@@ -283,7 +283,7 @@ namespace srv {
             auto message = FBS::Message::GetMessage(data.data());
             auto notification = message->data_as_Notification();
             if (auto nf = notification->body_as_Producer_ScoreNotification()) {
-                std::vector<ProducerScore> scores;
+                _score.clear();
                 for (const auto& item : *nf->scores()) {
                     ProducerScore producerScore;
                     producerScore.score = item->score();
@@ -291,13 +291,9 @@ namespace srv {
                     if (auto rid = item->rid()) {
                         producerScore.rid = rid->str();
                     }
-                    scores.emplace_back(producerScore);
+                    _score.push_back(producerScore);
                 }
-                {
-                    std::lock_guard<std::mutex> lock(_scoreMutex);
-                    _score = scores;
-                }
-                this->scoreSignal(scores);
+                this->scoreSignal(_score.value());
             }
         }
         else if (event == FBS::Notification::Event::PRODUCER_VIDEO_ORIENTATION_CHANGE) {

@@ -10,6 +10,7 @@
 #pragma once
 
 #include <memory>
+#include "threadsafe_unordered_set.hpp"
 #include <uv.h>
 #include "interface/i_worker_controller.h"
 #include "utils.h"
@@ -102,7 +103,7 @@ namespace srv {
         
         void setAppData(const nlohmann::json& data) override { _appData = data; }
         
-        std::shared_ptr<IWebRtcServerController> webRtcServerController() override { return !_webRtcServerControllers.empty() ? *_webRtcServerControllers.begin() : nullptr; }
+        std::shared_ptr<IWebRtcServerController> webRtcServerController() override;
         
         const nlohmann::json& appData() override { return _appData; }
         
@@ -140,13 +141,11 @@ namespace srv {
         // Custom app data.
         nlohmann::json _appData;
 
-        std::mutex _webRtcServersMutex;
         // WebRtcServers set.
-        std::unordered_set<std::shared_ptr<IWebRtcServerController>> _webRtcServerControllers;
+        std::threadsafe_unordered_set<std::shared_ptr<IWebRtcServerController>> _webRtcServerControllers;
 
-        std::mutex _routersMutex;
         // Routers set.
-        std::unordered_set<std::shared_ptr<IRouterController>> _routerControllers;
+        std::threadsafe_unordered_set<std::shared_ptr<IRouterController>> _routerControllers;
         
         uv_process_t _process;
         

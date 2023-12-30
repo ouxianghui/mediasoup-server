@@ -66,17 +66,13 @@ namespace srv {
         
         _webRtcServerOptions = nullptr;
         
-        {
-            std::lock_guard<std::mutex> lock(_workerControllersMutex);
-            _workerControllers.clear();
-        }
+        _workerControllers.clear();
         
         MSConfig->destroy();
     }
 
     std::shared_ptr<IWorkerController> Engine::getWorkerController()
     {
-        std::lock_guard<std::mutex> lock(_workerControllersMutex);
         std::shared_ptr<IWorkerController> worker = _workerControllers[_nextWorkerIdx];
 
         if (++_nextWorkerIdx == _workerControllers.size()) {
@@ -96,13 +92,12 @@ namespace srv {
         }
 
         if (MSConfig->params()->mediasoup.multiprocess) {
-            std::lock_guard<std::mutex> lock(_workerControllersMutex);
             auto workerNum = MSConfig->params()->mediasoup.numWorkers;
             for (int i = 0; i < workerNum; ++i) {
                 std::shared_ptr<IWorkerController> workerController = std::make_shared<WorkerController>(_workerSettings);
                 workerController->init();
                 
-                _workerControllers.emplace_back(workerController);
+                _workerControllers.push_back(workerController);
                 
                 workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()),
                                                        wWorkerController = std::weak_ptr<IWorkerController>(workerController),
@@ -141,13 +136,9 @@ namespace srv {
             }
         }
         else {
-            std::shared_ptr<IWorkerController> workerController;
-            {
-                std::lock_guard<std::mutex> lock(_workerControllersMutex);
-                workerController = std::make_shared<WorkerController>(_workerSettings);
-                workerController->init();
-                _workerControllers.emplace_back(workerController);
-            }
+            auto workerController = std::make_shared<WorkerController>(_workerSettings);
+            workerController->init();
+            _workerControllers.push_back(workerController);
             
             workerController->startSignal.connect([wself = std::weak_ptr<Engine>(shared_from_this()), wWorkerController = std::weak_ptr<IWorkerController>(workerController)]() {
                 auto self = wself.lock();

@@ -13,6 +13,7 @@
 #include <atomic>
 #include <string>
 #include <unordered_map>
+#include "threadsafe_vector.hpp"
 #include "nlohmann/json.hpp"
 #include "sigslot/signal.hpp"
 #include "types.h"
@@ -189,7 +190,7 @@ namespace srv {
 
         virtual const RtpParameters& consumableRtpParameters() = 0;
 
-        virtual const std::vector<ProducerScore>& score() = 0;
+        virtual const std::threadsafe_vector<ProducerScore>& score() = 0;
         
         virtual void setAppData(const nlohmann::json& data) = 0;
         

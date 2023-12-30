@@ -10,6 +10,7 @@
 #pragma once
 
 #include <memory>
+#include "threadsafe_vector.hpp"
 #include "interface/i_producer_controller.h"
 #include "FBS/notification.h"
 #include "FBS/producer.h"
@@ -44,8 +45,7 @@ namespace srv {
 
         const RtpParameters& consumableRtpParameters() override { return _data.consumableRtpParameters; }
 
-        const std::vector<ProducerScore>& score() override {
-            std::lock_guard<std::mutex> lock(_scoreMutex);
+        const std::threadsafe_vector<ProducerScore>& score() override {
             return _score;
         }
         
@@ -98,8 +98,7 @@ namespace srv {
         // Paused flag.
         std::atomic_bool _paused { false };
         
-        std::mutex _scoreMutex;
-        std::vector<ProducerScore> _score;
+        std::threadsafe_vector<ProducerScore> _score;
         
     };
 

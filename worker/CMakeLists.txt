@@ -263,7 +263,7 @@ set(mediasoup_worker_sources
 
 IF (CMAKE_SYSTEM_NAME MATCHES "Linux")
     set(mediasoup_worker_headers ${mediasoup_worker_headers} "include/DepLibUring.hpp")
-    set(mediasoup_worker_sources ${mediasoup_worker_sources} "include/DepLibUring.cpp")
+    set(mediasoup_worker_sources ${mediasoup_worker_sources} "src/DepLibUring.cpp")
 ENDIF()
 
 add_library(${PROJECT_NAME}

@@ -37,6 +37,7 @@
 #include "interface/i_rtp_observer_controller.h"
 #include "interface/i_webrtc_server_controller.h"
 #include "interface/i_worker_controller.h"
+#include "video_producer_quality_controller.hpp"
 
 namespace
 {
@@ -366,6 +367,9 @@ void Peer::handleResponse(const nlohmann::json& response)
         if (!consumerId.empty() && this->_data->consumerControllers.contains(consumerId)) {
             if (auto& controller = this->_data->consumerControllers[consumerId]) {
                 controller->resume();
+                if (controller->kind() == "video") {
+                    this->newConsumerResumedSignal(controller);
+                }
             }
         }
     }

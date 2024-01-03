@@ -41,8 +41,8 @@ set(sources
     src/rooms/lobby.hpp
     src/rooms/video_sharing_controller.hpp
     src/rooms/video_sharing_controller.cpp
-    src/rooms/producer_video_quality_controller.hpp
-    src/rooms/producer_video_quality_controller.cpp
+    src/rooms/video_producer_quality_controller.hpp
+    src/rooms/video_producer_quality_controller.cpp
     src/utils/statistics.cpp
     src/utils/statistics.hpp
     src/utils/message.cpp

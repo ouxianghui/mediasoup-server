@@ -57,7 +57,7 @@ struct PeerInfo
     std::vector<nlohmann::json> producers;
 };
 
-class ProducerVideoQualityController;
+class VideoProducerQualityController;
 
 class PeerData
 {
@@ -75,7 +75,7 @@ public:
     std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IConsumerController>> consumerControllers;
     std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IDataProducerController>> dataProducerControllers;
     std::threadsafe_unordered_map<std::string, std::shared_ptr<srv::IDataConsumerController>> dataConsumerControllers;
-    std::threadsafe_unordered_map<std::string, std::shared_ptr<ProducerVideoQualityController>> producerVideoQualityControllers;
+    std::threadsafe_unordered_map<std::string, std::shared_ptr<VideoProducerQualityController>> videoProducerQualityControllers;
 };
 
 class Peer : public oatpp::websocket::AsyncWebSocket::Listener, public std::enable_shared_from_this<Peer>
@@ -171,6 +171,8 @@ public:
     sigslot::signal<const std::string&> closeSignal;
     
     sigslot::signal<const std::shared_ptr<Peer>&, const nlohmann::json&, AcceptFunc&, RejectFunc&> requestSignal;
+    
+    sigslot::signal<const std::shared_ptr<srv::IConsumerController>&> newConsumerResumedSignal;
     
     sigslot::signal<const nlohmann::json&> notificationSignal;
     

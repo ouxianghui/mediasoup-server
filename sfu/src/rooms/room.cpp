@@ -24,7 +24,7 @@
 #include "interface/i_data_producer_controller.h"
 #include "interface/i_rtp_observer_controller.h"
 #include "video_sharing_controller.hpp"
-#include "producer_video_quality_controller.hpp"
+#include "video_producer_quality_controller.hpp"
 
 std::shared_ptr<Room> Room::create(const std::string& roomId, int32_t consumerReplicas)
 {
@@ -131,6 +131,7 @@ void Room::createPeer(const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& s
 
     peer->requestSignal.connect(&Room::onHandleRequest, shared_from_this());
     peer->notificationSignal.connect(&Room::onHandleNotification, shared_from_this());
+    peer->newConsumerResumedSignal.connect(&Room::onNewConsumerResumed, shared_from_this());
     peer->closeSignal.connect(&Room::onPeerClose, shared_from_this());
     
     _peerMap.emplace(std::make_pair(peer->id(), peer));
@@ -222,7 +223,7 @@ void Room::onPeerClose(const std::string& peerId)
             auto peerData = peer->data();
             if (peerData->joined) {
                 peerData->consumerControllers.for_each([this](const auto& item) {
-                   this->removeProducerVideoQuality(item.second);
+                   this->removeVideoProducerQuality(item.second);
                 });
                 
                 for (const auto& otherPeer : otherPeers) {
@@ -349,7 +350,7 @@ void Room::createConsumer(const std::shared_ptr<Peer>& consumerPeer, const std::
             
             if (auto self = wself.lock()) {
                 if(auto consumerController = wcc.lock()) {
-                    self->removeProducerVideoQuality(consumerController);
+                    self->removeVideoProducerQuality(consumerController);
                 }
             }
         });
@@ -1245,7 +1246,9 @@ void Room::onHandlePauseConsumer(const std::shared_ptr<Peer>& peer, const nlohma
     
     accept(request, {});
     
-    updateProducerVideoQuality(consumerConstroller);
+    if (consumerConstroller->kind() == "video") {
+        updateVideoProducerQuality(consumerConstroller);
+    }
 }
 
 void Room::onHandleResumeConsumer(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1278,7 +1281,9 @@ void Room::onHandleResumeConsumer(const std::shared_ptr<Peer>& peer, const nlohm
     
     accept(request, {});
     
-    updateProducerVideoQuality(consumerConstroller);
+    if (consumerConstroller->kind() == "video") {
+        updateVideoProducerQuality(consumerConstroller);
+    }
 }
 
 void Room::onHandleSetConsumerPreferredLayers(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1315,7 +1320,9 @@ void Room::onHandleSetConsumerPreferredLayers(const std::shared_ptr<Peer>& peer,
     
     accept(request, {});
     
-    updateProducerVideoQuality(consumerConstroller);
+    if (consumerConstroller->kind() == "video") {
+        updateVideoProducerQuality(consumerConstroller);
+    }
 }
 
 void Room::onHandleSetConsumerPriority(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject)
@@ -1694,49 +1701,65 @@ void Room::onHandleApplyNetworkThrottle(const std::shared_ptr<Peer>& peer, const
     accept(request, {});
 }
 
-void Room::updateProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController)
+void Room::updateVideoProducerQuality(const std::shared_ptr<srv::IConsumerController>& consumerController)
 {
+    if (consumerController->kind() != "video") {
+        return;
+    }
+    
     auto producerId = consumerController->producerId();
-    auto producerPeerId = consumerController->appData()["peerId"].get<std::string>();
-    auto producerPeer = getPeer(producerPeerId);
+    
+    std::shared_ptr<Peer> producerPeer;
+    auto peers = getJoinedPeers("");
+    for (const auto& item : peers) {
+        if (item.second->data()->producerControllers.contains(producerId)) {
+            producerPeer = item.second;
+            break;
+        }
+    }
 
     if (!producerPeer) {
         return;
     }
     
+    SRV_LOGE("--> PeerId: %s", producerPeer->id().c_str());
+    
     auto producerPeerData = producerPeer->data();
     
-    std::shared_ptr<ProducerVideoQualityController> qualityController;
-    if (!producerPeerData->producerVideoQualityControllers.contains(producerId)) {
-        qualityController = std::make_shared<ProducerVideoQualityController>();
-        producerPeerData->producerVideoQualityControllers.emplace(std::make_pair(producerId, qualityController));
+    std::shared_ptr<VideoProducerQualityController> qualityController;
+    if (!producerPeerData->videoProducerQualityControllers.contains(producerId)) {
+        qualityController = std::make_shared<VideoProducerQualityController>();
+        producerPeerData->videoProducerQualityControllers.emplace(std::make_pair(producerId, qualityController));
     }
     else {
-        qualityController = producerPeerData->producerVideoQualityControllers[producerId];
+        qualityController = producerPeerData->videoProducerQualityControllers[producerId];
     }
     
     srv::ConsumerLayers layers = consumerController->preferredLayers();
     auto consumerPaused = consumerController->paused();
-    qualityController->addOrUpdateConsumer(consumerController->id(),consumerPaused, layers.spatialLayer);
+    qualityController->addOrUpdateConsumer(consumerController->id(), consumerPaused, layers.spatialLayer);
 
     auto maxQ = qualityController->getMaxDesiredQ();
     auto paused = qualityController->isAllConsumerPaused();
-
+    
     nlohmann::json msg;
     msg["producerId"] = producerId;
     msg["paused"] = paused;
     msg["desiredQ"] = maxQ;
-    producerPeer->notify("producerVideoQualityChanged", msg);
+    producerPeer->request("videoProducerQualityChanged", msg);
 }
 
-void Room::removeProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController)
+void Room::removeVideoProducerQuality(const std::shared_ptr<srv::IConsumerController>& consumerController)
 {
     auto producerId = consumerController->producerId();
-    auto producerPeerId = consumerController->appData()["peerId"].get<std::string>();
     
     std::shared_ptr<Peer> producerPeer;
-    if (_peerMap.contains(producerPeerId)) {
-        producerPeer = _peerMap[producerPeerId];
+    auto peers = getJoinedPeers("");
+    for (const auto& item : peers) {
+        if (item.second->data()->producerControllers.contains(producerId)) {
+            producerPeer = item.second;
+            break;
+        }
     }
 
     if (!producerPeer) {
@@ -1745,13 +1768,13 @@ void Room::removeProducerVideoQuality(const std::shared_ptr<srv::IConsumerContro
     
     auto producerPeerData = producerPeer->data();
 
-    std::shared_ptr<ProducerVideoQualityController> qualityController;
+    std::shared_ptr<VideoProducerQualityController> qualityController;
     
-    if (!producerPeerData->producerVideoQualityControllers.contains(producerId)) {
+    if (!producerPeerData->videoProducerQualityControllers.contains(producerId)) {
         return;
     }
     
-    qualityController = producerPeerData->producerVideoQualityControllers[producerId];
+    qualityController = producerPeerData->videoProducerQualityControllers[producerId];
     
     qualityController->removeConsumer(consumerController->id());
 
@@ -1762,5 +1785,12 @@ void Room::removeProducerVideoQuality(const std::shared_ptr<srv::IConsumerContro
     msg["producerId"] = producerId;
     msg["paused"] = paused;
     msg["desiredQ"] = maxQ;
-    producerPeer->notify("producerVideoQualityChanged", msg);
+    producerPeer->request("videoProducerQualityChanged", msg);
+}
+
+void Room::onNewConsumerResumed(const std::shared_ptr<srv::IConsumerController>& consumerController)
+{
+    assert(consumerController);
+    
+    updateVideoProducerQuality(consumerController);
 }

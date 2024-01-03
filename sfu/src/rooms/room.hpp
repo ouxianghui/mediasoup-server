@@ -71,6 +71,8 @@ public:
     
     void onHandleNotification(const nlohmann::json& notification) {}
     
+    void onNewConsumerResumed(const std::shared_ptr<srv::IConsumerController>& consumerController);
+    
 public:
     // roomId
     sigslot::signal<const std::string&> closeSignal;
@@ -142,9 +144,9 @@ private:
     void onHandleApplyNetworkThrottle(const std::shared_ptr<Peer>& peer, const nlohmann::json& request, AcceptFunc& accept, RejectFunc& reject);
     
 private:
-    void updateProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController);
+    void updateVideoProducerQuality(const std::shared_ptr<srv::IConsumerController>& consumerController);
     
-    void removeProducerVideoQuality(const std::shared_ptr<srv::IConsumerController>& consumerController);
+    void removeVideoProducerQuality(const std::shared_ptr<srv::IConsumerController>& consumerController);
     
 private:
     std::string _id;

@@ -1,6 +1,5 @@
 [![CMake Build](https://github.com/cisco/libsrtp/actions/workflows/cmake.yml/badge.svg)](https://github.com/cisco/libsrtp/actions/workflows/cmake.yml)
 [![Autotools Build](https://github.com/cisco/libsrtp/actions/workflows/autotools.yml/badge.svg)](https://github.com/cisco/libsrtp/actions/workflows/autotools.yml)
-[![Build Status](https://travis-ci.org/cisco/libsrtp.svg?branch=master)](https://travis-ci.org/cisco/libsrtp)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/14274/badge.svg)](https://scan.coverity.com/projects/cisco-libsrtp)
 [![OSS-Fuzz Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/systemd.svg)](https://oss-fuzz-build-logs.storage.googleapis.com/index.html#libsrtp)
 
@@ -213,7 +212,7 @@ supported. This includes
 - the cipher F8,
 - the use of the packet index to select between master keys.
 
-The user should be aware that it is possible to misuse this libary,
+The user should be aware that it is possible to misuse this library,
 and that the result may be that the security level it provides is
 inadequate. If you are implementing a feature using this library, you
 will want to read the Security Considerations section of [RFC 3711](https://tools.ietf.org/html/rfc3711#section-9).
@@ -353,7 +352,7 @@ cmake .. -G "Visual Studio 15 2017 Win64"
 <a name="using-meson"></a>
 ## Using Meson
 
-On all platforms including Windows, one can build using [Meson](https://mesonbuild.org).
+On all platforms including Windows, one can build using [Meson](https://mesonbuild.com).
 Steps to download Meson are here: https://mesonbuild.com/Getting-meson.html
 
 To build with Meson, you can do something like:
@@ -503,7 +502,7 @@ srtp_create(&session, &policy);
 // main loop: get rtp packets, send srtp packets
 while (1) {
   char rtp_buffer[2048];
-  unsigned len;
+  size_t len;
 
   len = get_rtp_packet(rtp_buffer);
   srtp_protect(session, rtp_buffer, &len);

@@ -149,20 +149,20 @@ int main(int argc, char *argv[])
     srtp_sec_serv_t sec_servs = sec_serv_none;
     unsigned char ttl = 5;
     int c;
-    int key_size = 128;
-    int tag_size = 8;
-    int gcm_on = 0;
+    size_t key_size = 128;
+    size_t tag_size = 8;
+    bool gcm_on = false;
     char *input_key = NULL;
-    int b64_input = 0;
+    bool b64_input = false;
     char *address = NULL;
-    char key[MAX_KEY_LEN];
-    unsigned short port = 0;
+    uint8_t key[MAX_KEY_LEN];
+    uint16_t port = 0;
     rtp_sender_t snd;
     srtp_policy_t policy;
     srtp_err_status_t status;
-    int len;
-    int expected_len;
-    int do_list_mods = 0;
+    size_t len;
+    size_t expected_len;
+    bool do_list_mods = false;
     uint32_t ssrc = 0xdeadbeef; /* ssrc value hardcoded for now */
 #ifdef RTPW_USE_WINSOCK2
     WORD wVersionRequested = MAKEWORD(2, 0);
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
         }
         switch (c) {
         case 'b':
-            b64_input = 1;
+            b64_input = true;
         /* fall thru */
         case 'k':
             input_key = optarg_s;
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
         case 'e':
             key_size = atoi(optarg_s);
             if (key_size != 128 && key_size != 256) {
-                printf("error: encryption key size must be 128 or 256 (%d)\n",
+                printf("error: encryption key size must be 128 or 256 (%zu)\n",
                        key_size);
                 exit(1);
             }
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
         case 't':
             tag_size = atoi(optarg_s);
             if (tag_size != 8 && tag_size != 16) {
-                printf("error: GCM tag size must be 8 or 16 (%d)\n", tag_size);
+                printf("error: GCM tag size must be 8 or 16 (%zu)\n", tag_size);
                 exit(1);
             }
             break;
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
             sec_servs |= sec_serv_auth;
             break;
         case 'g':
-            gcm_on = 1;
+            gcm_on = true;
             sec_servs |= sec_serv_auth;
             break;
         case 'r':
@@ -234,14 +234,14 @@ int main(int argc, char *argv[])
             prog_type = sender;
             break;
         case 'd':
-            status = srtp_set_debug_module(optarg_s, 1);
+            status = srtp_set_debug_module(optarg_s, true);
             if (status) {
                 printf("error: set debug module (%s) failed\n", optarg_s);
                 exit(1);
             }
             break;
         case 'l':
-            do_list_mods = 1;
+            do_list_mods = true;
             break;
         case 'w':
             dictfile = optarg_s;
@@ -357,12 +357,15 @@ int main(int argc, char *argv[])
 
     /* report security services selected on the command line */
     printf("security services: ");
-    if (sec_servs & sec_serv_conf)
+    if (sec_servs & sec_serv_conf) {
         printf("confidentiality ");
-    if (sec_servs & sec_serv_auth)
+    }
+    if (sec_servs & sec_serv_auth) {
         printf("message authentication");
-    if (sec_servs == sec_serv_none)
+    }
+    if (sec_servs == sec_serv_none) {
         printf("none");
+    }
     printf("\n");
 
     /* set up the srtp policy and master key */
@@ -378,12 +381,12 @@ int main(int argc, char *argv[])
 #ifdef GCM
                 switch (key_size) {
                 case 128:
-                    srtp_crypto_policy_set_aes_gcm_128_8_auth(&policy.rtp);
-                    srtp_crypto_policy_set_aes_gcm_128_8_auth(&policy.rtcp);
+                    srtp_crypto_policy_set_aes_gcm_128_16_auth(&policy.rtp);
+                    srtp_crypto_policy_set_aes_gcm_128_16_auth(&policy.rtcp);
                     break;
                 case 256:
-                    srtp_crypto_policy_set_aes_gcm_256_8_auth(&policy.rtp);
-                    srtp_crypto_policy_set_aes_gcm_256_8_auth(&policy.rtcp);
+                    srtp_crypto_policy_set_aes_gcm_256_16_auth(&policy.rtp);
+                    srtp_crypto_policy_set_aes_gcm_256_16_auth(&policy.rtcp);
                     break;
                 }
 #else
@@ -427,14 +430,16 @@ int main(int argc, char *argv[])
 #ifdef GCM
                 switch (key_size) {
                 case 128:
-                    srtp_crypto_policy_set_aes_gcm_128_8_only_auth(&policy.rtp);
-                    srtp_crypto_policy_set_aes_gcm_128_8_only_auth(
-                        &policy.rtcp);
+                    srtp_crypto_policy_set_aes_gcm_128_16_auth(&policy.rtp);
+                    policy.rtp.sec_serv = sec_serv_auth;
+                    srtp_crypto_policy_set_aes_gcm_128_16_auth(&policy.rtcp);
+                    policy.rtcp.sec_serv = sec_serv_auth;
                     break;
                 case 256:
-                    srtp_crypto_policy_set_aes_gcm_256_8_only_auth(&policy.rtp);
-                    srtp_crypto_policy_set_aes_gcm_256_8_only_auth(
-                        &policy.rtcp);
+                    srtp_crypto_policy_set_aes_gcm_256_16_auth(&policy.rtp);
+                    policy.rtp.sec_serv = sec_serv_auth;
+                    srtp_crypto_policy_set_aes_gcm_256_16_auth(&policy.rtcp);
+                    policy.rtcp.sec_serv = sec_serv_auth;
                     break;
                 }
 #else
@@ -453,10 +458,10 @@ int main(int argc, char *argv[])
         }
         policy.ssrc.type = ssrc_specific;
         policy.ssrc.value = ssrc;
-        policy.key = (uint8_t *)key;
+        policy.key = key;
         policy.next = NULL;
         policy.window_size = 128;
-        policy.allow_repeat_tx = 0;
+        policy.allow_repeat_tx = false;
         policy.rtp.sec_serv = sec_servs;
         policy.rtcp.sec_serv = sec_serv_none; /* we don't do RTCP anyway */
 
@@ -485,15 +490,15 @@ int main(int argc, char *argv[])
         if (len < expected_len) {
             fprintf(stderr,
                     "error: too few digits in key/salt "
-                    "(should be %d digits, found %d)\n",
+                    "(should be %zu digits, found %zu)\n",
                     expected_len, len);
             exit(1);
         }
-        if ((int)strlen(input_key) > policy.rtp.cipher_key_len * 2) {
+        if (strlen(input_key) > policy.rtp.cipher_key_len * 2) {
             fprintf(stderr,
                     "error: too many digits in key/salt "
-                    "(should be %d hexadecimal digits, found %u)\n",
-                    policy.rtp.cipher_key_len * 2, (unsigned)strlen(input_key));
+                    "(should be %zu hexadecimal digits, found %zu)\n",
+                    policy.rtp.cipher_key_len * 2, strlen(input_key));
             exit(1);
         }
 
@@ -516,7 +521,7 @@ int main(int argc, char *argv[])
         policy.ssrc.type = ssrc_specific;
         policy.ssrc.value = ssrc;
         policy.window_size = 0;
-        policy.allow_repeat_tx = 0;
+        policy.allow_repeat_tx = false;
         policy.next = NULL;
     }
 
@@ -562,9 +567,9 @@ int main(int argc, char *argv[])
         while (!interrupted && fgets(word, MAX_WORD_LEN, dict) != NULL) {
             len = strlen(word) + 1; /* plus one for null */
 
-            if (len > MAX_WORD_LEN)
+            if (len > MAX_WORD_LEN) {
                 printf("error: word %s too large to send\n", word);
-            else {
+            } else {
                 rtp_sendto(snd, word, len);
                 printf("sending word: %s", word);
             }
@@ -604,8 +609,9 @@ int main(int argc, char *argv[])
         /* get next word and loop */
         while (!interrupted) {
             len = MAX_WORD_LEN;
-            if (rtp_recvfrom(rcvr, word, &len) > -1)
+            if (rtp_recvfrom(rcvr, word, &len) > -1) {
                 printf("\tword: %s\n", word);
+            }
         }
 
         rtp_receiver_deinit_srtp(rcvr);

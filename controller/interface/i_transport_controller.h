@@ -39,6 +39,19 @@ namespace srv {
     void to_json(nlohmann::json& j, const TransportListenIp& st);
     void from_json(const nlohmann::json& j, TransportListenIp& st);
 
+    struct TransportSocketFlags
+    {
+        /**
+        * Disable dual-stack support so only IPv6 is used (only if ip is IPv6).
+        */
+        bool ipv6Only = false;
+        /**
+        * Make different transports bind to the same ip and port (only for UDP).
+        * Useful for multicast scenarios with plain transport. Use with caution.
+        */
+        bool udpReusePort = false;
+    };
+
     struct TransportListenInfo
     {
         /**
@@ -61,6 +74,11 @@ namespace srv {
          * Listening port.
          */
         uint16_t port;
+
+        /**
+        * Socket flags.
+        */
+        TransportSocketFlags flags;
 
         /**
          * Send buffer size (bytes).

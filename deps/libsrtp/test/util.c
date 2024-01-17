@@ -51,7 +51,7 @@
 /* include space for null terminator */
 static char bit_string[MAX_PRINT_STRING_LEN + 1];
 
-static inline int hex_char_to_nibble(uint8_t c)
+static inline int hex_char_to_nibble(char c)
 {
     switch (c) {
     case ('0'):
@@ -103,7 +103,7 @@ static inline int hex_char_to_nibble(uint8_t c)
     }
 }
 
-uint8_t nibble_to_hex_char(uint8_t nibble)
+char nibble_to_hex_char(uint8_t nibble)
 {
     char buf[16] = { '0', '1', '2', '3', '4', '5', '6', '7',
                      '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
@@ -115,11 +115,11 @@ uint8_t nibble_to_hex_char(uint8_t nibble)
  * hex_string_to_octet_string converts a hexadecimal string
  * of length 2 * len to a raw octet string of length len
  */
-int hex_string_to_octet_string(char *raw, char *hex, int len)
+size_t hex_string_to_octet_string(uint8_t *raw, const char *hex, size_t len)
 {
     uint8_t x;
     int tmp;
-    int hex_len;
+    size_t hex_len;
 
     hex_len = 0;
     while (hex_len < len) {
@@ -141,10 +141,9 @@ int hex_string_to_octet_string(char *raw, char *hex, int len)
     return hex_len;
 }
 
-char *octet_string_hex_string(const void *s, int length)
+const char *octet_string_hex_string(const uint8_t *str, size_t length)
 {
-    const uint8_t *str = (const uint8_t *)s;
-    int i;
+    size_t i;
 
     /* double length, since one octet takes two hex characters */
     length *= 2;
@@ -165,16 +164,16 @@ char *octet_string_hex_string(const void *s, int length)
 static const char b64chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                "abcdefghijklmnopqrstuvwxyz0123456789+/";
 
-static int base64_block_to_octet_triple(char *out, char *in)
+static size_t base64_block_to_octet_triple(uint8_t *out, const char *in)
 {
-    unsigned char sextets[4] = { 0 };
-    int j = 0;
-    int i;
+    uint8_t sextets[4] = { 0 };
+    size_t j = 0;
+    size_t i;
 
     for (i = 0; i < 4; i++) {
         char *p = strchr(b64chars, in[i]);
         if (p != NULL) {
-            sextets[i] = (unsigned char)(p - b64chars);
+            sextets[i] = (uint8_t)(p - b64chars);
         } else {
             j++;
         }
@@ -190,11 +189,14 @@ static int base64_block_to_octet_triple(char *out, char *in)
     return j;
 }
 
-int base64_string_to_octet_string(char *out, int *pad, char *in, int len)
+size_t base64_string_to_octet_string(uint8_t *out,
+                                     int *pad,
+                                     const char *in,
+                                     size_t len)
 {
-    int k = 0;
-    int i = 0;
-    int j = 0;
+    size_t k = 0;
+    size_t i = 0;
+    size_t j = 0;
 
     if (len % 4 != 0) {
         return 0;
@@ -205,6 +207,6 @@ int base64_string_to_octet_string(char *out, int *pad, char *in, int len)
         k += 3;
         i += 4;
     }
-    *pad = j;
+    *pad = (int)j;
     return i;
 }

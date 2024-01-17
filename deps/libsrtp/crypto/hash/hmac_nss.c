@@ -53,7 +53,7 @@
 /* the debug module for authentiation */
 
 srtp_debug_module_t srtp_mod_hmac = {
-    0,               /* debugging is off by default */
+    false,           /* debugging is off by default */
     "hmac sha-1 nss" /* printable name for module   */
 };
 
@@ -64,16 +64,16 @@ typedef struct {
 } srtp_hmac_nss_ctx_t;
 
 static srtp_err_status_t srtp_hmac_alloc(srtp_auth_t **a,
-                                         int key_len,
-                                         int out_len)
+                                         size_t key_len,
+                                         size_t out_len)
 {
     extern const srtp_auth_type_t srtp_hmac;
     srtp_hmac_nss_ctx_t *hmac;
     NSSInitContext *nss;
 
-    debug_print(srtp_mod_hmac, "allocating auth func with key length %d",
+    debug_print(srtp_mod_hmac, "allocating auth func with key length %zu",
                 key_len);
-    debug_print(srtp_mod_hmac, "                          tag length %d",
+    debug_print(srtp_mod_hmac, "                          tag length %zu",
                 out_len);
 
     /* check output length - should be less than 20 bytes */
@@ -165,7 +165,7 @@ static srtp_err_status_t srtp_hmac_start(void *statev)
 
 static srtp_err_status_t srtp_hmac_init(void *statev,
                                         const uint8_t *key,
-                                        int key_len)
+                                        size_t key_len)
 {
     srtp_hmac_nss_ctx_t *hmac;
     hmac = (srtp_hmac_nss_ctx_t *)statev;
@@ -187,7 +187,8 @@ static srtp_err_status_t srtp_hmac_init(void *statev,
         return srtp_err_status_bad_param;
     }
 
-    SECItem key_item = { siBuffer, (unsigned char *)key, key_len };
+    /* explicitly cast away const of key */
+    SECItem key_item = { siBuffer, (unsigned char *)(uintptr_t)key, key_len };
     sym_key = PK11_ImportSymKey(slot, CKM_SHA_1_HMAC, PK11_OriginUnwrap,
                                 CKA_SIGN, &key_item, NULL);
     PK11_FreeSlot(slot);
@@ -212,7 +213,7 @@ static srtp_err_status_t srtp_hmac_init(void *statev,
 
 static srtp_err_status_t srtp_hmac_update(void *statev,
                                           const uint8_t *message,
-                                          int msg_octets)
+                                          size_t msg_octets)
 {
     srtp_hmac_nss_ctx_t *hmac;
     hmac = (srtp_hmac_nss_ctx_t *)statev;
@@ -229,14 +230,13 @@ static srtp_err_status_t srtp_hmac_update(void *statev,
 
 static srtp_err_status_t srtp_hmac_compute(void *statev,
                                            const uint8_t *message,
-                                           int msg_octets,
-                                           int tag_len,
+                                           size_t msg_octets,
+                                           size_t tag_len,
                                            uint8_t *result)
 {
     srtp_hmac_nss_ctx_t *hmac;
     hmac = (srtp_hmac_nss_ctx_t *)statev;
     uint8_t hash_value[SHA1_DIGEST_SIZE];
-    int i;
     unsigned int len;
 
     debug_print(srtp_mod_hmac, "input: %s",
@@ -256,11 +256,12 @@ static srtp_err_status_t srtp_hmac_compute(void *statev,
         return srtp_err_status_auth_fail;
     }
 
-    if (tag_len < 0 || len < (unsigned int)tag_len)
+    if (len < tag_len) {
         return srtp_err_status_auth_fail;
+    }
 
     /* copy hash_value to *result */
-    for (i = 0; i < tag_len; i++) {
+    for (size_t i = 0; i < tag_len; i++) {
         result[i] = hash_value[i];
     }
 

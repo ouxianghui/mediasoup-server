@@ -431,11 +431,14 @@ namespace srv {
         std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> infos;
         
         for (auto& info : listenInfos) {
+            auto socketFlags = FBS::Transport::CreateSocketFlags(builder, info.flags.ipv6Only, info.flags.udpReusePort);
+            
             auto info_ = FBS::Transport::CreateListenInfoDirect(builder,
                                                                 info.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                 info.ip.c_str(),
                                                                 info.announcedIp.c_str(),
                                                                 info.port,
+                                                                socketFlags,
                                                                 info.sendBufferSize,
                                                                 info.recvBufferSize
                                                                 );

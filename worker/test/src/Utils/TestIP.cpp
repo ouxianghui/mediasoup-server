@@ -1,7 +1,7 @@
 #include "common.hpp"
 #include "MediaSoupErrors.hpp"
 #include "Utils.hpp"
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <cstring> // std::memset()
 #ifdef _WIN32
 #include <winsock2.h>
@@ -127,7 +127,7 @@ SCENARIO("Utils::IP::GetAddressInfo()")
 	sin.sin_port        = htons(10251);
 	sin.sin_addr.s_addr = inet_addr("82.99.219.114");
 
-	auto* addr = reinterpret_cast<const struct sockaddr*>(&sin);
+	const auto* addr = reinterpret_cast<const struct sockaddr*>(&sin);
 	int family;
 	std::string ip;
 	uint16_t port;

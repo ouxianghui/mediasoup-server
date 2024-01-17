@@ -206,7 +206,7 @@ namespace srv {
         }
     }
 
-    // types = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir';
+    // types = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir' | 'sr';
     void ProducerController::enableTraceEvent(const std::vector<std::string>& types)
     {
         SRV_LOGD("enableTraceEvent()");
@@ -371,6 +371,9 @@ namespace srv {
         else if (eventType == "rtp") {
             return FBS::Producer::TraceEventType::RTP;
         }
+        else if (eventType == "sr") {
+            return FBS::Producer::TraceEventType::SR;
+        }
         else {
             SRV_LOGE("invalid ProducerTraceEventType: %s", eventType.c_str());
             return FBS::Producer::TraceEventType::MIN;
@@ -391,6 +394,8 @@ namespace srv {
                 return "pli";
             case FBS::Producer::TraceEventType::RTP:
                 return "rtp";
+            case FBS::Producer::TraceEventType::SR:
+                return "sr";
             default:
                 SRV_LOGE("invalid FBS::Producer::TraceEventType: %u", (uint8_t)eventType);
                 return "";

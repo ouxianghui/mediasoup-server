@@ -56,19 +56,19 @@
 /* the debug module for authentiation */
 
 srtp_debug_module_t srtp_mod_hmac = {
-    0,                   /* debugging is off by default */
+    false,               /* debugging is off by default */
     "hmac sha-1 mbedtls" /* printable name for module   */
 };
 
 static srtp_err_status_t srtp_hmac_mbedtls_alloc(srtp_auth_t **a,
-                                                 int key_len,
-                                                 int out_len)
+                                                 size_t key_len,
+                                                 size_t out_len)
 {
     extern const srtp_auth_type_t srtp_hmac;
 
-    debug_print(srtp_mod_hmac, "allocating auth func with key length %d",
+    debug_print(srtp_mod_hmac, "allocating auth func with key length %zu",
                 key_len);
-    debug_print(srtp_mod_hmac, "                          tag length %d",
+    debug_print(srtp_mod_hmac, "                          tag length %zu",
                 out_len);
 
     /* check output length - should be less than 20 bytes */
@@ -116,61 +116,66 @@ static srtp_err_status_t srtp_hmac_mbedtls_dealloc(srtp_auth_t *a)
 static srtp_err_status_t srtp_hmac_mbedtls_start(void *statev)
 {
     mbedtls_md_context_t *state = (mbedtls_md_context_t *)statev;
-    if (mbedtls_md_hmac_reset(state) != 0)
+    if (mbedtls_md_hmac_reset(state) != 0) {
         return srtp_err_status_auth_fail;
+    }
 
     return srtp_err_status_ok;
 }
 
 static srtp_err_status_t srtp_hmac_mbedtls_init(void *statev,
                                                 const uint8_t *key,
-                                                int key_len)
+                                                size_t key_len)
 {
     mbedtls_md_context_t *state = (mbedtls_md_context_t *)statev;
     const mbedtls_md_info_t *info = NULL;
 
     info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
-    if (info == NULL)
+    if (info == NULL) {
         return srtp_err_status_auth_fail;
+    }
 
-    if (mbedtls_md_setup(state, info, 1) != 0)
+    if (mbedtls_md_setup(state, info, 1) != 0) {
         return srtp_err_status_auth_fail;
+    }
 
     debug_print(srtp_mod_hmac, "mbedtls setup, name: %s",
                 mbedtls_md_get_name(info));
     debug_print(srtp_mod_hmac, "mbedtls setup, size: %d",
                 mbedtls_md_get_size(info));
 
-    if (mbedtls_md_hmac_starts(state, key, key_len) != 0)
+    if (mbedtls_md_hmac_starts(state, key, key_len) != 0) {
         return srtp_err_status_auth_fail;
+    }
 
     return srtp_err_status_ok;
 }
 
 static srtp_err_status_t srtp_hmac_mbedtls_update(void *statev,
                                                   const uint8_t *message,
-                                                  int msg_octets)
+                                                  size_t msg_octets)
 {
     mbedtls_md_context_t *state = (mbedtls_md_context_t *)statev;
 
     debug_print(srtp_mod_hmac, "input: %s",
                 srtp_octet_string_hex_string(message, msg_octets));
 
-    if (mbedtls_md_hmac_update(state, message, msg_octets) != 0)
+    if (mbedtls_md_hmac_update(state, message, msg_octets) != 0) {
         return srtp_err_status_auth_fail;
+    }
 
     return srtp_err_status_ok;
 }
 
 static srtp_err_status_t srtp_hmac_mbedtls_compute(void *statev,
                                                    const uint8_t *message,
-                                                   int msg_octets,
-                                                   int tag_len,
+                                                   size_t msg_octets,
+                                                   size_t tag_len,
                                                    uint8_t *result)
 {
     mbedtls_md_context_t *state = (mbedtls_md_context_t *)statev;
     uint8_t hash_value[SHA1_DIGEST_SIZE];
-    int i;
+    size_t i;
 
     /* check tag length, return error if we can't provide the value expected */
     if (tag_len > SHA1_DIGEST_SIZE) {
@@ -178,11 +183,13 @@ static srtp_err_status_t srtp_hmac_mbedtls_compute(void *statev,
     }
 
     /* hash message, copy output into H */
-    if (mbedtls_md_hmac_update(statev, message, msg_octets) != 0)
+    if (mbedtls_md_hmac_update(statev, message, msg_octets) != 0) {
         return srtp_err_status_auth_fail;
+    }
 
-    if (mbedtls_md_hmac_finish(state, hash_value) != 0)
+    if (mbedtls_md_hmac_finish(state, hash_value) != 0) {
         return srtp_err_status_auth_fail;
+    }
 
     /* copy hash_value to *result */
     for (i = 0; i < tag_len; i++) {

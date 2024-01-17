@@ -58,7 +58,7 @@
 #include <nspr.h>
 
 srtp_debug_module_t srtp_mod_aes_gcm = {
-    0,            /* debugging is off by default */
+    false,        /* debugging is off by default */
     "aes gcm nss" /* printable module name       */
 };
 
@@ -78,15 +78,16 @@ srtp_debug_module_t srtp_mod_aes_gcm = {
  * initializing the KDF.
  */
 static srtp_err_status_t srtp_aes_gcm_nss_alloc(srtp_cipher_t **c,
-                                                int key_len,
-                                                int tlen)
+                                                size_t key_len,
+                                                size_t tlen)
 {
     srtp_aes_gcm_ctx_t *gcm;
     NSSInitContext *nss;
 
-    debug_print(srtp_mod_aes_gcm, "allocating cipher with key length %d",
+    debug_print(srtp_mod_aes_gcm, "allocating cipher with key length %zu",
                 key_len);
-    debug_print(srtp_mod_aes_gcm, "allocating cipher with tag length %d", tlen);
+    debug_print(srtp_mod_aes_gcm, "allocating cipher with tag length %zu",
+                tlen);
 
     /*
      * Verify the key_len is valid for one of: AES-128/256
@@ -212,7 +213,9 @@ static srtp_err_status_t srtp_aes_gcm_nss_context_init(void *cv,
         return (srtp_err_status_cipher_fail);
     }
 
-    SECItem key_item = { siBuffer, (unsigned char *)key, c->key_size };
+    /* explicitly cast away const of key */
+    SECItem key_item = { siBuffer, (unsigned char *)(uintptr_t)key,
+                         c->key_size };
     c->key = PK11_ImportSymKey(slot, CKM_AES_GCM, PK11_OriginUnwrap,
                                CKA_ENCRYPT, &key_item, NULL);
     PK11_FreeSlot(slot);
@@ -259,7 +262,7 @@ static srtp_err_status_t srtp_aes_gcm_nss_set_iv(
  */
 static srtp_err_status_t srtp_aes_gcm_nss_set_aad(void *cv,
                                                   const uint8_t *aad,
-                                                  uint32_t aad_len)
+                                                  size_t aad_len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
 
@@ -277,9 +280,9 @@ static srtp_err_status_t srtp_aes_gcm_nss_set_aad(void *cv,
 }
 
 static srtp_err_status_t srtp_aes_gcm_nss_do_crypto(void *cv,
-                                                    int encrypt,
-                                                    unsigned char *buf,
-                                                    unsigned int *enc_len)
+                                                    bool encrypt,
+                                                    uint8_t *buf,
+                                                    size_t *enc_len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
 
@@ -291,17 +294,18 @@ static srtp_err_status_t srtp_aes_gcm_nss_do_crypto(void *cv,
     // Reset AAD
     c->aad_size = 0;
 
+    unsigned int out_len = 0;
     int rv;
     SECItem param = { siBuffer, (unsigned char *)&c->params,
                       sizeof(CK_GCM_PARAMS) };
     if (encrypt) {
-        rv = PK11_Encrypt(c->key, CKM_AES_GCM, &param, buf, enc_len,
+        rv = PK11_Encrypt(c->key, CKM_AES_GCM, &param, buf, &out_len,
                           *enc_len + 16, buf, *enc_len);
     } else {
-        rv = PK11_Decrypt(c->key, CKM_AES_GCM, &param, buf, enc_len, *enc_len,
+        rv = PK11_Decrypt(c->key, CKM_AES_GCM, &param, buf, &out_len, *enc_len,
                           buf, *enc_len);
     }
-
+    *enc_len = out_len;
     srtp_err_status_t status = (srtp_err_status_ok);
     if (rv != SECSuccess) {
         status = (srtp_err_status_cipher_fail);
@@ -324,8 +328,8 @@ static srtp_err_status_t srtp_aes_gcm_nss_do_crypto(void *cv,
  *	enc_len	length of encrypt buffer
  */
 static srtp_err_status_t srtp_aes_gcm_nss_encrypt(void *cv,
-                                                  unsigned char *buf,
-                                                  unsigned int *enc_len)
+                                                  uint8_t *buf,
+                                                  size_t *enc_len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
 
@@ -334,8 +338,8 @@ static srtp_err_status_t srtp_aes_gcm_nss_encrypt(void *cv,
     // even though there's no data, we need to give NSS a buffer
     // where it can write the tag.  We can't just use c->tag because
     // memcpy has undefined behavior on overlapping ranges.
-    unsigned char tagbuf[16];
-    unsigned char *non_null_buf = buf;
+    uint8_t tagbuf[16];
+    uint8_t *non_null_buf = buf;
     if (!non_null_buf && (*enc_len == 0)) {
         non_null_buf = tagbuf;
     } else if (!non_null_buf) {
@@ -343,7 +347,7 @@ static srtp_err_status_t srtp_aes_gcm_nss_encrypt(void *cv,
     }
 
     srtp_err_status_t status =
-        srtp_aes_gcm_nss_do_crypto(cv, 1, non_null_buf, enc_len);
+        srtp_aes_gcm_nss_do_crypto(cv, true, non_null_buf, enc_len);
     if (status != srtp_err_status_ok) {
         return status;
     }
@@ -366,7 +370,7 @@ static srtp_err_status_t srtp_aes_gcm_nss_encrypt(void *cv,
  */
 static srtp_err_status_t srtp_aes_gcm_nss_get_tag(void *cv,
                                                   uint8_t *buf,
-                                                  uint32_t *len)
+                                                  size_t *len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
     *len = c->tag_size;
@@ -383,10 +387,11 @@ static srtp_err_status_t srtp_aes_gcm_nss_get_tag(void *cv,
  *	enc_len	length of encrypt buffer
  */
 static srtp_err_status_t srtp_aes_gcm_nss_decrypt(void *cv,
-                                                  unsigned char *buf,
-                                                  unsigned int *enc_len)
+                                                  uint8_t *buf,
+                                                  size_t *enc_len)
 {
-    srtp_err_status_t status = srtp_aes_gcm_nss_do_crypto(cv, 0, buf, enc_len);
+    srtp_err_status_t status =
+        srtp_aes_gcm_nss_do_crypto(cv, false, buf, enc_len);
     if (status != srtp_err_status_ok) {
         int err = PR_GetError();
         if (err == SEC_ERROR_BAD_DATA) {

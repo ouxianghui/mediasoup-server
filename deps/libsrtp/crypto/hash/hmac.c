@@ -54,20 +54,20 @@
 /* the debug module for authentiation */
 
 srtp_debug_module_t srtp_mod_hmac = {
-    0,           /* debugging is off by default */
+    false,       /* debugging is off by default */
     "hmac sha-1" /* printable name for module   */
 };
 
 static srtp_err_status_t srtp_hmac_alloc(srtp_auth_t **a,
-                                         int key_len,
-                                         int out_len)
+                                         size_t key_len,
+                                         size_t out_len)
 {
     extern const srtp_auth_type_t srtp_hmac;
     uint8_t *pointer;
 
-    debug_print(srtp_mod_hmac, "allocating auth func with key length %d",
+    debug_print(srtp_mod_hmac, "allocating auth func with key length %zu",
                 key_len);
-    debug_print(srtp_mod_hmac, "                          tag length %d",
+    debug_print(srtp_mod_hmac, "                          tag length %zu",
                 out_len);
 
     /*
@@ -114,10 +114,9 @@ static srtp_err_status_t srtp_hmac_dealloc(srtp_auth_t *a)
 
 static srtp_err_status_t srtp_hmac_init(void *statev,
                                         const uint8_t *key,
-                                        int key_len)
+                                        size_t key_len)
 {
     srtp_hmac_ctx_t *state = (srtp_hmac_ctx_t *)statev;
-    int i;
     uint8_t ipad[64];
 
     /*
@@ -132,12 +131,12 @@ static srtp_err_status_t srtp_hmac_init(void *statev,
      * set values of ipad and opad by exoring the key into the
      * appropriate constant values
      */
-    for (i = 0; i < key_len; i++) {
+    for (size_t i = 0; i < key_len; i++) {
         ipad[i] = key[i] ^ 0x36;
         state->opad[i] = key[i] ^ 0x5c;
     }
     /* set the rest of ipad, opad to constant values */
-    for (; i < 64; i++) {
+    for (size_t i = key_len; i < 64; i++) {
         ipad[i] = 0x36;
         ((uint8_t *)state->opad)[i] = 0x5c;
     }
@@ -166,7 +165,7 @@ static srtp_err_status_t srtp_hmac_start(void *statev)
 
 static srtp_err_status_t srtp_hmac_update(void *statev,
                                           const uint8_t *message,
-                                          int msg_octets)
+                                          size_t msg_octets)
 {
     srtp_hmac_ctx_t *state = (srtp_hmac_ctx_t *)statev;
 
@@ -181,14 +180,14 @@ static srtp_err_status_t srtp_hmac_update(void *statev,
 
 static srtp_err_status_t srtp_hmac_compute(void *statev,
                                            const uint8_t *message,
-                                           int msg_octets,
-                                           int tag_len,
+                                           size_t msg_octets,
+                                           size_t tag_len,
                                            uint8_t *result)
 {
     srtp_hmac_ctx_t *state = (srtp_hmac_ctx_t *)statev;
     uint32_t hash_value[5];
     uint32_t H[5];
-    int i;
+    size_t i;
 
     /* check tag length, return error if we can't provide the value expected */
     if (tag_len > 20) {

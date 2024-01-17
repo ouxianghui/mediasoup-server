@@ -80,14 +80,14 @@ int main(int argc, char *argv[])
     v128_t data;
     uint8_t key[AES_MAX_KEY_LEN];
     srtp_aes_expanded_key_t exp_key;
-    int key_len, len;
-    int verbose = 0;
+    size_t key_len, len;
+    bool verbose = false;
     srtp_err_status_t status;
 
     /* -v must be last if it's passed */
     if (argc > 0 && strncmp(argv[argc - 1], "-v", 2) == 0) {
         /* we're in verbose mode */
-        verbose = 1;
+        verbose = true;
         --argc;
     }
 
@@ -108,16 +108,16 @@ int main(int argc, char *argv[])
     if (strlen(argv[1]) > AES_MAX_KEY_LEN * 2) {
         fprintf(stderr,
                 "error: too many digits in key "
-                "(should be at most %d hexadecimal digits, found %u)\n",
-                AES_MAX_KEY_LEN * 2, (unsigned)strlen(argv[1]));
+                "(should be at most %d hexadecimal digits, found %zu)\n",
+                AES_MAX_KEY_LEN * 2, strlen(argv[1]));
         exit(1);
     }
-    len = hex_string_to_octet_string((char *)key, argv[1], AES_MAX_KEY_LEN * 2);
+    len = hex_string_to_octet_string(key, argv[1], AES_MAX_KEY_LEN * 2);
     /* check that hex string is the right length */
     if (len != 32 && len != 48 && len != 64) {
         fprintf(stderr,
                 "error: bad number of digits in key "
-                "(should be 32/48/64 hexadecimal digits, found %d)\n",
+                "(should be 32/48/64 hexadecimal digits, found %zu)\n",
                 len);
         exit(1);
     }
@@ -127,16 +127,16 @@ int main(int argc, char *argv[])
     if (strlen(argv[2]) > 16 * 2) {
         fprintf(stderr,
                 "error: too many digits in plaintext "
-                "(should be %d hexadecimal digits, found %u)\n",
-                16 * 2, (unsigned)strlen(argv[2]));
+                "(should be %d hexadecimal digits, found %zu)\n",
+                16 * 2, strlen(argv[2]));
         exit(1);
     }
-    len = hex_string_to_octet_string((char *)(&data), argv[2], 16 * 2);
+    len = hex_string_to_octet_string((uint8_t *)&data, argv[2], 16 * 2);
     /* check that hex string is the right length */
     if (len < 16 * 2) {
         fprintf(stderr,
                 "error: too few digits in plaintext "
-                "(should be %d hexadecimal digits, found %d)\n",
+                "(should be %d hexadecimal digits, found %zu)\n",
                 16 * 2, len);
         exit(1);
     }

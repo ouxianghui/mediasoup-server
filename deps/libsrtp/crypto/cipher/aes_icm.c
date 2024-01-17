@@ -55,7 +55,7 @@
 #include "cipher_test_cases.h"
 
 srtp_debug_module_t srtp_mod_aes_icm = {
-    0,        /* debugging is off by default */
+    false,    /* debugging is off by default */
     "aes icm" /* printable module name       */
 };
 
@@ -94,13 +94,13 @@ srtp_debug_module_t srtp_mod_aes_icm = {
  */
 
 static srtp_err_status_t srtp_aes_icm_alloc(srtp_cipher_t **c,
-                                            int key_len,
-                                            int tlen)
+                                            size_t key_len,
+                                            size_t tlen)
 {
     srtp_aes_icm_ctx_t *icm;
     (void)tlen;
 
-    debug_print(srtp_mod_aes_icm, "allocating cipher with key length %d",
+    debug_print(srtp_mod_aes_icm, "allocating cipher with key length %zu",
                 key_len);
 
     /*
@@ -183,7 +183,7 @@ static srtp_err_status_t srtp_aes_icm_context_init(void *cv, const uint8_t *key)
 {
     srtp_aes_icm_ctx_t *c = (srtp_aes_icm_ctx_t *)cv;
     srtp_err_status_t status;
-    int base_key_len, copy_len;
+    size_t base_key_len, copy_len;
 
     if (c->key_size == SRTP_AES_ICM_128_KEY_LEN_WSALT ||
         c->key_size == SRTP_AES_ICM_256_KEY_LEN_WSALT) {
@@ -295,25 +295,24 @@ static void srtp_aes_icm_advance(srtp_aes_icm_ctx_t *c)
  */
 
 static srtp_err_status_t srtp_aes_icm_encrypt(void *cv,
-                                              unsigned char *buf,
-                                              unsigned int *enc_len)
+                                              uint8_t *buf,
+                                              size_t *enc_len)
 {
     srtp_aes_icm_ctx_t *c = (srtp_aes_icm_ctx_t *)cv;
-    unsigned int bytes_to_encr = *enc_len;
-    unsigned int i;
+    size_t bytes_to_encr = *enc_len;
     uint32_t *b;
 
     /* check that there's enough segment left*/
-    unsigned int bytes_of_new_keystream = bytes_to_encr - c->bytes_in_buffer;
-    unsigned int blocks_of_new_keystream = (bytes_of_new_keystream + 15) >> 4;
+    size_t bytes_of_new_keystream = bytes_to_encr - c->bytes_in_buffer;
+    size_t blocks_of_new_keystream = (bytes_of_new_keystream + 15) >> 4;
     if ((blocks_of_new_keystream + htons(c->counter.v16[7])) > 0xffff) {
         return srtp_err_status_terminus;
     }
 
     debug_print(srtp_mod_aes_icm, "block index: %d", htons(c->counter.v16[7]));
-    if (bytes_to_encr <= (unsigned int)c->bytes_in_buffer) {
+    if (bytes_to_encr <= c->bytes_in_buffer) {
         /* deal with odd case of small bytes_to_encr */
-        for (i = (sizeof(v128_t) - c->bytes_in_buffer);
+        for (size_t i = (sizeof(v128_t) - c->bytes_in_buffer);
              i < (sizeof(v128_t) - c->bytes_in_buffer + bytes_to_encr); i++) {
             *buf++ ^= c->keystream_buffer.v8[i];
         }
@@ -325,8 +324,8 @@ static srtp_err_status_t srtp_aes_icm_encrypt(void *cv,
 
     } else {
         /* encrypt bytes until the remaining data is 16-byte aligned */
-        for (i = (sizeof(v128_t) - c->bytes_in_buffer); i < sizeof(v128_t);
-             i++) {
+        for (size_t i = (sizeof(v128_t) - c->bytes_in_buffer);
+             i < sizeof(v128_t); i++) {
             *buf++ ^= c->keystream_buffer.v8[i];
         }
 
@@ -335,7 +334,7 @@ static srtp_err_status_t srtp_aes_icm_encrypt(void *cv,
     }
 
     /* now loop over entire 16-byte blocks of keystream */
-    for (i = 0; i < (bytes_to_encr / sizeof(v128_t)); i++) {
+    for (size_t i = 0; i < (bytes_to_encr / sizeof(v128_t)); i++) {
         /* fill buffer with new keystream */
         srtp_aes_icm_advance(c);
 
@@ -385,12 +384,12 @@ static srtp_err_status_t srtp_aes_icm_encrypt(void *cv,
         /* fill buffer with new keystream */
         srtp_aes_icm_advance(c);
 
-        for (i = 0; i < (bytes_to_encr & 0xf); i++) {
+        for (size_t i = 0; i < (bytes_to_encr & 0xf); i++) {
             *buf++ ^= c->keystream_buffer.v8[i];
         }
 
         /* reset the keystream buffer size to right value */
-        c->bytes_in_buffer = sizeof(v128_t) - i;
+        c->bytes_in_buffer = sizeof(v128_t) - (bytes_to_encr & 0xf);
     } else {
         /* no tail, so just reset the keystream buffer size to zero */
         c->bytes_in_buffer = 0;

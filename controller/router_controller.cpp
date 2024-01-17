@@ -297,11 +297,13 @@ namespace srv {
         else {
             std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> listenInfos_;
             for (const auto& item : listenInfos) {
+                auto socketFlags = FBS::Transport::CreateSocketFlags(builder, item.flags.ipv6Only, item.flags.udpReusePort);
                 auto infoOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                          item.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                          item.ip.c_str(),
                                                                          item.announcedIp.c_str(),
                                                                          item.port,
+                                                                         socketFlags,
                                                                          item.sendBufferSize,
                                                                          item.recvBufferSize
                                                                          );
@@ -466,11 +468,14 @@ namespace srv {
                                                                         isDataChannel
                                                                         );
         
+        auto socketFlags = FBS::Transport::CreateSocketFlags(builder, listenInfo.flags.ipv6Only, listenInfo.flags.udpReusePort);
+        
         auto listenOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                    listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                    listenInfo.ip.c_str(),
                                                                    listenInfo.announcedIp.c_str(),
                                                                    listenInfo.port,
+                                                                   socketFlags,
                                                                    listenInfo.sendBufferSize,
                                                                    listenInfo.recvBufferSize
                                                                    );
@@ -480,6 +485,7 @@ namespace srv {
                                                                        rtcpListenInfo.ip.c_str(),
                                                                        rtcpListenInfo.announcedIp.c_str(),
                                                                        rtcpListenInfo.port,
+                                                                       socketFlags,
                                                                        rtcpListenInfo.sendBufferSize,
                                                                        rtcpListenInfo.recvBufferSize
                                                                    );
@@ -688,11 +694,14 @@ namespace srv {
                                                                         isDataChannel
                                                                         );
         
+        auto socketFlags = FBS::Transport::CreateSocketFlags(builder, listenInfo.flags.ipv6Only, listenInfo.flags.udpReusePort);
+        
         auto listenOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                    listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                    listenInfo.ip.c_str(),
                                                                    listenInfo.announcedIp.c_str(),
                                                                    listenInfo.port,
+                                                                   socketFlags,
                                                                    listenInfo.sendBufferSize,
                                                                    listenInfo.recvBufferSize
                                                                    );

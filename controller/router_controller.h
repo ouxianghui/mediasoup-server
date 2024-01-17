@@ -160,5 +160,4 @@ namespace srv {
     };
 
     std::shared_ptr<RouterDump> parseRouterDumpResponse(const FBS::Router::DumpResponse* binary);
-
 }

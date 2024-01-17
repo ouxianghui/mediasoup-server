@@ -55,7 +55,7 @@
 #include "cipher_test_cases.h"
 
 srtp_debug_module_t srtp_mod_aes_icm = {
-    0,            /* debugging is off by default */
+    false,        /* debugging is off by default */
     "aes icm nss" /* printable module name       */
 };
 
@@ -102,14 +102,14 @@ srtp_debug_module_t srtp_mod_aes_icm = {
  * isn't used in counter mode.
  */
 static srtp_err_status_t srtp_aes_icm_nss_alloc(srtp_cipher_t **c,
-                                                int key_len,
-                                                int tlen)
+                                                size_t key_len,
+                                                size_t tlen)
 {
     srtp_aes_icm_ctx_t *icm;
     NSSInitContext *nss;
     (void)tlen;
 
-    debug_print(srtp_mod_aes_icm, "allocating cipher with key length %d",
+    debug_print(srtp_mod_aes_icm, "allocating cipher with key length %zu",
                 key_len);
 
     /*
@@ -254,7 +254,9 @@ static srtp_err_status_t srtp_aes_icm_nss_context_init(void *cv,
         return srtp_err_status_bad_param;
     }
 
-    SECItem keyItem = { siBuffer, (unsigned char *)key, c->key_size };
+    /* explicitly cast away const of key */
+    SECItem keyItem = { siBuffer, (unsigned char *)(uintptr_t)key,
+                        c->key_size };
     c->key = PK11_ImportSymKey(slot, CKM_AES_CTR, PK11_OriginUnwrap,
                                CKA_ENCRYPT, &keyItem, NULL);
     PK11_FreeSlot(slot);
@@ -321,8 +323,8 @@ static srtp_err_status_t srtp_aes_icm_nss_set_iv(void *cv,
  *	enc_len	length of encrypt buffer
  */
 static srtp_err_status_t srtp_aes_icm_nss_encrypt(void *cv,
-                                                  unsigned char *buf,
-                                                  unsigned int *enc_len)
+                                                  uint8_t *buf,
+                                                  size_t *enc_len)
 {
     srtp_aes_icm_ctx_t *c = (srtp_aes_icm_ctx_t *)cv;
 
@@ -330,9 +332,9 @@ static srtp_err_status_t srtp_aes_icm_nss_encrypt(void *cv,
         return srtp_err_status_bad_param;
     }
 
-    int rv =
-        PK11_CipherOp(c->ctx, buf, (int *)enc_len, *enc_len, buf, *enc_len);
-
+    int out_len = 0;
+    int rv = PK11_CipherOp(c->ctx, buf, &out_len, *enc_len, buf, *enc_len);
+    *enc_len = out_len;
     srtp_err_status_t status = (srtp_err_status_ok);
     if (rv != SECSuccess) {
         status = (srtp_err_status_cipher_fail);

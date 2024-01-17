@@ -1,7 +1,7 @@
 {
-	"domain": "192.168.0.101",
+	"domain": "127.0.0.1",
 	"https": {
-		"listenIp": "192.168.0.101",
+		"listenIp": "127.0.0.1",
 		"listenPort": 4443,
 		"tls": {
 			"cert": "/Users/jackie.ou/Desktop/Research/dev/mediasoup-server/sfu/cert/test_cert.crt",
@@ -10,7 +10,7 @@
 	},
 	"mediasoup": {
 		"numWorkers": 2,
-		"useWebRtcServer": true,
+		"useWebRtcServer": false,
 		"multiprocess": false,
 		"workerPath": "/Users/jackie.ou/Desktop/Research/dev/mediasoup/worker/out/Release/mediasoup-worker",
 		"workerSettings": {
@@ -85,22 +85,22 @@
 		"webRtcServerOptions": {
 			"listenInfos": [{
 					"protocol": "udp",
-					"ip": "0.0.0.0",
-					"announcedIp": "192.168.0.101",
-					"port": 44487
+					"ip": "127.0.0.1",
+					"announcedIp": "127.0.0.1",
+					"port": 44447
 				},
 				{
 					"protocol": "tcp",
-					"ip": "0.0.0.0",
-					"announcedIp": "192.168.0.101",
-					"port": 44487
+					"ip": "127.0.0.1",
+					"announcedIp": "127.0.0.1",
+					"port": 44447
 				}
 			]
 		},
 		"webRtcTransportOptions": {
 			"listenIps": [{
-				"ip": "0.0.0.0",
-				"announcedIp": "192.168.0.101"
+				"ip": "127.0.0.1",
+				"announcedIp": "127.0.0.1"
 			}],
 			"initialAvailableOutgoingBitrate": 1300000,
 			"minimumAvailableOutgoingBitrate": 600000,
@@ -110,7 +110,7 @@
 		"plainTransportOptions": {
 			"listenIp": {
 				"ip": "0.0.0.0",
-				"announcedIp": "192.168.0.101"
+				"announcedIp": "127.0.0.1"
 			},
 			"maxSctpMessageSize": 262144
 		}

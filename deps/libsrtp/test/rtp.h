@@ -100,45 +100,29 @@ typedef struct rtp_sender_ctx_t *rtp_sender_t;
 
 typedef struct rtp_receiver_ctx_t *rtp_receiver_t;
 
-int rtp_sendto(rtp_sender_t sender, const void *msg, int len);
+ssize_t rtp_sendto(rtp_sender_t sender, const void *msg, size_t len);
 
-int rtp_recvfrom(rtp_receiver_t receiver, void *msg, int *len);
+ssize_t rtp_recvfrom(rtp_receiver_t receiver, void *msg, size_t *len);
 
-int rtp_receiver_init(rtp_receiver_t rcvr,
-                      int sock,
-                      struct sockaddr_in addr,
-                      unsigned int ssrc);
+srtp_err_status_t rtp_receiver_init(rtp_receiver_t rcvr,
+                                    int sock,
+                                    struct sockaddr_in addr,
+                                    uint32_t ssrc);
 
-int rtp_sender_init(rtp_sender_t sender,
-                    int sock,
-                    struct sockaddr_in addr,
-                    unsigned int ssrc);
+srtp_err_status_t rtp_sender_init(rtp_sender_t sender,
+                                  int sock,
+                                  struct sockaddr_in addr,
+                                  uint32_t ssrc);
 
-/*
- * srtp_sender_init(...) initializes an rtp_sender_t
- */
+srtp_err_status_t rtp_sender_init_srtp(rtp_sender_t sender,
+                                       const srtp_policy_t *policy);
 
-int srtp_sender_init(
-    rtp_sender_t rtp_ctx,              /* structure to be init'ed */
-    struct sockaddr_in name,           /* socket name             */
-    srtp_sec_serv_t security_services, /* sec. servs. to be used  */
-    unsigned char *input_key           /* master key/salt in hex  */
-);
+srtp_err_status_t rtp_sender_deinit_srtp(rtp_sender_t sender);
 
-int srtp_receiver_init(
-    rtp_receiver_t rtp_ctx,            /* structure to be init'ed */
-    struct sockaddr_in name,           /* socket name             */
-    srtp_sec_serv_t security_services, /* sec. servs. to be used  */
-    unsigned char *input_key           /* master key/salt in hex  */
-);
+srtp_err_status_t rtp_receiver_init_srtp(rtp_receiver_t sender,
+                                         const srtp_policy_t *policy);
 
-int rtp_sender_init_srtp(rtp_sender_t sender, const srtp_policy_t *policy);
-
-int rtp_sender_deinit_srtp(rtp_sender_t sender);
-
-int rtp_receiver_init_srtp(rtp_receiver_t sender, const srtp_policy_t *policy);
-
-int rtp_receiver_deinit_srtp(rtp_receiver_t sender);
+srtp_err_status_t rtp_receiver_deinit_srtp(rtp_receiver_t sender);
 
 rtp_sender_t rtp_sender_alloc(void);
 

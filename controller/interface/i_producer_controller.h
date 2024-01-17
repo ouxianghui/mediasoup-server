@@ -60,7 +60,7 @@ namespace srv {
     /**
      * Valid types for 'trace' event.
      */
-    // export type ProducerTraceEventType = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir';
+    // export type ProducerTraceEventType = 'rtp' | 'keyframe' | 'nack' | 'pli' | 'fir' | 'sr';
 
     /**
      * 'trace' event data.

@@ -57,7 +57,7 @@
 #include "cipher_test_cases.h"
 
 srtp_debug_module_t srtp_mod_aes_gcm = {
-    0,        /* debugging is off by default */
+    false,    /* debugging is off by default */
     "aes gcm" /* printable module name       */
 };
 
@@ -76,14 +76,15 @@ srtp_debug_module_t srtp_mod_aes_gcm = {
  * initializing the KDF.
  */
 static srtp_err_status_t srtp_aes_gcm_openssl_alloc(srtp_cipher_t **c,
-                                                    int key_len,
-                                                    int tlen)
+                                                    size_t key_len,
+                                                    size_t tlen)
 {
     srtp_aes_gcm_ctx_t *gcm;
 
-    debug_print(srtp_mod_aes_gcm, "allocating cipher with key length %d",
+    debug_print(srtp_mod_aes_gcm, "allocating cipher with key length %zu",
                 key_len);
-    debug_print(srtp_mod_aes_gcm, "allocating cipher with tag length %d", tlen);
+    debug_print(srtp_mod_aes_gcm, "allocating cipher with tag length %zu",
+                tlen);
 
     /*
      * Verify the key_len is valid for one of: AES-128/256
@@ -199,6 +200,10 @@ static srtp_err_status_t srtp_aes_gcm_openssl_context_init(void *cv,
         return (srtp_err_status_init_fail);
     }
 
+    if (!EVP_CIPHER_CTX_ctrl(c->ctx, EVP_CTRL_GCM_SET_IVLEN, 12, 0)) {
+        return (srtp_err_status_init_fail);
+    }
+
     return (srtp_err_status_ok);
 }
 
@@ -222,10 +227,6 @@ static srtp_err_status_t srtp_aes_gcm_openssl_set_iv(
     debug_print(srtp_mod_aes_gcm, "setting iv: %s",
                 srtp_octet_string_hex_string(iv, 12));
 
-    if (!EVP_CIPHER_CTX_ctrl(c->ctx, EVP_CTRL_GCM_SET_IVLEN, 12, 0)) {
-        return (srtp_err_status_init_fail);
-    }
-
     if (!EVP_CipherInit_ex(c->ctx, NULL, NULL, NULL, iv,
                            (c->dir == srtp_direction_encrypt ? 1 : 0))) {
         return (srtp_err_status_init_fail);
@@ -244,7 +245,7 @@ static srtp_err_status_t srtp_aes_gcm_openssl_set_iv(
  */
 static srtp_err_status_t srtp_aes_gcm_openssl_set_aad(void *cv,
                                                       const uint8_t *aad,
-                                                      uint32_t aad_len)
+                                                      size_t aad_len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
     int rv;
@@ -267,7 +268,7 @@ static srtp_err_status_t srtp_aes_gcm_openssl_set_aad(void *cv,
          * OpenSSL copy its content to the context), so we can make
          * aad read-only in this function and all its wrappers.
          */
-        unsigned char dummy_tag[GCM_AUTH_TAG_LEN];
+        uint8_t dummy_tag[GCM_AUTH_TAG_LEN];
         memset(dummy_tag, 0x0, GCM_AUTH_TAG_LEN);
         if (!EVP_CIPHER_CTX_ctrl(c->ctx, EVP_CTRL_GCM_SET_TAG, c->tag_len,
                                  &dummy_tag)) {
@@ -292,8 +293,8 @@ static srtp_err_status_t srtp_aes_gcm_openssl_set_aad(void *cv,
  *	enc_len	length of encrypt buffer
  */
 static srtp_err_status_t srtp_aes_gcm_openssl_encrypt(void *cv,
-                                                      unsigned char *buf,
-                                                      unsigned int *enc_len)
+                                                      uint8_t *buf,
+                                                      size_t *enc_len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
     if (c->dir != srtp_direction_encrypt && c->dir != srtp_direction_decrypt) {
@@ -321,7 +322,7 @@ static srtp_err_status_t srtp_aes_gcm_openssl_encrypt(void *cv,
  */
 static srtp_err_status_t srtp_aes_gcm_openssl_get_tag(void *cv,
                                                       uint8_t *buf,
-                                                      uint32_t *len)
+                                                      size_t *len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
     /*
@@ -353,8 +354,8 @@ static srtp_err_status_t srtp_aes_gcm_openssl_get_tag(void *cv,
  *	enc_len	length of encrypt buffer
  */
 static srtp_err_status_t srtp_aes_gcm_openssl_decrypt(void *cv,
-                                                      unsigned char *buf,
-                                                      unsigned int *enc_len)
+                                                      uint8_t *buf,
+                                                      size_t *enc_len)
 {
     srtp_aes_gcm_ctx_t *c = (srtp_aes_gcm_ctx_t *)cv;
     if (c->dir != srtp_direction_encrypt && c->dir != srtp_direction_decrypt) {

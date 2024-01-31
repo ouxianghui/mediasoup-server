@@ -188,7 +188,7 @@ namespace srv {
         return parseRouterDumpResponse(dumpResponse);
     }
 
-    std::shared_ptr<WebRtcTransportController> RouterController::createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options)
+    std::shared_ptr<ITransportController> RouterController::createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options)
     {
         SRV_LOGD("createWebRtcTransportController()");
         
@@ -391,7 +391,7 @@ namespace srv {
         return transportController;
     }
 
-    std::shared_ptr<PlainTransportController> RouterController::createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options)
+    std::shared_ptr<ITransportController> RouterController::createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options)
     {
         SRV_LOGD("createPlainTransportController()");
         
@@ -548,7 +548,7 @@ namespace srv {
         return transportController;
     }
 
-    std::shared_ptr<DirectTransportController> RouterController::createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options)
+    std::shared_ptr<ITransportController> RouterController::createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options)
     {
         SRV_LOGD("createDirectTransportController()");
         
@@ -627,7 +627,7 @@ namespace srv {
         return transportController;
     }
 
-    std::shared_ptr<PipeTransportController> RouterController::createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options)
+    std::shared_ptr<ITransportController> RouterController::createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options)
     {
         SRV_LOGD("createPipeTransportController()");
         
@@ -760,7 +760,7 @@ namespace srv {
         return transportController;
     }
 
-    std::shared_ptr<ActiveSpeakerObserverController> RouterController::createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options)
+    std::shared_ptr<IRtpObserverController> RouterController::createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options)
     {
         SRV_LOGD("createActiveSpeakerObserverController()");
         
@@ -827,7 +827,7 @@ namespace srv {
         return rtpObserverController;
     }
 
-    std::shared_ptr<AudioLevelObserverController> RouterController::createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options)
+    std::shared_ptr<IRtpObserverController> RouterController::createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options)
     {
         SRV_LOGD("createAudioLevelObserverController()");
         
@@ -1102,10 +1102,10 @@ namespace srv {
             ptOptions->enableRtx = enableRtx;
             ptOptions->enableSrtp = enableSrtp;
             
-            localPipeTransportController = this->createPipeTransportController(ptOptions);
+            localPipeTransportController = std::dynamic_pointer_cast<PipeTransportController>(this->createPipeTransportController(ptOptions));
             pipeTransportControllerPair[this->id()] = localPipeTransportController;
             
-            remotePipeTransportController = routerController->createPipeTransportController(ptOptions);
+            remotePipeTransportController = std::dynamic_pointer_cast<PipeTransportController>(routerController->createPipeTransportController(ptOptions));
             pipeTransportControllerPair[routerController->id()] = remotePipeTransportController;
             
             localPipeTransportController->closeSignal.connect([wself = std::weak_ptr<RouterController>(shared_from_this()), pipeTransportPairKey, weakRemote = std::weak_ptr<PipeTransportController>(remotePipeTransportController)](const std::string& routerId){

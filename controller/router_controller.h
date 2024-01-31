@@ -95,17 +95,17 @@ namespace srv {
         
         bool canConsume(const std::string& producerId, const RtpCapabilities& rtpCapabilities) override;
             
-        std::shared_ptr<WebRtcTransportController> createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options) override;
+        std::shared_ptr<ITransportController> createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options) override;
         
-        std::shared_ptr<PlainTransportController> createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options) override;
+        std::shared_ptr<ITransportController> createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options) override;
         
-        std::shared_ptr<DirectTransportController> createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options) override;
+        std::shared_ptr<ITransportController> createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options) override;
         
-        std::shared_ptr<PipeTransportController> createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options) override;
+        std::shared_ptr<ITransportController> createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options) override;
         
-        std::shared_ptr<ActiveSpeakerObserverController> createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options) override;
+        std::shared_ptr<IRtpObserverController> createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options) override;
         
-        std::shared_ptr<AudioLevelObserverController> createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options) override;
+        std::shared_ptr<IRtpObserverController> createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options) override;
         
         std::shared_ptr<PipeToRouterResult> pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options) override;
         

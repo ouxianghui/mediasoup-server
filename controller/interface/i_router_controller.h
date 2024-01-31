@@ -144,13 +144,8 @@ namespace srv {
     struct ActiveSpeakerObserverOptions;
     struct AudioLevelObserverOptions;
 
-    class WebRtcTransportController;
-    class PlainTransportController;
-    class DirectTransportController;
     class PipeTransportController;
-    class ActiveSpeakerObserverController;
-    class AudioLevelObserverController;
-
+    class ITransportController;
     class IRtpObserverController;
 
     using PipeTransportControllerPair = std::unordered_map<std::string, std::shared_ptr<PipeTransportController>>;
@@ -179,17 +174,17 @@ namespace srv {
 
         virtual bool canConsume(const std::string& producerId, const RtpCapabilities& rtpCapabilities) = 0;
             
-        virtual std::shared_ptr<WebRtcTransportController> createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options) = 0;
+        virtual std::shared_ptr<ITransportController> createWebRtcTransportController(const std::shared_ptr<WebRtcTransportOptions>& options) = 0;
         
-        virtual std::shared_ptr<PlainTransportController> createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options) = 0;
+        virtual std::shared_ptr<ITransportController> createPlainTransportController(const std::shared_ptr<PlainTransportOptions>& options) = 0;
         
-        virtual std::shared_ptr<DirectTransportController> createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options) = 0;
+        virtual std::shared_ptr<ITransportController> createDirectTransportController(const std::shared_ptr<DirectTransportOptions>& options) = 0;
         
-        virtual std::shared_ptr<PipeTransportController> createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options) = 0;
+        virtual std::shared_ptr<ITransportController> createPipeTransportController(const std::shared_ptr<PipeTransportOptions>& options) = 0;
         
-        virtual std::shared_ptr<ActiveSpeakerObserverController> createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options) = 0;
+        virtual std::shared_ptr<IRtpObserverController> createActiveSpeakerObserverController(const std::shared_ptr<ActiveSpeakerObserverOptions>& options) = 0;
         
-        virtual std::shared_ptr<AudioLevelObserverController> createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options) = 0;
+        virtual std::shared_ptr<IRtpObserverController> createAudioLevelObserverController(const std::shared_ptr<AudioLevelObserverOptions>& options) = 0;
         
         virtual std::shared_ptr<PipeToRouterResult> pipeToRouter(const std::shared_ptr<PipeToRouterOptions>& options) = 0;
         

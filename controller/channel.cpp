@@ -115,6 +115,7 @@ namespace srv {
             switch (message->data_type()) {
                 case FBS::Message::Body::Response: {
                     auto response = message->data_as<FBS::Response::Response>();
+                    SRV_LOGE("worker response id: %lld", response->id());
                     processResponse(response, msg);
                     break;
                 }
@@ -239,7 +240,7 @@ namespace srv {
             }
         });
         
-        uint32_t duration = 1000 * (15 + (0.1 * _callbackMap.size()));
+        //uint32_t duration = 1000 * (15 + (0.1 * _callbackMap.size()));
         //callback->setTimeout(_timerThread, duration);
         
         _callbackMap.emplace(std::make_pair(requestId, callback));

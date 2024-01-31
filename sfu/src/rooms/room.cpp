@@ -773,7 +773,7 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
         webRtcTransportOptions->webRtcServer = _webRtcServerController;
     }
     
-    auto transportController = _routerController->createWebRtcTransportController(webRtcTransportOptions);
+    auto transportController = std::dynamic_pointer_cast<srv::WebRtcTransportController>(_routerController->createWebRtcTransportController(webRtcTransportOptions));
     
     transportController->sctpStateChangeSignal.connect([](const std::string& sctpState){
         SRV_LOGD("WebRtcTransport 'sctpstatechange' event [sctpState: %s]", sctpState.c_str());

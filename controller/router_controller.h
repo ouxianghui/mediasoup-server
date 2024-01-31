@@ -57,8 +57,6 @@ namespace srv {
     void to_json(nlohmann::json& j, const RouterOptions& st);
     void from_json(const nlohmann::json& j, RouterOptions& st);
 
-    using PipeTransportControllerPair = std::unordered_map<std::string, std::shared_ptr<PipeTransportController>>;
-
     struct RouterInternal
     {
         std::string routerId;

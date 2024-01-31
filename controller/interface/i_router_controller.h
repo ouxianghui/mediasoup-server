@@ -144,11 +144,10 @@ namespace srv {
     struct ActiveSpeakerObserverOptions;
     struct AudioLevelObserverOptions;
 
-    class PipeTransportController;
     class ITransportController;
     class IRtpObserverController;
 
-    using PipeTransportControllerPair = std::unordered_map<std::string, std::shared_ptr<PipeTransportController>>;
+    using PipeTransportControllerPair = std::unordered_map<std::string, std::shared_ptr<ITransportController>>;
 
     class IRouterController {
     public:

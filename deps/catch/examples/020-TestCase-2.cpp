@@ -1,10 +1,18 @@
+
+//              Copyright Catch2 Authors
+// Distributed under the Boost Software License, Version 1.0.
+//   (See accompanying file LICENSE.txt or copy at
+//        https://www.boost.org/LICENSE_1_0.txt)
+
+// SPDX-License-Identifier: BSL-1.0
+
 // 020-TestCase-2.cpp
 
 // main() provided by Catch in file 020-TestCase-1.cpp.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-int Factorial( int number ) {
+static int Factorial( int number ) {
    return number <= 1 ? number : Factorial( number - 1 ) * number;  // fail
 // return number <= 1 ? 1      : Factorial( number - 1 ) * number;  // pass
 }

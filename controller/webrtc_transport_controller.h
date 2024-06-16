@@ -68,6 +68,8 @@ namespace srv {
          * Prefer TCP. Default false.
          */
         bool preferTcp = false;
+        
+        uint8_t iceConsentTimeout = 30;
 
         /**
          * Initial available outgoing bitrate (in bps). Default 600000.
@@ -122,7 +124,7 @@ namespace srv {
     {
         std::string foundation;
         int32_t priority;
-        std::string ip;
+        std::string address;
         
         // Options: 'udp' | 'tcp'
         std::string protocol;

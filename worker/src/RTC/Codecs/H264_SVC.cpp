@@ -17,6 +17,8 @@ namespace RTC
 
 			if (len < 2)
 			{
+				MS_WARN_DEV("ignoring payload with length < 2");
+
 				return nullptr;
 			}
 
@@ -54,12 +56,13 @@ namespace RTC
 				}
 			}
 
-			// NOTE: Unfortunately libwebrtc produces wrong Frame-Marking (without i=1 in
-			// keyframes) when it uses H264 hardware encoder (at least in Mac):
+			// NOTE: Unfortunately libwebrtc produces wrong Frame-Marking (without i=1
+			// in keyframes) when it uses H264 hardware encoder (at least in Mac):
 			//   https://bugs.chromium.org/p/webrtc/issues/detail?id=10746
 			//
-			// As a temporal workaround, always do payload parsing to detect keyframes if
-			// there is no frame-marking or if there is but keyframe was not detected above.
+			// As a temporal workaround, always do payload parsing to detect keyframes
+			// if there is no frame-marking or if there is but keyframe was not
+			// detected above.
 			if (!frameMarking || !payloadDescriptor->isKeyFrame)
 			{
 				const uint8_t nal = *data & 0x1F;
@@ -79,6 +82,8 @@ namespace RTC
 
 						if (payloadDescriptor == nullptr)
 						{
+							MS_WARN_DEV("ignoring invalid payload (1)");
+
 							return nullptr;
 						}
 
@@ -106,6 +111,8 @@ namespace RTC
 
 							if (payloadDescriptor == nullptr)
 							{
+								MS_WARN_DEV("ignoring invalid payload (2)");
+
 								return nullptr;
 							}
 
@@ -142,6 +149,8 @@ namespace RTC
 
 						if (payloadDescriptor == nullptr)
 						{
+							MS_WARN_DEV("ignoring invalid payload (3)");
+
 							return nullptr;
 						}
 
@@ -166,7 +175,10 @@ namespace RTC
 				// Single NAL unit packet.
 				// IDR (instantaneous decoding picture).
 				case 5:
+				{
 					payloadDescriptor->isKeyFrame = true;
+				}
+
 				case 1:
 				{
 					payloadDescriptor->slIndex = 0;
@@ -177,9 +189,15 @@ namespace RTC
 
 					break;
 				}
+
 				case 14:
 				case 20:
 				{
+					if (len <= 1)
+					{
+						return nullptr;
+					}
+
 					size_t offset{ 1 };
 					uint8_t byte = data[offset];
 
@@ -210,6 +228,7 @@ namespace RTC
 
 					break;
 				}
+
 				case 7:
 				{
 					payloadDescriptor->isKeyFrame = isStartBit ? true : false;
@@ -217,6 +236,7 @@ namespace RTC
 					break;
 				}
 			}
+
 			return payloadDescriptor;
 		}
 
@@ -251,7 +271,7 @@ namespace RTC
 		{
 			MS_TRACE();
 
-			MS_DUMP("<PayloadDescriptor>");
+			MS_DUMP("<H264_SVC::PayloadDescriptor>");
 			MS_DUMP(
 			  "  s:%" PRIu8 "|e:%" PRIu8 "|i:%" PRIu8 "|d:%" PRIu8 "|b:%" PRIu8,
 			  this->s,
@@ -259,12 +279,12 @@ namespace RTC
 			  this->i,
 			  this->d,
 			  this->b);
-			MS_DUMP("  hasSlIndex           : %s", this->hasSlIndex ? "true" : "false");
-			MS_DUMP("  hasTlIndex           : %s", this->hasTlIndex ? "true" : "false");
-			MS_DUMP("  tl0picidx            : %" PRIu8, this->tl0picidx);
-			MS_DUMP("  noIntLayerPredFlag   : %" PRIu8, this->noIntLayerPredFlag);
-			MS_DUMP("  isKeyFrame           : %s", this->isKeyFrame ? "true" : "false");
-			MS_DUMP("</PayloadDescriptor>");
+			MS_DUMP("  hasSlIndex: %s", this->hasSlIndex ? "true" : "false");
+			MS_DUMP("  hasTlIndex: %s", this->hasTlIndex ? "true" : "false");
+			MS_DUMP("  tl0picidx: %" PRIu8, this->tl0picidx);
+			MS_DUMP("  noIntLayerPredFlag: %" PRIu8, this->noIntLayerPredFlag);
+			MS_DUMP("  isKeyFrame: %s", this->isKeyFrame ? "true" : "false");
+			MS_DUMP("</H264_SVC::PayloadDescriptor>");
 		}
 
 		H264_SVC::PayloadDescriptorHandler::PayloadDescriptorHandler(

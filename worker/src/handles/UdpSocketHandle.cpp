@@ -103,41 +103,16 @@ UdpSocketHandle::~UdpSocketHandle()
 
 	if (!this->closed)
 	{
-		Close();
+		InternalClose();
 	}
-}
-
-void UdpSocketHandle::Close()
-{
-	MS_TRACE();
-
-	if (this->closed)
-	{
-		return;
-	}
-
-	this->closed = true;
-
-	// Tell the UV handle that the UdpSocketHandle has been closed.
-	this->uvHandle->data = nullptr;
-
-	// Don't read more.
-	const int err = uv_udp_recv_stop(this->uvHandle);
-
-	if (err != 0)
-	{
-		MS_ABORT("uv_udp_recv_stop() failed: %s", uv_strerror(err));
-	}
-
-	uv_close(reinterpret_cast<uv_handle_t*>(this->uvHandle), static_cast<uv_close_cb>(onCloseUdp));
 }
 
 void UdpSocketHandle::Dump() const
 {
 	MS_DUMP("<UdpSocketHandle>");
-	MS_DUMP("  localIp   : %s", this->localIp.c_str());
-	MS_DUMP("  localPort : %" PRIu16, static_cast<uint16_t>(this->localPort));
-	MS_DUMP("  closed    : %s", !this->closed ? "open" : "closed");
+	MS_DUMP("  localIp: %s", this->localIp.c_str());
+	MS_DUMP("  localPort: %" PRIu16, static_cast<uint16_t>(this->localPort));
+	MS_DUMP("  closed: %s", this->closed ? "yes" : "no");
 	MS_DUMP("</UdpSocketHandle>");
 }
 
@@ -336,6 +311,31 @@ void UdpSocketHandle::SetRecvBufferSize(uint32_t size)
 	{
 		MS_THROW_ERROR("uv_recv_buffer_size() failed: %s", uv_strerror(err));
 	}
+}
+
+void UdpSocketHandle::InternalClose()
+{
+	MS_TRACE();
+
+	if (this->closed)
+	{
+		return;
+	}
+
+	this->closed = true;
+
+	// Tell the UV handle that the UdpSocketHandle has been closed.
+	this->uvHandle->data = nullptr;
+
+	// Don't read more.
+	const int err = uv_udp_recv_stop(this->uvHandle);
+
+	if (err != 0)
+	{
+		MS_ABORT("uv_udp_recv_stop() failed: %s", uv_strerror(err));
+	}
+
+	uv_close(reinterpret_cast<uv_handle_t*>(this->uvHandle), static_cast<uv_close_cb>(onCloseUdp));
 }
 
 bool UdpSocketHandle::SetLocalAddress()

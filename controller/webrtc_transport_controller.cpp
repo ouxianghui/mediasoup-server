@@ -526,7 +526,7 @@ namespace srv {
         
         candidate->foundation = binary->foundation()->str();
         candidate->priority = binary->priority();
-        candidate->ip = binary->ip()->str();
+        candidate->address = binary->address()->str();
         candidate->protocol = parseProtocol(binary->protocol());
         candidate->port = binary->port();
         candidate->type = iceCandidateTypeFromFbs(binary->type());
@@ -676,7 +676,7 @@ namespace srv
     {
         j["foundation"] = st.foundation;
         j["priority"] = st.priority;
-        j["ip"] = st.ip;
+        j["address"] = st.address;
         j["protocol"] = st.protocol;
         j["port"] = st.port;
         j["type"] = st.type;
@@ -691,8 +691,8 @@ namespace srv
         if (j.contains("priority")) {
             j.at("priority").get_to(st.priority);
         }
-        if (j.contains("ip")) {
-            j.at("ip").get_to(st.ip);
+        if (j.contains("address")) {
+            j.at("address").get_to(st.address);
         }
         if (j.contains("protocol")) {
             j.at("protocol").get_to(st.protocol);

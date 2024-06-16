@@ -942,7 +942,7 @@ namespace srv {
     {
         auto tuple = std::make_shared<TransportTuple>();
         
-        tuple->localIp = binary->localIp()->str();
+        tuple->localAddress = binary->localAddress()->str();
         tuple->localPort = binary->localPort();
         tuple->remoteIp = binary->remoteIp()->str();
         tuple->remotePort = binary->remotePort();

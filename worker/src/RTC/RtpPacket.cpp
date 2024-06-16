@@ -96,6 +96,7 @@ namespace RTC
 			}
 
 			payloadPadding = data[len - 1];
+
 			if (payloadPadding == 0)
 			{
 				MS_WARN_TAG(rtp, "padding byte cannot be 0, packet discarded");
@@ -112,6 +113,7 @@ namespace RTC
 
 				return nullptr;
 			}
+
 			payloadLength -= size_t{ payloadPadding };
 		}
 
@@ -166,21 +168,21 @@ namespace RTC
 		MS_TRACE();
 
 		MS_DUMP("<RtpPacket>");
-		MS_DUMP("  padding           : %s", this->header->padding ? "true" : "false");
+		MS_DUMP("  padding: %s", this->header->padding ? "true" : "false");
 		if (HasHeaderExtension())
 		{
 			MS_DUMP(
-			  "  header extension  : id:%" PRIu16 ", length:%zu",
+			  "  header extension: id:%" PRIu16 ", length:%zu",
 			  GetHeaderExtensionId(),
 			  GetHeaderExtensionLength());
 		}
 		if (HasOneByteExtensions())
 		{
-			MS_DUMP("  RFC5285 ext style : One-Byte Header");
+			MS_DUMP("  RFC5285 ext style: One-Byte Header");
 		}
 		if (HasTwoBytesExtensions())
 		{
-			MS_DUMP("  RFC5285 ext style : Two-Bytes Header");
+			MS_DUMP("  RFC5285 ext style: Two-Bytes Header");
 		}
 		if (HasOneByteExtensions() || HasTwoBytesExtensions())
 		{
@@ -213,7 +215,7 @@ namespace RTC
 				  extIds.begin(), extIds.end() - 1, std::ostream_iterator<std::string>(extIdsStream, ","));
 				extIdsStream << extIds.back();
 
-				MS_DUMP("  RFC5285 ext ids   : %s", extIdsStream.str().c_str());
+				MS_DUMP("  RFC5285 ext ids: %s", extIdsStream.str().c_str());
 			}
 		}
 		if (this->midExtensionId != 0u)
@@ -222,8 +224,7 @@ namespace RTC
 
 			if (ReadMid(mid))
 			{
-				MS_DUMP(
-				  "  mid               : extId:%" PRIu8 ", value:'%s'", this->midExtensionId, mid.c_str());
+				MS_DUMP("  mid: extId:%" PRIu8 ", value:'%s'", this->midExtensionId, mid.c_str());
 			}
 		}
 		if (this->ridExtensionId != 0u)
@@ -232,8 +233,7 @@ namespace RTC
 
 			if (ReadRid(rid))
 			{
-				MS_DUMP(
-				  "  rid               : extId:%" PRIu8 ", value:'%s'", this->ridExtensionId, rid.c_str());
+				MS_DUMP("  rid: extId:%" PRIu8 ", value:'%s'", this->ridExtensionId, rid.c_str());
 			}
 		}
 		if (this->rridExtensionId != 0u)
@@ -242,13 +242,12 @@ namespace RTC
 
 			if (ReadRid(rid))
 			{
-				MS_DUMP(
-				  "  rrid              : extId:%" PRIu8 ", value:'%s'", this->rridExtensionId, rid.c_str());
+				MS_DUMP("  rrid: extId:%" PRIu8 ", value:'%s'", this->rridExtensionId, rid.c_str());
 			}
 		}
 		if (this->absSendTimeExtensionId != 0u)
 		{
-			MS_DUMP("  absSendTime       : extId:%" PRIu8, this->absSendTimeExtensionId);
+			MS_DUMP("  absSendTime: extId:%" PRIu8, this->absSendTimeExtensionId);
 		}
 		if (this->transportWideCc01ExtensionId != 0u)
 		{
@@ -257,7 +256,7 @@ namespace RTC
 			if (ReadTransportWideCc01(wideSeqNumber))
 			{
 				MS_DUMP(
-				  "  transportWideCc01 : extId:%" PRIu8 ", value:%" PRIu16,
+				  "  transportWideCc01: extId:%" PRIu8 ", value:%" PRIu16,
 				  this->transportWideCc01ExtensionId,
 				  wideSeqNumber);
 			}
@@ -265,11 +264,11 @@ namespace RTC
 		// Remove once it becomes RFC.
 		if (this->frameMarking07ExtensionId != 0u)
 		{
-			MS_DUMP("  frameMarking07    : extId:%" PRIu8, this->frameMarking07ExtensionId);
+			MS_DUMP("  frameMarking07: extId:%" PRIu8, this->frameMarking07ExtensionId);
 		}
 		if (this->frameMarkingExtensionId != 0u)
 		{
-			MS_DUMP("  frameMarking      : extId:%" PRIu8, this->frameMarkingExtensionId);
+			MS_DUMP("  frameMarking: extId:%" PRIu8, this->frameMarkingExtensionId);
 		}
 		if (this->ssrcAudioLevelExtensionId != 0u)
 		{
@@ -279,7 +278,7 @@ namespace RTC
 			if (ReadSsrcAudioLevel(volume, voice))
 			{
 				MS_DUMP(
-				  "  ssrcAudioLevel    : extId:%" PRIu8 ", volume:%" PRIu8 ", voice:%s",
+				  "  ssrcAudioLevel: extId:%" PRIu8 ", volume:%" PRIu8 ", voice:%s",
 				  this->ssrcAudioLevelExtensionId,
 				  volume,
 				  voice ? "true" : "false");
@@ -294,27 +293,27 @@ namespace RTC
 			if (ReadVideoOrientation(camera, flip, rotation))
 			{
 				MS_DUMP(
-				  "  videoOrientation  : extId:%" PRIu8 ", camera:%s, flip:%s, rotation:%" PRIu16,
+				  "  videoOrientation: extId:%" PRIu8 ", camera:%s, flip:%s, rotation:%" PRIu16,
 				  this->videoOrientationExtensionId,
 				  camera ? "true" : "false",
 				  flip ? "true" : "false",
 				  rotation);
 			}
 		}
-		MS_DUMP("  csrc count        : %" PRIu8, this->header->csrcCount);
-		MS_DUMP("  marker            : %s", HasMarker() ? "true" : "false");
-		MS_DUMP("  payload type      : %" PRIu8, GetPayloadType());
-		MS_DUMP("  sequence number   : %" PRIu16, GetSequenceNumber());
-		MS_DUMP("  timestamp         : %" PRIu32, GetTimestamp());
-		MS_DUMP("  ssrc              : %" PRIu32, GetSsrc());
-		MS_DUMP("  payload size      : %zu bytes", GetPayloadLength());
+		MS_DUMP("  csrc count: %" PRIu8, this->header->csrcCount);
+		MS_DUMP("  marker: %s", HasMarker() ? "true" : "false");
+		MS_DUMP("  payload type: %" PRIu8, GetPayloadType());
+		MS_DUMP("  sequence number: %" PRIu16, GetSequenceNumber());
+		MS_DUMP("  timestamp: %" PRIu32, GetTimestamp());
+		MS_DUMP("  ssrc: %" PRIu32, GetSsrc());
+		MS_DUMP("  payload size: %zu bytes", GetPayloadLength());
 		if (this->header->padding != 0u)
 		{
-			MS_DUMP("  padding size      : %" PRIu8 " bytes", this->payloadPadding);
+			MS_DUMP("  padding size: %" PRIu8 " bytes", this->payloadPadding);
 		}
-		MS_DUMP("  packet size       : %zu bytes", GetSize());
-		MS_DUMP("  spatial layer     : %" PRIu8, GetSpatialLayer());
-		MS_DUMP("  temporal layer    : %" PRIu8, GetTemporalLayer());
+		MS_DUMP("  packet size: %zu bytes", GetSize());
+		MS_DUMP("  spatial layer: %" PRIu8, GetSpatialLayer());
+		MS_DUMP("  temporal layer: %" PRIu8, GetTemporalLayer());
 		MS_DUMP("</RtpPacket>");
 	}
 
@@ -653,20 +652,25 @@ namespace RTC
 		}
 	}
 
+	/**
+	 * NOTE: This method automatically removes payload padding if present.
+	 */
 	void RtpPacket::SetPayloadLength(size_t length)
 	{
 		MS_TRACE();
 
-		// Pad desired length to 4 bytes.
-		length = static_cast<size_t>(Utils::Byte::PadTo4Bytes(static_cast<uint16_t>(length)));
-
 		this->size -= this->payloadLength;
-		this->size -= size_t{ this->payloadPadding };
-		this->payloadLength  = length;
-		this->payloadPadding = 0u;
-		this->size += length;
+		this->payloadLength = length;
+		this->size += this->payloadLength;
 
-		SetPayloadPaddingFlag(false);
+		// Remove padding if present.
+		if (this->payloadPadding != 0u)
+		{
+			SetPayloadPaddingFlag(false);
+
+			this->size -= size_t{ this->payloadPadding };
+			this->payloadPadding = 0u;
+		}
 	}
 
 	RtpPacket* RtpPacket::Clone() const
@@ -752,8 +756,12 @@ namespace RTC
 		return packet;
 	}
 
-	// NOTE: The caller must ensure that the buffer/memmory of the packet has
-	// space enough for adding 2 extra bytes.
+	/**
+	 * NOTE: The caller must ensure that the buffer/memmory of the packet has
+	 * space enough for adding 2 extra bytes.
+	 *
+	 * NOTE: This method automatically removes payload padding if present.
+	 */
 	void RtpPacket::RtxEncode(uint8_t payloadType, uint32_t ssrc, uint16_t seq)
 	{
 		MS_TRACE();
@@ -787,6 +795,9 @@ namespace RTC
 		}
 	}
 
+	/**
+	 * NOTE: This method automatically removes payload padding if present.
+	 */
 	bool RtpPacket::RtxDecode(uint8_t payloadType, uint32_t ssrc)
 	{
 		MS_TRACE();
@@ -852,6 +863,11 @@ namespace RTC
 		this->payloadDescriptorHandler->Restore(this->payload);
 	}
 
+	/**
+	 * Shifts the payload given offset (to right or to left).
+	 *
+	 * NOTE: This method automatically removes payload padding if present.
+	 */
 	void RtpPacket::ShiftPayload(size_t payloadOffset, size_t shift, bool expand)
 	{
 		MS_TRACE();
@@ -873,7 +889,7 @@ namespace RTC
 
 		if (expand)
 		{
-			shiftedLen = this->payloadLength + size_t{ this->payloadPadding } - payloadOffset;
+			shiftedLen = this->payloadLength - payloadOffset;
 
 			std::memmove(payloadOffsetPtr + shift, payloadOffsetPtr, shiftedLen);
 
@@ -882,12 +898,21 @@ namespace RTC
 		}
 		else
 		{
-			shiftedLen = this->payloadLength + size_t{ this->payloadPadding } - payloadOffset - shift;
+			shiftedLen = this->payloadLength - payloadOffset - shift;
 
 			std::memmove(payloadOffsetPtr, payloadOffsetPtr + shift, shiftedLen);
 
 			this->payloadLength -= shift;
 			this->size -= shift;
+		}
+
+		// Remove padding if present.
+		if (this->payloadPadding != 0u)
+		{
+			SetPayloadPaddingFlag(false);
+
+			this->size -= size_t{ this->payloadPadding };
+			this->payloadPadding = 0u;
 		}
 	}
 

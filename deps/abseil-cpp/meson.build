@@ -1,7 +1,7 @@
 project(
   'abseil-cpp',
   'cpp',
-  version: '20230802.0',
+  version: '20230802.1',
   license: 'Apache-2.0',
   default_options: [
     'cpp_std=c++14',
@@ -344,7 +344,6 @@ absl_random_sources = files(
   'absl/random/discrete_distribution.cc',
   'absl/random/gaussian_distribution.cc',
   'absl/random/internal/chi_square.cc',
-  'absl/random/internal/gaussian_distribution_gentables.cc',
   'absl/random/internal/pool_urbg.cc',
   'absl/random/internal/randen.cc',
   'absl/random/internal/randen_detect.cc',

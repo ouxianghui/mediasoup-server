@@ -10,24 +10,14 @@ echo "main_dir = ${main_dir}"
 /bin/rm -rf CMakeCache.txt
 /bin/rm -rf cmake_install.cmake
 
-#mkdir build
-#cd build
-#cmake -DCMAKE_INSTALL_PREFIX=${main_dir}/release ..
-chmod 777 config
-
-
-if [ ${CROSS_COMPILE} ]; then
-echo "${CROSS_COMPILE}"
-./config no-asm no-async no-shared no-dso --prefix=${main_dir}/release --cross-compile-prefix=${CROSS_COMPILE}
-sed -i 's/\-m64//g' ./Makefile
-else
-echo "${CROSS_COMPILE}"
-./config --prefix=${main_dir}/release
-fi
-
-make -j7
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${main_dir}/release \
+      -DOATPP_DIR_SRC=${main_dir}/deps/oatpp/src        \
+      -DOATPP_DIR_LIB=${main_dir}/release/lib   \
+      -DOPENSSL_INCLUDE_DIR=${main_dir}/release/include  \
+      -DOPENSSL_LIBRARIES=${main_dir}/release/lib  \
+      -DOPENSSL_VERSION=1.1.1  \
+      ..
+make -j8
 make install
-
-if [ -d "${main_dir}/release/lib64" ]; then
-cp ${main_dir}/release/lib64/lib* ${main_dir}/release/lib
-fi

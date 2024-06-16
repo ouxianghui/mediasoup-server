@@ -1,3 +1,11 @@
+
+//              Copyright Catch2 Authors
+// Distributed under the Boost Software License, Version 1.0.
+//   (See accompanying file LICENSE.txt or copy at
+//        https://www.boost.org/LICENSE_1_0.txt)
+
+// SPDX-License-Identifier: BSL-1.0
+
 // 231-Cfg-OutputStreams.cpp
 // Show how to replace the streams with a simple custom made streambuf.
 
@@ -5,17 +13,16 @@
 // semantic, because it buffers the output. For most uses however,
 // there is no important difference between having `std::cerr` buffered
 // or unbuffered.
+#include <catch2/catch_test_macros.hpp>
 
-#define CATCH_CONFIG_NOSTDOUT
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
-
+#include <sstream>
+#include <cstdio>
 
 class out_buff : public std::stringbuf {
     std::FILE* m_stream;
 public:
     out_buff(std::FILE* stream):m_stream(stream) {}
-    ~out_buff();
+    ~out_buff() override;
     int sync() override {
         int ret = 0;
         for (unsigned char c : str()) {

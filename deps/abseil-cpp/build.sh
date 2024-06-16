@@ -12,7 +12,7 @@ echo "main_dir = ${main_dir}"
 
 mkdir build
 cd build
-cmake -DCMAKE_INSTALL_PREFIX=${main_dir}/release ..
+cmake -DCMAKE_CXX_STANDARD=17 -DCMAKE_INSTALL_PREFIX=${main_dir}/release ..
 make
 make install
 /bin/cp -rf absl/strings/*.a ${main_dir}/release/lib

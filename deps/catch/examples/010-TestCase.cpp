@@ -1,11 +1,16 @@
+
+//              Copyright Catch2 Authors
+// Distributed under the Boost Software License, Version 1.0.
+//   (See accompanying file LICENSE.txt or copy at
+//        https://www.boost.org/LICENSE_1_0.txt)
+
+// SPDX-License-Identifier: BSL-1.0
+
 // 010-TestCase.cpp
+// And write tests in the same file:
+#include <catch2/catch_test_macros.hpp>
 
-// Let Catch provide main():
-#define CATCH_CONFIG_MAIN
-
-#include <catch2/catch.hpp>
-
-int Factorial( int number ) {
+static int Factorial( int number ) {
    return number <= 1 ? number : Factorial( number - 1 ) * number;  // fail
 // return number <= 1 ? 1      : Factorial( number - 1 ) * number;  // pass
 }
@@ -22,7 +27,7 @@ TEST_CASE( "Factorials of 1 and higher are computed (pass)", "[single-file]" ) {
 }
 
 // Compile & run:
-// - g++ -std=c++11 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 010-TestCase 010-TestCase.cpp && 010-TestCase --success
+// - g++ -std=c++14 -Wall -I$(CATCH_SINGLE_INCLUDE) -o 010-TestCase 010-TestCase.cpp && 010-TestCase --success
 // - cl -EHsc -I%CATCH_SINGLE_INCLUDE% 010-TestCase.cpp && 010-TestCase --success
 
 // Expected compact output (all assertions):

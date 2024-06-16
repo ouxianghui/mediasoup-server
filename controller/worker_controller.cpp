@@ -50,7 +50,7 @@ namespace srv {
     static int _consumerChannelFd[2] = {3, 5};
     static int _producerChannelFd[2] = {6, 4};
 
-    static const std::string MEDIASOUP_VERSION("3.13.12");
+    static const std::string MEDIASOUP_VERSION("3.14.7");
     
     WorkerController::WorkerController(const std::shared_ptr<WorkerSettings>& settings)
     : _settings(settings)
@@ -252,10 +252,8 @@ namespace srv {
             mediasoup_worker_run(argc,
                                  &argv[0],
                                  MEDIASOUP_VERSION.c_str(),
-                                 0,
-                                 0,
-                                 0,
-                                 0,
+                                 0,//int consumerChannelFd,
+                                 0,//int producerChannelFd,
                                  &Channel::channelRead,
                                  (void*)_channel.get(),
                                  &Channel::channelWrite,
@@ -431,13 +429,14 @@ namespace srv {
         std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> infos;
         
         for (auto& info : listenInfos) {
+            auto portRange = FBS::Transport::CreatePortRange(builder, info.portRange.min, info.portRange.max);
             auto socketFlags = FBS::Transport::CreateSocketFlags(builder, info.flags.ipv6Only, info.flags.udpReusePort);
-            
             auto info_ = FBS::Transport::CreateListenInfoDirect(builder,
                                                                 info.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                 info.ip.c_str(),
                                                                 info.announcedIp.c_str(),
                                                                 info.port,
+                                                                portRange,
                                                                 socketFlags,
                                                                 info.sendBufferSize,
                                                                 info.recvBufferSize

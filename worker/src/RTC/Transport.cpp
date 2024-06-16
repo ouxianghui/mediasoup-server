@@ -502,10 +502,10 @@ namespace RTC
 		  // minOutgoingBitrate.
 		  this->minOutgoingBitrate ? flatbuffers::Optional<uint32_t>(this->minOutgoingBitrate)
 		                           : flatbuffers::nullopt,
-		  // packetLossReceived.
+		  // rtpPacketLossReceived.
 		  this->tccServer ? flatbuffers::Optional<double>(this->tccServer->GetPacketLoss())
 		                  : flatbuffers::nullopt,
-		  // packetLossSent.
+		  // rtpPacketLossSent.
 		  this->tccClient ? flatbuffers::Optional<double>(this->tccClient->GetPacketLoss())
 		                  : flatbuffers::nullopt);
 	}
@@ -3083,8 +3083,8 @@ namespace RTC
 
 			/*
 			 * The interval between RTCP packets is varied randomly over the range
-			 * [1.0,1.5] times the calculated interval to avoid unintended synchronization
-			 * of all participants.
+			 * [1.0, 1.5] times the calculated interval to avoid unintended
+			 * synchronization of all participants.
 			 */
 			interval *= static_cast<float>(Utils::Crypto::GetRandomUInt(10, 15)) / 10;
 

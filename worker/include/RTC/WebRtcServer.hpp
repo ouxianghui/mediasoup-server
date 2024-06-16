@@ -28,14 +28,15 @@ namespace RTC
 		struct UdpSocketOrTcpServer
 		{
 			// Expose a constructor to use vector.emplace_back().
-			UdpSocketOrTcpServer(RTC::UdpSocket* udpSocket, RTC::TcpServer* tcpServer, std::string& announcedIp)
-			  : udpSocket(udpSocket), tcpServer(tcpServer), announcedIp(announcedIp)
+			UdpSocketOrTcpServer(
+			  RTC::UdpSocket* udpSocket, RTC::TcpServer* tcpServer, std::string& announcedAddress)
+			  : udpSocket(udpSocket), tcpServer(tcpServer), announcedAddress(announcedAddress)
 			{
 			}
 
 			RTC::UdpSocket* udpSocket;
 			RTC::TcpServer* tcpServer;
-			std::string announcedIp;
+			std::string announcedAddress;
 		};
 
 	private:
@@ -105,6 +106,8 @@ namespace RTC
 		absl::flat_hash_map<std::string, RTC::WebRtcTransport*> mapLocalIceUsernameFragmentWebRtcTransport;
 		// Map of WebRtcTransports indexed by TransportTuple.hash.
 		absl::flat_hash_map<uint64_t, RTC::WebRtcTransport*> mapTupleWebRtcTransport;
+		// Whether the destructor has been called.
+		bool closing{ false };
 	};
 } // namespace RTC
 

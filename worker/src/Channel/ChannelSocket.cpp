@@ -137,7 +137,7 @@ namespace Channel
 			return;
 		}
 
-		SendImpl(reinterpret_cast<const uint8_t*>(data), dataLen);
+		SendImpl(data, dataLen);
 	}
 
 	void ChannelSocket::SendLog(const char* data, uint32_t dataLen)
@@ -247,7 +247,7 @@ namespace Channel
 		return free != nullptr;
 	}
 
-	inline void ChannelSocket::SendImpl(const uint8_t* payload, uint32_t payloadLen)
+	void ChannelSocket::SendImpl(const uint8_t* payload, uint32_t payloadLen)
 	{
 		MS_TRACE_STD();
 

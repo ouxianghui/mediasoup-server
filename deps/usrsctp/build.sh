@@ -13,5 +13,5 @@ echo "main_dir = ${main_dir}"
 mkdir build
 cd build
 cmake -Dsctp_werror=0 -DCMAKE_INSTALL_PREFIX=${main_dir}/release ..
-make
+make -j8
 make install

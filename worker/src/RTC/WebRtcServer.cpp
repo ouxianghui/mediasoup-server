@@ -4,6 +4,7 @@
 #include "RTC/WebRtcServer.hpp"
 #include "Logger.hpp"
 #include "MediaSoupErrors.hpp"
+#include "Settings.hpp"
 #include "Utils.hpp"
 #include <cmath> // std::pow()
 
@@ -77,11 +78,11 @@ namespace RTC
 				// This may throw.
 				Utils::IP::NormalizeIp(ip);
 
-				std::string announcedIp;
+				std::string announcedAddress;
 
-				if (flatbuffers::IsFieldPresent(listenInfo, FBS::Transport::ListenInfo::VT_ANNOUNCEDIP))
+				if (flatbuffers::IsFieldPresent(listenInfo, FBS::Transport::ListenInfo::VT_ANNOUNCEDADDRESS))
 				{
-					announcedIp = listenInfo->announcedIp()->str();
+					announcedAddress = listenInfo->announcedAddress()->str();
 				}
 
 				RTC::Transport::SocketFlags flags;
@@ -94,16 +95,39 @@ namespace RTC
 					// This may throw.
 					RTC::UdpSocket* udpSocket;
 
-					if (listenInfo->port() != 0)
+					if (listenInfo->portRange()->min() != 0 && listenInfo->portRange()->max() != 0)
+					{
+						uint64_t portRangeHash{ 0u };
+
+						udpSocket = new RTC::UdpSocket(
+						  this,
+						  ip,
+						  listenInfo->portRange()->min(),
+						  listenInfo->portRange()->max(),
+						  flags,
+						  portRangeHash);
+					}
+					else if (listenInfo->port() != 0)
 					{
 						udpSocket = new RTC::UdpSocket(this, ip, listenInfo->port(), flags);
 					}
+					// NOTE: This is temporal to allow deprecated usage of worker port range.
+					// In the future this should throw since |port| or |portRange| will be
+					// required.
 					else
 					{
-						udpSocket = new RTC::UdpSocket(this, ip, flags);
+						uint64_t portRangeHash{ 0u };
+
+						udpSocket = new RTC::UdpSocket(
+						  this,
+						  ip,
+						  Settings::configuration.rtcMinPort,
+						  Settings::configuration.rtcMaxPort,
+						  flags,
+						  portRangeHash);
 					}
 
-					this->udpSocketOrTcpServers.emplace_back(udpSocket, nullptr, announcedIp);
+					this->udpSocketOrTcpServers.emplace_back(udpSocket, nullptr, announcedAddress);
 
 					if (listenInfo->sendBufferSize() != 0)
 					{
@@ -126,16 +150,41 @@ namespace RTC
 					// This may throw.
 					RTC::TcpServer* tcpServer;
 
-					if (listenInfo->port() != 0)
+					if (listenInfo->portRange()->min() != 0 && listenInfo->portRange()->max() != 0)
+					{
+						uint64_t portRangeHash{ 0u };
+
+						tcpServer = new RTC::TcpServer(
+						  this,
+						  this,
+						  ip,
+						  listenInfo->portRange()->min(),
+						  listenInfo->portRange()->max(),
+						  flags,
+						  portRangeHash);
+					}
+					else if (listenInfo->port() != 0)
 					{
 						tcpServer = new RTC::TcpServer(this, this, ip, listenInfo->port(), flags);
 					}
+					// NOTE: This is temporal to allow deprecated usage of worker port range.
+					// In the future this should throw since |port| or |portRange| will be
+					// required.
 					else
 					{
-						tcpServer = new RTC::TcpServer(this, this, ip, flags);
+						uint64_t portRangeHash{ 0u };
+
+						tcpServer = new RTC::TcpServer(
+						  this,
+						  this,
+						  ip,
+						  Settings::configuration.rtcMinPort,
+						  Settings::configuration.rtcMaxPort,
+						  flags,
+						  portRangeHash);
 					}
 
-					this->udpSocketOrTcpServers.emplace_back(nullptr, tcpServer, announcedIp);
+					this->udpSocketOrTcpServers.emplace_back(nullptr, tcpServer, announcedAddress);
 
 					if (listenInfo->sendBufferSize() != 0)
 					{
@@ -183,7 +232,18 @@ namespace RTC
 	{
 		MS_TRACE();
 
+		this->closing = true;
+
 		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
+
+		// NOTE: We need to close WebRtcTransports first since they may need to
+		// send DTLS Close Alert so UDP sockets and TCP connections must remain
+		// open.
+		for (auto* webRtcTransport : this->webRtcTransports)
+		{
+			webRtcTransport->ListenServerClosed();
+		}
+		this->webRtcTransports.clear();
 
 		for (auto& item : this->udpSocketOrTcpServers)
 		{
@@ -194,12 +254,6 @@ namespace RTC
 			item.tcpServer = nullptr;
 		}
 		this->udpSocketOrTcpServers.clear();
-
-		for (auto* webRtcTransport : this->webRtcTransports)
-		{
-			webRtcTransport->ListenServerClosed();
-		}
-		this->webRtcTransports.clear();
 	}
 
 	flatbuffers::Offset<FBS::WebRtcServer::DumpResponse> WebRtcServer::FillBuffer(
@@ -310,14 +364,14 @@ namespace RTC
 
 				const uint32_t icePriority = generateIceCandidatePriority(iceLocalPreference);
 
-				if (item.announcedIp.empty())
+				if (item.announcedAddress.empty())
 				{
 					iceCandidates.emplace_back(item.udpSocket, icePriority);
 				}
 				else
 				{
 					iceCandidates.emplace_back(
-					  item.udpSocket, icePriority, const_cast<std::string&>(item.announcedIp));
+					  item.udpSocket, icePriority, const_cast<std::string&>(item.announcedAddress));
 				}
 			}
 			else if (item.tcpServer && enableTcp)
@@ -331,14 +385,14 @@ namespace RTC
 
 				const uint32_t icePriority = generateIceCandidatePriority(iceLocalPreference);
 
-				if (item.announcedIp.empty())
+				if (item.announcedAddress.empty())
 				{
 					iceCandidates.emplace_back(item.tcpServer, icePriority);
 				}
 				else
 				{
 					iceCandidates.emplace_back(
-					  item.tcpServer, icePriority, const_cast<std::string&>(item.announcedIp));
+					  item.tcpServer, icePriority, const_cast<std::string&>(item.announcedAddress));
 				}
 			}
 
@@ -448,7 +502,14 @@ namespace RTC
 		  this->webRtcTransports.find(webRtcTransport) != this->webRtcTransports.end(),
 		  "WebRtcTransport not handled");
 
-		this->webRtcTransports.erase(webRtcTransport);
+		// NOTE: If WebRtcServer is closing then do not remove the transport from
+		// the set since it would modify the set while the WebRtcServer destructor
+		// is iterating it.
+		// See: https://github.com/versatica/mediasoup/pull/1369#issuecomment-2044672247
+		if (!this->closing)
+		{
+			this->webRtcTransports.erase(webRtcTransport);
+		}
 	}
 
 	inline void WebRtcServer::OnWebRtcTransportLocalIceUsernameFragmentAdded(
@@ -499,7 +560,7 @@ namespace RTC
 
 		if (this->mapTupleWebRtcTransport.find(tuple->hash) == this->mapTupleWebRtcTransport.end())
 		{
-			MS_WARN_TAG(ice, "tuple hash not found in the table");
+			MS_DEBUG_TAG(ice, "tuple hash not found in the table");
 
 			return;
 		}

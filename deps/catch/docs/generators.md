@@ -1,7 +1,7 @@
 <a id="top"></a>
 # Data Generators
 
-> Introduced in Catch 2.6.0.
+> Introduced in Catch2 2.6.0.
 
 Data generators (also known as _data driven/parametrized test cases_)
 let you reuse the same set of assertions across different input values.
@@ -92,7 +92,7 @@ TEST_CASE("Complex mix of sections and generates") {
 }
 ```
 
-> The ability to place `GENERATE` between two `SECTION`s was [introduced](https://github.com/catchorg/Catch2/issues/1938) in Catch 2.13.0.
+> The ability to place `GENERATE` between two `SECTION`s was [introduced](https://github.com/catchorg/Catch2/issues/1938) in Catch2 2.13.0.
 
 ## Provided generators
 
@@ -114,12 +114,12 @@ a test case,
 * 4 specific purpose generators
   * `RandomIntegerGenerator<Integral>` -- generates random Integrals from range
   * `RandomFloatGenerator<Float>` -- generates random Floats from range
-  * `RangeGenerator<T>` -- generates all values inside an arithmetic range
+  * `RangeGenerator<T>(first, last)` -- generates all values inside a `[first, last)` arithmetic range
   * `IteratorGenerator<T>` -- copies and returns values from an iterator range
 
-> `ChunkGenerator<T>`, `RandomIntegerGenerator<Integral>`, `RandomFloatGenerator<Float>` and `RangeGenerator<T>` were introduced in Catch 2.7.0.
+> `ChunkGenerator<T>`, `RandomIntegerGenerator<Integral>`, `RandomFloatGenerator<Float>` and `RangeGenerator<T>` were introduced in Catch2 2.7.0.
 
-> `IteratorGenerator<T>` was introduced in Catch 2.10.0.
+> `IteratorGenerator<T>` was introduced in Catch2 2.10.0.
 
 The generators also have associated helper functions that infer their
 type, making their usage much nicer. These are
@@ -134,16 +134,16 @@ type, making their usage much nicer. These are
 * `map<T>(func, GeneratorWrapper<U>&&)` for `MapGenerator<T, U, Func>` (map `U` to `T`)
 * `chunk(chunk-size, GeneratorWrapper<T>&&)` for `ChunkGenerator<T>`
 * `random(IntegerOrFloat a, IntegerOrFloat b)` for `RandomIntegerGenerator` or `RandomFloatGenerator`
-* `range(Arithemtic start, Arithmetic end)` for `RangeGenerator<Arithmetic>` with a step size of `1`
+* `range(Arithmetic start, Arithmetic end)` for `RangeGenerator<Arithmetic>` with a step size of `1`
 * `range(Arithmetic start, Arithmetic end, Arithmetic step)` for `RangeGenerator<Arithmetic>` with a custom step size
 * `from_range(InputIterator from, InputIterator to)` for `IteratorGenerator<T>`
 * `from_range(Container const&)` for `IteratorGenerator<T>`
 
-> `chunk()`, `random()` and both `range()` functions were introduced in Catch 2.7.0.
+> `chunk()`, `random()` and both `range()` functions were introduced in Catch2 2.7.0.
 
-> `from_range` has been introduced in Catch 2.10.0
+> `from_range` has been introduced in Catch2 2.10.0
 
-> `range()` for floating point numbers has been introduced in Catch 2.11.0
+> `range()` for floating point numbers has been introduced in Catch2 2.11.0
 
 And can be used as shown in the example below to create a generator
 that returns 100 odd random number:
@@ -176,7 +176,7 @@ scope and thus capturing references is dangerous. If you need to use
 variables inside the generator expression, make sure you thought through
 the lifetime implications and use `GENERATE_COPY` or `GENERATE_REF`.**
 
-> `GENERATE_COPY` and `GENERATE_REF` were introduced in Catch 2.7.1.
+> `GENERATE_COPY` and `GENERATE_REF` were introduced in Catch2 2.7.1.
 
 You can also override the inferred type by using `as<type>` as the first
 argument to the macro. This can be useful when dealing with string literals,
@@ -188,6 +188,45 @@ TEST_CASE("type conversion", "[generators]") {
     REQUIRE(str.size() > 0);
 }
 ```
+
+
+### Random number generators: details
+
+> This section applies from Catch2 3.5.0. Before that, random generators
+> were a thin wrapper around distributions from `<random>`.
+
+All of the `random(a, b)` generators in Catch2 currently generate uniformly
+distributed number in closed interval \[a; b\]. This  is different from
+`std::uniform_real_distribution`, which should return numbers in interval
+\[a; b) (but due to rounding can end up returning b anyway), but the
+difference is intentional, so that `random(a, a)` makes sense. If there is
+enough interest from users, we can provide API to pick any of CC, CO, OC,
+or OO ranges.
+
+Unlike `std::uniform_int_distribution`, Catch2's generators also support
+various single-byte integral types, such as `char` or `bool`.
+
+
+#### Reproducibility
+
+Given the same seed, the output from the integral generators is fully
+reproducible across different platforms.
+
+For floating point generators, the situation is much more complex.
+Generally Catch2 only promises reproducibility (or even just correctness!)
+on platforms that obey the IEEE-754 standard. Furthermore, reproducibility
+only applies between binaries that perform floating point math in the
+same way, e.g. if you compile a binary targetting the x87 FPU and another
+one targetting SSE2 for floating point math, their results will vary.
+Similarly, binaries compiled with compiler flags that relax the IEEE-754
+adherence, e.g. `-ffast-math`, might provide different results than those
+compiled for strict IEEE-754 adherence.
+
+Finally, we provide zero guarantees on the reproducibility of generating
+`long double`s, as the internals of `long double` varies across different
+platforms.
+
+
 
 ## Generator interface
 
@@ -205,15 +244,37 @@ struct IGenerator : GeneratorUntypedBase {
     // Precondition:
     // The generator is either freshly constructed or the last call to next() returned true
     virtual T const& get() const = 0;
+
+    // Returns user-friendly string showing the current generator element
+    // Does not have to be overridden, IGenerator provides default implementation
+    virtual std::string stringifyImpl() const;
 };
 ```
 
 However, to be able to use your custom generator inside `GENERATE`, it
 will need to be wrapped inside a `GeneratorWrapper<T>`.
 `GeneratorWrapper<T>` is a value wrapper around a
-`std::unique_ptr<IGenerator<T>>`.
+`Catch::Detail::unique_ptr<IGenerator<T>>`.
 
 For full example of implementing your own generator, look into Catch2's
 examples, specifically
 [Generators: Create your own generator](../examples/300-Gen-OwnGenerator.cpp).
 
+
+### Handling empty generators
+
+The generator interface assumes that a generator always has at least one
+element. This is not always true, e.g. if the generator depends on an external
+datafile, the file might be missing.
+
+There are two ways to handle this, depending on whether you want this
+to be an error or not.
+
+ * If empty generator **is** an error, throw an exception in constructor.
+ * If empty generator **is not** an error, use the [`SKIP`](skipping-passing-failing.md#skipping-test-cases-at-runtime) in constructor.
+
+
+
+---
+
+[Home](Readme.md#top)

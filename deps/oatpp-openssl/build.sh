@@ -19,5 +19,5 @@ cmake -DCMAKE_INSTALL_PREFIX=${main_dir}/release \
       -DOPENSSL_LIBRARIES=${main_dir}/release/lib  \
       -DOPENSSL_VERSION=1.1.1  \
       ..
-make
+make -j8
 make install

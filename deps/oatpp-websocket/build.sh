@@ -16,5 +16,5 @@ cmake -DCMAKE_INSTALL_PREFIX=${main_dir}/release \
       -DOATPP_DIR_SRC=${main_dir}/deps/oatpp/src        \
       -DOATPP_DIR_LIB=${main_dir}/release/lib   \
       ..
-make
+make -j8
 make install

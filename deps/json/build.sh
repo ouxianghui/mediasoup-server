@@ -13,6 +13,6 @@ echo "main_dir = ${main_dir}"
 mkdir build
 cd build
 cmake -DCMAKE_INSTALL_PREFIX=${main_dir}/release ..
-make
+make -j8
 make install
 /bin/cp -rf ${main_dir}/release/include/nlohmann/json.hpp ${main_dir}/release/include/

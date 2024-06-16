@@ -4,6 +4,7 @@
 #include "RTC/WebRtcTransport.hpp"
 #include "Logger.hpp"
 #include "MediaSoupErrors.hpp"
+#include "Settings.hpp"
 #include "Utils.hpp"
 #include "FBS/webRtcTransport.h"
 #include <cmath> // std::pow()
@@ -55,11 +56,11 @@ namespace RTC
 				// This may throw.
 				Utils::IP::NormalizeIp(ip);
 
-				std::string announcedIp;
+				std::string announcedAddress;
 
-				if (flatbuffers::IsFieldPresent(listenInfo, FBS::Transport::ListenInfo::VT_ANNOUNCEDIP))
+				if (flatbuffers::IsFieldPresent(listenInfo, FBS::Transport::ListenInfo::VT_ANNOUNCEDADDRESS))
 				{
-					announcedIp = listenInfo->announcedIp()->str();
+					announcedAddress = listenInfo->announcedAddress()->str();
 				}
 
 				RTC::Transport::SocketFlags flags;
@@ -75,24 +76,47 @@ namespace RTC
 				{
 					RTC::UdpSocket* udpSocket;
 
-					if (listenInfo->port() != 0)
+					if (listenInfo->portRange()->min() != 0 && listenInfo->portRange()->max() != 0)
+					{
+						uint64_t portRangeHash{ 0u };
+
+						udpSocket = new RTC::UdpSocket(
+						  this,
+						  ip,
+						  listenInfo->portRange()->min(),
+						  listenInfo->portRange()->max(),
+						  flags,
+						  portRangeHash);
+					}
+					else if (listenInfo->port() != 0)
 					{
 						udpSocket = new RTC::UdpSocket(this, ip, listenInfo->port(), flags);
 					}
+					// NOTE: This is temporal to allow deprecated usage of worker port range.
+					// In the future this should throw since |port| or |portRange| will be
+					// required.
 					else
 					{
-						udpSocket = new RTC::UdpSocket(this, ip, flags);
+						uint64_t portRangeHash{ 0u };
+
+						udpSocket = new RTC::UdpSocket(
+						  this,
+						  ip,
+						  Settings::configuration.rtcMinPort,
+						  Settings::configuration.rtcMaxPort,
+						  flags,
+						  portRangeHash);
 					}
 
-					this->udpSockets[udpSocket] = announcedIp;
+					this->udpSockets[udpSocket] = announcedAddress;
 
-					if (announcedIp.empty())
+					if (announcedAddress.empty())
 					{
 						this->iceCandidates.emplace_back(udpSocket, icePriority);
 					}
 					else
 					{
-						this->iceCandidates.emplace_back(udpSocket, icePriority, announcedIp);
+						this->iceCandidates.emplace_back(udpSocket, icePriority, announcedAddress);
 					}
 
 					if (listenInfo->sendBufferSize() != 0)
@@ -117,24 +141,49 @@ namespace RTC
 				{
 					RTC::TcpServer* tcpServer;
 
-					if (listenInfo->port() != 0)
+					if (listenInfo->portRange()->min() != 0 && listenInfo->portRange()->max() != 0)
+					{
+						uint64_t portRangeHash{ 0u };
+
+						tcpServer = new RTC::TcpServer(
+						  this,
+						  this,
+						  ip,
+						  listenInfo->portRange()->min(),
+						  listenInfo->portRange()->max(),
+						  flags,
+						  portRangeHash);
+					}
+					else if (listenInfo->port() != 0)
 					{
 						tcpServer = new RTC::TcpServer(this, this, ip, listenInfo->port(), flags);
 					}
+					// NOTE: This is temporal to allow deprecated usage of worker port range.
+					// In the future this should throw since |port| or |portRange| will be
+					// required.
 					else
 					{
-						tcpServer = new RTC::TcpServer(this, this, ip, flags);
+						uint64_t portRangeHash{ 0u };
+
+						tcpServer = new RTC::TcpServer(
+						  this,
+						  this,
+						  ip,
+						  Settings::configuration.rtcMinPort,
+						  Settings::configuration.rtcMaxPort,
+						  flags,
+						  portRangeHash);
 					}
 
-					this->tcpServers[tcpServer] = announcedIp;
+					this->tcpServers[tcpServer] = announcedAddress;
 
-					if (announcedIp.empty())
+					if (announcedAddress.empty())
 					{
 						this->iceCandidates.emplace_back(tcpServer, icePriority);
 					}
 					else
 					{
-						this->iceCandidates.emplace_back(tcpServer, icePriority, announcedIp);
+						this->iceCandidates.emplace_back(tcpServer, icePriority, announcedAddress);
 					}
 
 					if (listenInfo->sendBufferSize() != 0)
@@ -160,9 +209,11 @@ namespace RTC
 				iceLocalPreferenceDecrement += 100;
 			}
 
+			auto iceConsentTimeout = options->iceConsentTimeout();
+
 			// Create a ICE server.
 			this->iceServer = new RTC::IceServer(
-			  this, Utils::Crypto::GetRandomString(32), Utils::Crypto::GetRandomString(32));
+			  this, Utils::Crypto::GetRandomString(32), Utils::Crypto::GetRandomString(32), iceConsentTimeout);
 
 			// Create a DTLS transport.
 			this->dtlsTransport = new RTC::DtlsTransport(this);
@@ -227,9 +278,11 @@ namespace RTC
 				MS_THROW_TYPE_ERROR("empty iceCandidates");
 			}
 
+			auto iceConsentTimeout = options->iceConsentTimeout();
+
 			// Create a ICE server.
 			this->iceServer = new RTC::IceServer(
-			  this, Utils::Crypto::GetRandomString(32), Utils::Crypto::GetRandomString(32));
+			  this, Utils::Crypto::GetRandomString(32), Utils::Crypto::GetRandomString(32), iceConsentTimeout);
 
 			// Create a DTLS transport.
 			this->dtlsTransport = new RTC::DtlsTransport(this);
@@ -435,7 +488,8 @@ namespace RTC
 					MS_THROW_ERROR("connect() already called");
 				}
 
-				const auto* body           = request->data->body_as<FBS::WebRtcTransport::ConnectRequest>();
+				const auto* body = request->data->body_as<FBS::WebRtcTransport::ConnectRequest>();
+
 				const auto* dtlsParameters = body->dtlsParameters();
 
 				RTC::DtlsTransport::Fingerprint dtlsRemoteFingerprint;
@@ -1126,9 +1180,9 @@ namespace RTC
 		}
 
 		// If this is a TCP tuple, close its underlaying TCP connection.
-		if (tuple->GetProtocol() == RTC::TransportTuple::Protocol::TCP && !tuple->IsClosed())
+		if (tuple->GetProtocol() == RTC::TransportTuple::Protocol::TCP)
 		{
-			tuple->Close();
+			tuple->CloseTcpConnection();
 		}
 	}
 

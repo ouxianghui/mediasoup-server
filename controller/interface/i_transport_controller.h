@@ -22,7 +22,22 @@
 
 namespace srv {
  
-   struct TransportListenIp
+    /**
+     * Port range..
+     */
+    struct TransportPortRange
+    {
+        /**
+         * Lowest port in the range.
+         */
+        uint16_t min;
+        /**
+         * Highest port in the range.
+         */
+        uint16_t max;
+    };
+
+    struct TransportListenIp
     {
         /**
          * Listening IPv4 or IPv6.
@@ -65,15 +80,29 @@ namespace srv {
         std::string ip;
 
         /**
-         * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
-         * private IP).
+         * @deprecated Use |announcedAddress| instead.
+         *
+         * Announced IPv4, IPv6 or hostname (useful when running mediasoup behind NAT
+         * with private IP).
          */
         std::string announcedIp;
+
+        /**
+         * Announced IPv4, IPv6 or hostname (useful when running mediasoup behind NAT
+         * with private IP).
+         */
+        std::string announcedAddress;
 
         /**
          * Listening port.
          */
         uint16_t port;
+        
+        /**
+         * Listening port range. If given then |port| will be ignored.
+         */
+        TransportPortRange portRange;
+        
 
         /**
         * Socket flags.
@@ -101,7 +130,7 @@ namespace srv {
 
     struct TransportTuple
     {
-        std::string localIp;
+        std::string localAddress;
         int32_t localPort;
         std::string remoteIp;
         int32_t remotePort;

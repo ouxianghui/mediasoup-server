@@ -24,5 +24,5 @@ cmake -DCMAKE_INSTALL_PREFIX=${main_dir}/release \
       ..
 #fi
 
-make
+make -j8
 make install

@@ -219,6 +219,7 @@ namespace srv {
         const int32_t sctpSendBufferSize = options->sctpSendBufferSize;
         const nlohmann::json& appData = options->appData;
         const auto& webRtcServer = options->webRtcServer;
+        uint8_t iceConsentTimeout = options->iceConsentTimeout;
         
         if (!webRtcServer && listenIps.empty() && listenInfos.empty()) {
             SRV_LOGE("missing webRtcServer, listenInfos and listenIps (one of them is mandatory)");
@@ -255,18 +256,20 @@ namespace srv {
                 info.announcedIp = listenIp.announcedIp;
                 listenInfosTmp.emplace_back(info);
             }
-
+            
             listenInfos.clear();
-
+            
             std::vector<std::string> orderedProtocols;
-
-            if (enableUdp && (!enableTcp || preferUdp)) {
+            
+            if (enableUdp && (preferUdp || !enableTcp || !preferTcp)) {
+                //if (enableUdp && (!enableTcp || preferUdp)) {
                 orderedProtocols.emplace_back("udp");
                 if (enableTcp) {
                     orderedProtocols.emplace_back("tcp");
                 }
             }
-            else if (enableTcp && (!enableUdp || (preferTcp && !preferUdp))) {
+            else if (enableTcp && ((preferTcp && !preferUdp) || !enableUdp)) {
+            //else if (enableTcp && (!enableUdp || (preferTcp && !preferUdp))) {
                 orderedProtocols.emplace_back("tcp");
                 if (enableUdp) {
                     orderedProtocols.emplace_back("udp");
@@ -278,7 +281,7 @@ namespace srv {
                     TransportListenInfo info;
                     info.protocol = protocol;
                     info.ip = listenIp.ip;
-                    info.announcedIp = listenIp.announcedIp;
+                    info.announcedAddress = listenIp.announcedIp;
                     info.port = port;
                     listenInfos.emplace_back(info);
                 }
@@ -289,27 +292,29 @@ namespace srv {
         
         auto reqId = channel->genRequestId();
         
-        flatbuffers::Offset<void> listenOffset;
+        flatbuffers::Offset<void> listenInfoOffset;
         
         if (webRtcServer) {
-            listenOffset = FBS::WebRtcTransport::CreateListenServerDirect(builder, webRtcServer->id().c_str()).Union();
+            listenInfoOffset = FBS::WebRtcTransport::CreateListenServerDirect(builder, webRtcServer->id().c_str()).Union();
         }
         else {
             std::vector<flatbuffers::Offset<FBS::Transport::ListenInfo>> listenInfos_;
             for (const auto& item : listenInfos) {
+                auto portRange = FBS::Transport::CreatePortRange(builder, item.portRange.min, item.portRange.max);
                 auto socketFlags = FBS::Transport::CreateSocketFlags(builder, item.flags.ipv6Only, item.flags.udpReusePort);
                 auto infoOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                          item.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                          item.ip.c_str(),
-                                                                         item.announcedIp.c_str(),
+                                                                         !item.announcedAddress.empty() ? item.announcedAddress.c_str() : item.announcedIp.c_str(),
                                                                          item.port,
+                                                                         portRange,
                                                                          socketFlags,
                                                                          item.sendBufferSize,
                                                                          item.recvBufferSize
                                                                          );
                 listenInfos_.emplace_back(infoOffset);
             }
-            listenOffset = FBS::WebRtcTransport::CreateListenIndividualDirect(builder, &listenInfos_).Union();
+            listenInfoOffset = FBS::WebRtcTransport::CreateListenIndividualDirect(builder, &listenInfos_).Union();
         }
         
         auto numSctpStreamsOffset = FBS::SctpParameters::CreateNumSctpStreams(builder, numSctpStreams.OS, numSctpStreams.MIS);
@@ -328,11 +333,12 @@ namespace srv {
         auto webRtcTransportOptionsOffset = FBS::WebRtcTransport::CreateWebRtcTransportOptions(builder,
                                                                                                baseTransportOptionsOffset,
                                                                                                webRtcServer ? FBS::WebRtcTransport::Listen::ListenServer : FBS::WebRtcTransport::Listen::ListenIndividual,
-                                                                                               listenOffset,
+                                                                                               listenInfoOffset,
                                                                                                enableUdp,
                                                                                                enableTcp,
                                                                                                preferUdp,
-                                                                                               preferTcp
+                                                                                               preferTcp,
+                                                                                               iceConsentTimeout
                                                                                                );
         
         auto reqOffset = FBS::Router::CreateCreateWebRtcTransportRequestDirect(builder, internal.transportId.c_str(), webRtcTransportOptionsOffset);
@@ -443,7 +449,7 @@ namespace srv {
             // Normalize IP string to TransportListenInfo object.
             listenInfo.protocol = "udp";
             listenInfo.ip = listenIp.ip;
-            listenInfo.announcedIp = listenIp.ip;
+            listenInfo.announcedAddress = listenIp.announcedIp;
             listenInfo.port = port;
         }
         
@@ -468,32 +474,40 @@ namespace srv {
                                                                         isDataChannel
                                                                         );
         
-        auto socketFlags = FBS::Transport::CreateSocketFlags(builder, listenInfo.flags.ipv6Only, listenInfo.flags.udpReusePort);
+        auto listnInfoPortRange = FBS::Transport::CreatePortRange(builder, listenInfo.portRange.min, listenInfo.portRange.max);
         
-        auto listenOffset = FBS::Transport::CreateListenInfoDirect(builder,
-                                                                   listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
-                                                                   listenInfo.ip.c_str(),
-                                                                   listenInfo.announcedIp.c_str(),
-                                                                   listenInfo.port,
-                                                                   socketFlags,
-                                                                   listenInfo.sendBufferSize,
-                                                                   listenInfo.recvBufferSize
-                                                                   );
+        auto listenInfoSocketFlags = FBS::Transport::CreateSocketFlags(builder, listenInfo.flags.ipv6Only, listenInfo.flags.udpReusePort);
         
-        auto rtcpListenOffset = FBS::Transport::CreateListenInfoDirect(builder,
-                                                                       rtcpListenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
-                                                                       rtcpListenInfo.ip.c_str(),
-                                                                       rtcpListenInfo.announcedIp.c_str(),
-                                                                       rtcpListenInfo.port,
-                                                                       socketFlags,
-                                                                       rtcpListenInfo.sendBufferSize,
-                                                                       rtcpListenInfo.recvBufferSize
-                                                                   );
+        auto listenInfoOffset = FBS::Transport::CreateListenInfoDirect(builder,
+                                                                       listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                       listenInfo.ip.c_str(),
+                                                                       !listenInfo.announcedAddress.empty() ? listenInfo.announcedAddress.c_str() : listenInfo.announcedIp.c_str(),
+                                                                       listenInfo.port,
+                                                                       listnInfoPortRange,
+                                                                       listenInfoSocketFlags,
+                                                                       listenInfo.sendBufferSize,
+                                                                       listenInfo.recvBufferSize
+                                                                       );
+        
+        auto rtcpListnInfoPortRange = FBS::Transport::CreatePortRange(builder, rtcpListenInfo.portRange.min, rtcpListenInfo.portRange.max);
+        
+        auto rtcpListenInfoSocketFlags = FBS::Transport::CreateSocketFlags(builder, rtcpListenInfo.flags.ipv6Only, rtcpListenInfo.flags.udpReusePort);
+        
+        auto rtcpListenInfoOffset = FBS::Transport::CreateListenInfoDirect(builder,
+                                                                           rtcpListenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                           rtcpListenInfo.ip.c_str(),
+                                                                           !rtcpListenInfo.announcedAddress.empty() ? rtcpListenInfo.announcedAddress.c_str() : rtcpListenInfo.announcedIp.c_str(),
+                                                                           rtcpListenInfo.port,
+                                                                           rtcpListnInfoPortRange,
+                                                                           rtcpListenInfoSocketFlags,
+                                                                           rtcpListenInfo.sendBufferSize,
+                                                                           rtcpListenInfo.recvBufferSize
+                                                                           );
         
         auto plainTransportOptionsOffset = FBS::PlainTransport::CreatePlainTransportOptions(builder,
                                                                                             baseTransportOptionsOffset,
-                                                                                            listenOffset,
-                                                                                            rtcpListenOffset,
+                                                                                            listenInfoOffset,
+                                                                                            rtcpListenInfoOffset,
                                                                                             rtcpMux,
                                                                                             comedia,
                                                                                             enableSrtp,
@@ -669,7 +683,7 @@ namespace srv {
             // Normalize IP string to TransportListenInfo object.
             listenInfo.protocol = "udp";
             listenInfo.ip = listenIp.ip;
-            listenInfo.announcedIp = listenIp.announcedIp;
+            listenInfo.announcedAddress = listenIp.announcedIp;
             listenInfo.port = port;
         }
         
@@ -694,21 +708,24 @@ namespace srv {
                                                                         isDataChannel
                                                                         );
         
+        auto portRange = FBS::Transport::CreatePortRange(builder, listenInfo.portRange.min, listenInfo.portRange.max);
+        
         auto socketFlags = FBS::Transport::CreateSocketFlags(builder, listenInfo.flags.ipv6Only, listenInfo.flags.udpReusePort);
         
-        auto listenOffset = FBS::Transport::CreateListenInfoDirect(builder,
-                                                                   listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
-                                                                   listenInfo.ip.c_str(),
-                                                                   listenInfo.announcedIp.c_str(),
-                                                                   listenInfo.port,
-                                                                   socketFlags,
-                                                                   listenInfo.sendBufferSize,
-                                                                   listenInfo.recvBufferSize
-                                                                   );
+        auto listenInfoOffset = FBS::Transport::CreateListenInfoDirect(builder,
+                                                                       listenInfo.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
+                                                                       listenInfo.ip.c_str(),
+                                                                       !listenInfo.announcedAddress.empty() ? listenInfo.announcedAddress.c_str() : listenInfo.announcedIp.c_str(),
+                                                                       listenInfo.port,
+                                                                       portRange,
+                                                                       socketFlags,
+                                                                       listenInfo.sendBufferSize,
+                                                                       listenInfo.recvBufferSize
+                                                                       );
         
         auto pipeTransportOptionsOffset = FBS::PipeTransport::CreatePipeTransportOptions(builder,
                                                                                          baseTransportOptionsOffset,
-                                                                                         listenOffset,
+                                                                                         listenInfoOffset,
                                                                                          enableRtx,
                                                                                          enableSrtp
                                                                                          );
@@ -1062,7 +1079,7 @@ namespace srv {
             // Normalize IP string to TransportListenIp object.
             listenInfo.protocol = "udp";
             listenInfo.ip = listenIp.ip;
-            listenInfo.announcedIp = listenIp.announcedIp;
+            listenInfo.announcedAddress = listenIp.announcedIp;
         }
         
         std::shared_ptr<IProducerController> producerController;
@@ -1135,13 +1152,13 @@ namespace srv {
             });
             
             auto rData = std::make_shared<ConnectParams>();
-            rData->ip = remotePipeTransportController->tuple().localIp;
+            rData->ip = remotePipeTransportController->tuple().localAddress;
             rData->port = remotePipeTransportController->tuple().localPort;
             rData->srtpParameters = remotePipeTransportController->srtpParameters();
             localPipeTransportController->connect(rData);
             
             auto lData = std::make_shared<ConnectParams>();
-            lData->ip = localPipeTransportController->tuple().localIp;
+            lData->ip = localPipeTransportController->tuple().localAddress;
             lData->port = localPipeTransportController->tuple().localPort;
             lData->srtpParameters = localPipeTransportController->srtpParameters();
             remotePipeTransportController->connect(lData);

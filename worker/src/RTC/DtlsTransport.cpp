@@ -12,23 +12,25 @@
 #include <cstdio>  // std::snprintf(), std::fopen()
 #include <cstring> // std::memcpy(), std::strcmp()
 
-#define LOG_OPENSSL_ERROR(desc)                                                                    \
-	do                                                                                               \
-	{                                                                                                \
-		if (ERR_peek_error() == 0)                                                                     \
-		{                                                                                              \
-			MS_ERROR("OpenSSL error [desc:'%s']", desc);                                                 \
-		}                                                                                              \
-		else                                                                                           \
-		{                                                                                              \
-			int64_t err;                                                                                 \
-			while ((err = ERR_get_error()) != 0)                                                         \
-			{                                                                                            \
-				MS_ERROR("OpenSSL error [desc:'%s', error:'%s']", desc, ERR_error_string(err, nullptr));   \
-			}                                                                                            \
-			ERR_clear_error();                                                                           \
-		}                                                                                              \
+// clang-format off
+#define LOG_OPENSSL_ERROR(desc) \
+	do \
+	{ \
+		if (ERR_peek_error() == 0) \
+		{ \
+			MS_ERROR("OpenSSL error [desc:'%s']", desc); \
+		} \
+		else \
+		{ \
+			int64_t err; \
+			while ((err = ERR_get_error()) != 0) \
+			{ \
+				MS_ERROR("OpenSSL error [desc:'%s', error:'%s']", desc, ERR_error_string(err, nullptr)); \
+			} \
+			ERR_clear_error(); \
+		} \
 	} while (false)
+// clang-format on
 
 /* Static methods for OpenSSL callbacks. */
 
@@ -45,22 +47,14 @@ inline static void onSslInfo(const SSL* ssl, int where, int ret)
 	static_cast<RTC::DtlsTransport*>(SSL_get_ex_data(ssl, 0))->OnSslInfo(where, ret);
 }
 
-inline static unsigned int onSslDtlsTimer(SSL* /*ssl*/, unsigned int timerUs)
-{
-	if (timerUs == 0)
-	{
-		return 100000;
-	}
-	else if (timerUs >= 4000000)
-	{
-		return 4000000;
-	}
-	else
-	{
-		return 2 * timerUs;
-	}
-}
-
+/**
+ * This callback is called by OpenSSL when it wants to send DTLS data to the
+ * endpoint. Such a data could be a full DTLS message, various DTLS messages,
+ * a DTLS message fragment, various DTLS message fragments or a combination of
+ * these. It's guaranteed (by observation) that |len| argument corresponds to
+ * the entire content of our BIO mem buffer |this->sslBioToNetwork| and it
+ * never exceeds our |DtlsMtu| limit.
+ */
 inline static long onSslBioOut(
   BIO* bio,
   int operationType,
@@ -71,18 +65,36 @@ inline static long onSslBioOut(
   int ret,
   size_t* /*processed*/)
 {
-	const long resultOfcallback = (operationType == BIO_CB_RETURN) ? static_cast<long>(ret) : 1;
+	long resultOfcallback = (operationType == BIO_CB_RETURN) ? static_cast<long>(ret) : 1;
 
-	if (operationType == BIO_CB_WRITE && argp && len > 0)
+	// This callback is called twice for write operations:
+	// - First one with operationType = BIO_CB_WRITE.
+	// - Second one with operationType = BIO_CB_RETURN | BIO_CB_WRITE.
+	// We only care about the former.
+	if ((operationType == BIO_CB_WRITE) && argp && len > 0)
 	{
-		MS_DEBUG_DEV("%zu bytes of DTLS data ready to be sent", len);
-
 		auto* dtlsTransport = reinterpret_cast<RTC::DtlsTransport*>(BIO_get_callback_arg(bio));
 
 		dtlsTransport->SendDtlsData(reinterpret_cast<const uint8_t*>(argp), len);
 	}
 
 	return resultOfcallback;
+}
+
+inline static unsigned int onSslDtlsTimer(SSL* /*ssl*/, unsigned int timerUs)
+{
+	if (timerUs == 0u)
+	{
+		return 100000u;
+	}
+	else if (timerUs >= 4000000u)
+	{
+		return 4000000u;
+	}
+	else
+	{
+		return 2 * timerUs;
+	}
 }
 
 namespace RTC
@@ -93,15 +105,15 @@ namespace RTC
 	static constexpr int DtlsMtu{ 1350 };
 	static constexpr int SslReadBufferSize{ 65536 };
 	// AES-HMAC: http://tools.ietf.org/html/rfc3711
-	static constexpr size_t SrtpMasterKeyLength{ 16 };
-	static constexpr size_t SrtpMasterSaltLength{ 14 };
+	static constexpr size_t SrtpMasterKeyLength{ 16u };
+	static constexpr size_t SrtpMasterSaltLength{ 14u };
 	static constexpr size_t SrtpMasterLength{ SrtpMasterKeyLength + SrtpMasterSaltLength };
 	// AES-GCM: http://tools.ietf.org/html/rfc7714
-	static constexpr size_t SrtpAesGcm256MasterKeyLength{ 32 };
-	static constexpr size_t SrtpAesGcm256MasterSaltLength{ 12 };
+	static constexpr size_t SrtpAesGcm256MasterKeyLength{ 32u };
+	static constexpr size_t SrtpAesGcm256MasterSaltLength{ 12u };
 	static constexpr size_t SrtpAesGcm256MasterLength{ SrtpAesGcm256MasterKeyLength + SrtpAesGcm256MasterSaltLength };
-	static constexpr size_t SrtpAesGcm128MasterKeyLength{ 16 };
-	static constexpr size_t SrtpAesGcm128MasterSaltLength{ 12 };
+	static constexpr size_t SrtpAesGcm128MasterKeyLength{ 16u };
+	static constexpr size_t SrtpAesGcm128MasterSaltLength{ 12u };
 	static constexpr size_t SrtpAesGcm128MasterLength{ SrtpAesGcm128MasterKeyLength + SrtpAesGcm128MasterSaltLength };
 	// clang-format on
 
@@ -730,13 +742,18 @@ namespace RTC
 			goto error;
 		}
 
+		// Set the MTU so that we don't send packets that are too large with no
+		// fragmentation.
+		SSL_set_mtu(this->ssl, DtlsMtu);
+		DTLS_set_link_mtu(this->ssl, DtlsMtu);
+
+		// We want to monitor OpenSSL write operations into our |sslBioToNetwork|
+		// buffer so we can immediately send those DTLS bytes (containing full DTLS
+		// messages, or valid DTLS fragment messages, or combination of them) to
+		// the endpoint, and hence we honor the configured DTLS MTU.
 		BIO_set_callback_ex(this->sslBioToNetwork, onSslBioOut);
 		BIO_set_callback_arg(this->sslBioToNetwork, reinterpret_cast<char*>(this));
 		SSL_set_bio(this->ssl, this->sslBioFromNetwork, this->sslBioToNetwork);
-
-		// Set the MTU so that we don't send packets that are too large with no fragmentation.
-		SSL_set_mtu(this->ssl, DtlsMtu);
-		DTLS_set_link_mtu(this->ssl, DtlsMtu);
 
 		// Set callback handler for setting DTLS timer interval.
 		DTLS_set_timer_cb(this->ssl, onSslDtlsTimer);
@@ -854,9 +871,9 @@ namespace RTC
 		}
 
 		MS_DUMP("<DtlsTransport>");
-		MS_DUMP("  state           : %s", state.c_str());
-		MS_DUMP("  role            : %s", role.c_str());
-		MS_DUMP("  handshake done: : %s", this->handshakeDone ? "yes" : "no");
+		MS_DUMP("  state: %s", state.c_str());
+		MS_DUMP("  role: %s", role.c_str());
+		MS_DUMP("  handshake done: %s", this->handshakeDone ? "yes" : "no");
 		MS_DUMP("</DtlsTransport>");
 	}
 
@@ -985,7 +1002,8 @@ namespace RTC
 		// Application data received. Notify to the listener.
 		if (read > 0)
 		{
-			// It is allowed to receive DTLS data even before validating remote fingerprint.
+			// It is allowed to receive DTLS data even before validating remote
+			// fingerprint.
 			if (!this->handshakeDone)
 			{
 				MS_WARN_TAG(dtls, "ignoring application data received while DTLS handshake not done");
@@ -1003,7 +1021,8 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		// We cannot send data to the peer if its remote fingerprint is not validated.
+		// We cannot send data to the peer if its remote fingerprint is not
+		// validated.
 		if (this->state != DtlsState::CONNECTED)
 		{
 			MS_WARN_TAG(dtls, "cannot send application data while DTLS is not fully connected");
@@ -1038,12 +1057,29 @@ namespace RTC
 		}
 	}
 
+	/**
+	 * This method is called within our |onSslBioOut| callback above. As told
+	 * there, it's guaranteed that OpenSSL invokes that callback with all the
+	 * bytes currently written in our BIO mem buffer |this->sslBioToNetwork| so
+	 * we can safely reset/clear that buffer once we have sent the data to the
+	 * endpoint.
+	 */
 	void DtlsTransport::SendDtlsData(const uint8_t* data, size_t len)
 	{
 		MS_TRACE();
 
+		MS_DEBUG_DEV("%zu bytes of DTLS data ready to be sent", len);
+
 		// Notify the listener.
 		this->listener->OnDtlsTransportSendData(this, data, len);
+
+		// Clear the BIO buffer.
+		auto ret = BIO_reset(this->sslBioToNetwork);
+
+		if (ret != 1)
+		{
+			MS_ERROR("BIO_reset() failed [ret:%d]", ret);
+		}
 	}
 
 	void DtlsTransport::Reset()
@@ -1062,8 +1098,10 @@ namespace RTC
 		// Stop the DTLS timer.
 		this->timer->Stop();
 
-		// NOTE: We need to reset the SSL instance so we need to "shutdown" it, but we
-		// don't want to send a Close Alert to the peer. However this is gonna happen.
+		// NOTE: We need to reset the SSL instance so we need to "shutdown" it, but
+		// we don't want to send a DTLS Close Alert to the peer. However this is
+		// gonna happen since SSL_shutdown() will trigger a DTLS Close Alert and
+		// we'll have our onSslBioOut() callback called to deliver it.
 		SSL_shutdown(this->ssl);
 
 		this->localRole.reset();
@@ -1083,14 +1121,13 @@ namespace RTC
 		}
 	}
 
-	inline bool DtlsTransport::CheckStatus(int returnCode)
+	bool DtlsTransport::CheckStatus(int returnCode)
 	{
 		MS_TRACE();
 
-		int err;
 		const bool wasHandshakeDone = this->handshakeDone;
 
-		err = SSL_get_error(this->ssl, returnCode);
+		int err = SSL_get_error(this->ssl, returnCode);
 
 		switch (err)
 		{
@@ -1200,7 +1237,7 @@ namespace RTC
 		}
 	}
 
-	inline bool DtlsTransport::SetTimeout()
+	bool DtlsTransport::SetTimeout()
 	{
 		MS_TRACE();
 
@@ -1235,7 +1272,8 @@ namespace RTC
 
 			return true;
 		}
-		// NOTE: Don't start the timer again if the timeout is greater than 30 seconds.
+		// NOTE: Don't start the timer again if the timeout is greater than 30
+		// seconds.
 		else
 		{
 			MS_WARN_TAG(dtls, "DTLS timeout too high (%" PRIu64 "ms), resetting DLTS", timeoutMs);
@@ -1250,7 +1288,7 @@ namespace RTC
 		}
 	}
 
-	inline bool DtlsTransport::ProcessHandshake()
+	bool DtlsTransport::ProcessHandshake()
 	{
 		MS_TRACE();
 
@@ -1292,7 +1330,7 @@ namespace RTC
 		return false;
 	}
 
-	inline bool DtlsTransport::CheckRemoteFingerprint()
+	bool DtlsTransport::CheckRemoteFingerprint()
 	{
 		MS_TRACE();
 
@@ -1386,8 +1424,8 @@ namespace RTC
 		BIO* bio = BIO_new(BIO_s_mem());
 
 		// Ensure the underlying BUF_MEM structure is also freed.
-		// NOTE: Avoid stupid "warning: value computed is not used [-Wunused-value]" since
-		// BIO_set_close() always returns 1.
+		// NOTE: Avoid stupid "warning: value computed is not used [-Wunused-value]"
+		// since BIO_set_close() always returns 1.
 		(void)BIO_set_close(bio, BIO_CLOSE);
 
 		ret = PEM_write_bio_X509(bio, certificate);
@@ -1424,7 +1462,7 @@ namespace RTC
 		return true;
 	}
 
-	inline void DtlsTransport::ExtractSrtpKeys(RTC::SrtpSession::CryptoSuite srtpCryptoSuite)
+	void DtlsTransport::ExtractSrtpKeys(RTC::SrtpSession::CryptoSuite srtpCryptoSuite)
 	{
 		MS_TRACE();
 
@@ -1529,7 +1567,7 @@ namespace RTC
 		delete[] srtpRemoteMasterKey;
 	}
 
-	inline std::optional<RTC::SrtpSession::CryptoSuite> DtlsTransport::GetNegotiatedSrtpCryptoSuite()
+	std::optional<RTC::SrtpSession::CryptoSuite> DtlsTransport::GetNegotiatedSrtpCryptoSuite()
 	{
 		MS_TRACE();
 
@@ -1563,7 +1601,7 @@ namespace RTC
 		return negotiatedSrtpCryptoSuite;
 	}
 
-	inline void DtlsTransport::OnSslInfo(int where, int ret)
+	void DtlsTransport::OnSslInfo(int where, int ret)
 	{
 		MS_TRACE();
 
@@ -1646,11 +1684,12 @@ namespace RTC
 			this->handshakeDoneNow = true;
 		}
 
-		// NOTE: checking SSL_get_shutdown(this->ssl) & SSL_RECEIVED_SHUTDOWN here upon
-		// receipt of a close alert does not work (the flag is set after this callback).
+		// NOTE: checking SSL_get_shutdown(this->ssl) & SSL_RECEIVED_SHUTDOWN here
+		// upon receipt of a close alert does not work (the flag is set after this
+		// callback).
 	}
 
-	inline void DtlsTransport::OnTimer(TimerHandle* /*timer*/)
+	void DtlsTransport::OnTimer(TimerHandle* /*timer*/)
 	{
 		MS_TRACE();
 

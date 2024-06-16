@@ -49,6 +49,7 @@ namespace srv {
         uint64_t packetCount;
         uint64_t byteCount;
         uint64_t bitrate;
+        // TODO: using map
         std::vector<std::shared_ptr<BitrateByLayer>> bitrateByLayer;
     };
 

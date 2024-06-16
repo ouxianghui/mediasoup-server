@@ -586,13 +586,13 @@ namespace srv
 
     void to_json(nlohmann::json& j, const WebRtcTransportOptions& st)
     {
-        //j["listenInfos"] = st.listenInfos;
-        j["listenIps"] = st.listenIps;
+        j["listenInfos"] = st.listenInfos;
         j["port"] = st.port;
         j["enableUdp"] = st.enableUdp;
         j["enableTcp"] = st.enableTcp;
         j["preferUdp"] = st.preferUdp;
         j["preferTcp"] = st.preferTcp;
+        j["iceConsentTimeout"] = st.iceConsentTimeout;
         j["initialAvailableOutgoingBitrate"] = st.initialAvailableOutgoingBitrate;
         j["minimumAvailableOutgoingBitrate"] = st.minimumAvailableOutgoingBitrate;
         j["enableSctp"] = st.enableSctp;
@@ -605,11 +605,8 @@ namespace srv
 
     void from_json(const nlohmann::json& j, WebRtcTransportOptions& st)
     {
-        //if (j.contains("listenInfos")) {
-        //    j.at("listenInfos").get_to(st.listenInfos);
-        //}
-        if (j.contains("listenIps")) {
-            j.at("listenIps").get_to(st.listenIps);
+        if (j.contains("listenInfos")) {
+            j.at("listenInfos").get_to(st.listenInfos);
         }
         if (j.contains("port")) {
             j.at("port").get_to(st.port);
@@ -625,6 +622,9 @@ namespace srv
         }
         if (j.contains("preferTcp")) {
             j.at("preferTcp").get_to(st.preferTcp);
+        }
+        if (j.contains("iceConsentTimeout")) {
+            j.at("iceConsentTimeout").get_to(st.iceConsentTimeout);
         }
         if (j.contains("initialAvailableOutgoingBitrate")) {
             j.at("initialAvailableOutgoingBitrate").get_to(st.initialAvailableOutgoingBitrate);

@@ -306,7 +306,7 @@ namespace srv
 {
     void to_json(nlohmann::json& j, const PlainTransportOptions& st)
     {
-        j["listenIp"] = st.listenIp;
+        j["listenInfo"] = st.listenInfo;
         j["port"] = st.port;
         j["rtcpMux"] = st.rtcpMux;
         j["comedia"] = st.comedia;
@@ -323,8 +323,8 @@ namespace srv
 
     void from_json(const nlohmann::json& j, PlainTransportOptions& st)
     {
-        if (j.contains("listenIp")) {
-            j.at("listenIp").get_to(st.listenIp);
+        if (j.contains("listenInfo")) {
+            j.at("listenInfo").get_to(st.listenInfo);
         }
         if (j.contains("port")) {
             j.at("port").get_to(st.port);

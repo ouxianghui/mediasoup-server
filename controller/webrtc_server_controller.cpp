@@ -221,6 +221,7 @@ namespace srv
         js["protocol"] = st.protocol;
         js["ip"] = st.ip;
         js["announcedIp"] = st.announcedIp;
+        js["announcedAddress"] = st.announcedAddress;
         js["port"] = st.port;
     }
 
@@ -234,6 +235,9 @@ namespace srv
         }
         if (j.contains("announcedIp")) {
             j.at("announcedIp").get_to(st.announcedIp);
+        }
+        if (j.contains("announcedAddress")) {
+            j.at("announcedAddress").get_to(st.announcedAddress);
         }
         if (j.contains("port")) {
             j.at("port").get_to(st.port);

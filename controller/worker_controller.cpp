@@ -430,7 +430,9 @@ namespace srv {
         
         for (auto& info : listenInfos) {
             auto portRange = FBS::Transport::CreatePortRange(builder, info.portRange.min, info.portRange.max);
+            
             auto socketFlags = FBS::Transport::CreateSocketFlags(builder, info.flags.ipv6Only, info.flags.udpReusePort);
+            
             auto info_ = FBS::Transport::CreateListenInfoDirect(builder,
                                                                 info.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                 info.ip.c_str(),
@@ -596,8 +598,8 @@ namespace srv
     {
         j["logLevel"] = st.logLevel;
         j["logTags"] = st.logTags;
-        j["rtcMinPort"] = st.rtcMinPort;
-        j["rtcMaxPort"] = st.rtcMaxPort;
+        //j["rtcMinPort"] = st.rtcMinPort;
+        //j["rtcMaxPort"] = st.rtcMaxPort;
         j["dtlsCertificateFile"] = st.dtlsCertificateFile;
         j["dtlsPrivateKeyFile"] = st.dtlsPrivateKeyFile;
         j["libwebrtcFieldTrials"] = st.libwebrtcFieldTrials;
@@ -612,12 +614,12 @@ namespace srv
         if (j.contains("logTags")) {
             j.at("logTags").get_to(st.logTags);
         }
-        if (j.contains("rtcMinPort")) {
-            j.at("rtcMinPort").get_to(st.rtcMinPort);
-        }
-        if (j.contains("rtcMaxPort")) {
-            j.at("rtcMaxPort").get_to(st.rtcMaxPort);
-        }
+        //if (j.contains("rtcMinPort")) {
+        //    j.at("rtcMinPort").get_to(st.rtcMinPort);
+        //}
+        //if (j.contains("rtcMaxPort")) {
+        //    j.at("rtcMaxPort").get_to(st.rtcMaxPort);
+        //}
         if (j.contains("dtlsCertificateFile")) {
             j.at("dtlsCertificateFile").get_to(st.dtlsCertificateFile);
         }

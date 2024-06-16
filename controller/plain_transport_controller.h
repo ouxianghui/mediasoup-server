@@ -38,11 +38,6 @@ namespace srv {
         TransportListenInfo rtcpListenInfo;
         
         /**
-         * Listening IP address.
-         */
-        TransportListenIp listenIp;
-        
-        /**
          * Fixed port to listen on instead of selecting automatically from Worker's port
          * range.
          */

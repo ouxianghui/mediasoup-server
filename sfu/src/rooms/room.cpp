@@ -135,6 +135,10 @@ void Room::createPeer(const std::shared_ptr<oatpp::websocket::AsyncWebSocket>& s
     peer->closeSignal.connect(&Room::onPeerClose, shared_from_this());
     
     _peerMap.emplace(std::make_pair(peer->id(), peer));
+    
+    nlohmann::json msg;
+    msg["mediasoup-version"] = "3.14.7";
+    peer->notify("mediasoup-version", msg);
 }
 
 std::shared_ptr<Peer> Room::getPeer(const std::string& peerId)
@@ -748,8 +752,6 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
     
     SRV_LOGD("createWebRtcTransport request.data: %s",data.dump().c_str());
 
-    auto val = MSConfig->params()->mediasoup.webRtcTransportOptions;
-    
     nlohmann::json jWebRtcTransportOptions = MSConfig->params()->mediasoup.webRtcTransportOptions;
     jWebRtcTransportOptions["appData"] = { { "producing", producing }, { "consuming", consuming } };
     
@@ -763,9 +765,17 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
     }
     
     auto webRtcTransportOptions = std::make_shared<srv::WebRtcTransportOptions>(jWebRtcTransportOptions);
+    webRtcTransportOptions->iceConsentTimeout = 20;
     if (forceTcp) {
        webRtcTransportOptions->enableUdp = false;
        webRtcTransportOptions->enableTcp = true;
+        for (const auto& listenInfo: webRtcTransportOptions->listenInfos) {
+            if (listenInfo.protocol == "tcp") {
+                webRtcTransportOptions->listenInfos.clear();
+                webRtcTransportOptions->listenInfos.emplace_back(listenInfo);
+                break;
+            }
+        }
     }
     
     // single port multiplexing
@@ -775,6 +785,14 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
     
     auto transportController = std::dynamic_pointer_cast<srv::WebRtcTransportController>(_routerController->createWebRtcTransportController(webRtcTransportOptions));
     
+    transportController->iceStateChangeSignal.connect([](const std::string& iceState) {
+        if (iceState == "disconnected" || iceState == "closed") {
+            SRV_LOGD("WebRtcTransport 'icestatechange' event [iceState: %s]", iceState.c_str());
+            // TODO: close peer
+            //peer->close();
+        }
+    });
+    
     transportController->sctpStateChangeSignal.connect([](const std::string& sctpState){
         SRV_LOGD("WebRtcTransport 'sctpstatechange' event [sctpState: %s]", sctpState.c_str());
     });
@@ -782,6 +800,8 @@ void Room::onHandleCreateWebRtcTransport(const std::shared_ptr<Peer>& peer, cons
     transportController->dtlsStateChangeSignal.connect([](const std::string& dtlsState){
         if (dtlsState == "failed" || dtlsState == "closed") {
             SRV_LOGW("WebRtcTransport 'dtlsstatechange' event [sctpState: %s]", dtlsState.c_str());
+            // TODO: close peer
+            //peer->close();
         }
     });
     

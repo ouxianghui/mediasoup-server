@@ -30,9 +30,7 @@
 				"simulcast",
 				"svc",
 				"sctp"
-			],
-			"rtcMinPort": 40000,
-			"rtcMaxPort": 49999
+			]
 		}, 
 		"routerOptions": {
 			"mediaCodecs": [{
@@ -86,21 +84,35 @@
 			"listenInfos": [{
 					"protocol": "udp",
 					"ip": "127.0.0.1",
-					"announcedIp": "127.0.0.1",
+					"announcedAddress": "127.0.0.1",
 					"port": 44447
 				},
 				{
 					"protocol": "tcp",
 					"ip": "127.0.0.1",
-					"announcedIp": "127.0.0.1",
+					"announcedAddress": "127.0.0.1",
 					"port": 44447
 				}
 			]
 		},
 		"webRtcTransportOptions": {
-			"listenIps": [{
+			"listenInfos": [{
+				"protocol": "udp",
 				"ip": "127.0.0.1",
-				"announcedIp": "127.0.0.1"
+				"announcedAddress": "127.0.0.1",
+				"portRange": {
+					"min": 40000,
+					"max": 49999
+				}
+			},
+			{
+				"protocol": "tcp",
+				"ip": "127.0.0.1",
+				"announcedAddress": "127.0.0.1",
+				"portRange": {
+					"min": 40000,
+					"max": 49999
+				}
 			}],
 			"initialAvailableOutgoingBitrate": 1300000,
 			"minimumAvailableOutgoingBitrate": 600000,
@@ -108,9 +120,14 @@
 			"maxIncomingBitrate": 2500000
 		},
 		"plainTransportOptions": {
-			"listenIp": {
+			"listenInfo": {
+				"protocol": "udp",
 				"ip": "0.0.0.0",
-				"announcedIp": "127.0.0.1"
+				"announcedAddress": "127.0.0.1",
+				"portRange": {
+					"min": 40000,
+					"max": 49999
+				}
 			},
 			"maxSctpMessageSize": 262144
 		}

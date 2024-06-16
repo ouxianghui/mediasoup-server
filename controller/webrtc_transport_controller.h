@@ -36,12 +36,6 @@ namespace srv {
         std::vector<TransportListenInfo> listenInfos;
         
         /**
-         * Listening IP address or addresses in order of preference (first one is the
-         * preferred one).
-         */
-        std::vector<TransportListenIp> listenIps;
-        
-        /**
          * Fixed port to listen on instead of selecting automatically from Worker's port
          * range.
          */

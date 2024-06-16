@@ -37,6 +37,9 @@ namespace srv {
         uint16_t max;
     };
 
+    void to_json(nlohmann::json& j, const TransportPortRange& st);
+    void from_json(const nlohmann::json& j, TransportPortRange& st);
+
     struct TransportListenIp
     {
         /**
@@ -103,7 +106,6 @@ namespace srv {
          */
         TransportPortRange portRange;
         
-
         /**
         * Socket flags.
         */

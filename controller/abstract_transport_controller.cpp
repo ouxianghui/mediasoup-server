@@ -1249,6 +1249,22 @@ namespace srv {
         return dump;
     }
 
+    void to_json(nlohmann::json& j, const TransportPortRange& st)
+    {
+        j["min"] = st.min;
+        j["max"] = st.max;
+    }
+
+    void from_json(const nlohmann::json& j, TransportPortRange& st)
+    {
+        if (j.contains("min")) {
+            j.at("min").get_to(st.min);
+        }
+        if (j.contains("max")) {
+            j.at("max").get_to(st.max);
+        }
+    }
+
     void to_json(nlohmann::json& j, const TransportListenIp& st)
     {
         j["ip"] = st.ip;
@@ -1270,6 +1286,8 @@ namespace srv {
         j["protocol"] = st.protocol;
         j["ip"] = st.ip;
         j["announcedIp"] = st.announcedIp;
+        j["announcedAddress"] = st.announcedAddress;
+        j["portRange"] = st.portRange;
         j["port"] = st.port;
         j["sendBufferSize"] = st.sendBufferSize;
         j["recvBufferSize"] = st.recvBufferSize;
@@ -1286,8 +1304,14 @@ namespace srv {
         if (j.contains("announcedIp")) {
             j.at("announcedIp").get_to(st.announcedIp);
         }
+        if (j.contains("announcedAddress")) {
+            j.at("announcedAddress").get_to(st.announcedAddress);
+        }
         if (j.contains("port")) {
             j.at("port").get_to(st.port);
+        }
+        if (j.contains("portRange")) {
+            j.at("portRange").get_to(st.portRange);
         }
         if (j.contains("sendBufferSize")) {
             j.at("sendBufferSize").get_to(st.sendBufferSize);

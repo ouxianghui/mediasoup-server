@@ -205,9 +205,7 @@ namespace srv {
             return transportController;
         }
         
-        const auto& listenIps = options->listenIps;
         auto listenInfos = options->listenInfos;
-        const uint16_t port = options->port;
         bool enableUdp = options->enableUdp;
         bool enableTcp = options->enableTcp;
         const bool preferUdp = options->preferUdp;
@@ -221,13 +219,13 @@ namespace srv {
         const auto& webRtcServer = options->webRtcServer;
         uint8_t iceConsentTimeout = options->iceConsentTimeout;
         
-        if (!webRtcServer && listenIps.empty() && listenInfos.empty()) {
-            SRV_LOGE("missing webRtcServer, listenInfos and listenIps (one of them is mandatory)");
+        if (!webRtcServer && listenInfos.empty()) {
+            SRV_LOGE("missing webRtcServer, listenInfos (one of them is mandatory)");
             return transportController;
         }
-        else if (webRtcServer && !listenInfos.empty() && !listenIps.empty())
+        else if (webRtcServer && !listenInfos.empty())
         {
-            SRV_LOGE("only one of webRtcServer, listenInfos and listenIps must be given");
+            SRV_LOGE("only one of webRtcServer, listenInfos must be given");
             return transportController;
         }
         
@@ -235,58 +233,57 @@ namespace srv {
         internal.routerId = _internal.routerId;
         internal.transportId = uuid::uuidv4();
         
-        // If webRtcServer is given, then do not force default values for enableUdp
-        // and enableTcp. Otherwise set them if unset.
-        if (webRtcServer) {
-            enableUdp = true;
-            enableTcp = true;
-        }
-        else {
-            enableUdp = true;
-            enableTcp = false;
-        }
-        
-        // Convert deprecated TransportListenIps to TransportListenInfos.
-        if (!listenIps.empty()) {
-            // Normalize IP strings to TransportListenInfo objects.
-            std::vector<TransportListenInfo> listenInfosTmp;
-            for (const auto& listenIp : listenIps) {
-                TransportListenInfo info;
-                info.ip = listenIp.ip;
-                info.announcedIp = listenIp.announcedIp;
-                listenInfosTmp.emplace_back(info);
-            }
-            
-            listenInfos.clear();
-            
-            std::vector<std::string> orderedProtocols;
-            
-            if (enableUdp && (preferUdp || !enableTcp || !preferTcp)) {
-                //if (enableUdp && (!enableTcp || preferUdp)) {
-                orderedProtocols.emplace_back("udp");
-                if (enableTcp) {
-                    orderedProtocols.emplace_back("tcp");
-                }
-            }
-            else if (enableTcp && ((preferTcp && !preferUdp) || !enableUdp)) {
-            //else if (enableTcp && (!enableUdp || (preferTcp && !preferUdp))) {
-                orderedProtocols.emplace_back("tcp");
-                if (enableUdp) {
-                    orderedProtocols.emplace_back("udp");
-                }
-            }
-
-            for (const auto& listenIp : listenInfosTmp) {
-                for (const auto& protocol : orderedProtocols) {
-                    TransportListenInfo info;
-                    info.protocol = protocol;
-                    info.ip = listenIp.ip;
-                    info.announcedAddress = listenIp.announcedIp;
-                    info.port = port;
-                    listenInfos.emplace_back(info);
-                }
-            }
-        }
+        //// If webRtcServer is given, then do not force default values for enableUdp
+        //// and enableTcp. Otherwise set them if unset.
+        //if (webRtcServer) {
+        //    enableUdp = true;
+        //    enableTcp = true;
+        //}
+        //else {
+        //    enableUdp = true;
+        //    enableTcp = false;
+        //}
+        //
+        //// Convert deprecated TransportListenIps to TransportListenInfos.
+        //if (!listenIps.empty()) {
+        //    // Normalize IP strings to TransportListenInfo objects.
+        //    std::vector<TransportListenInfo> listenInfosTmp;
+        //    for (const auto& listenIp : listenIps) {
+        //        TransportListenInfo info;
+        //        info.ip = listenIp.ip;
+        //        info.announcedIp = listenIp.announcedIp;
+        //        listenInfosTmp.emplace_back(info);
+        //    }
+        //
+        //    listenInfos.clear();
+        //
+        //    std::vector<std::string> orderedProtocols;
+        //
+        //    if (enableUdp && (preferUdp || !enableTcp || !preferTcp)) {
+        //        //if (enableUdp && (!enableTcp || preferUdp)) {
+        //        orderedProtocols.emplace_back("udp");
+        //        if (enableTcp) {
+        //            orderedProtocols.emplace_back("tcp");
+        //        }
+        //    }
+        //    else if (enableTcp && ((preferTcp && !preferUdp) || !enableUdp)) {
+        //    //else if (enableTcp && (!enableUdp || (preferTcp && !preferUdp))) {
+        //        orderedProtocols.emplace_back("tcp");
+        //        if (enableUdp) {
+        //            orderedProtocols.emplace_back("udp");
+        //        }
+        //    }
+        //    for (const auto& listenIp : listenInfosTmp) {
+        //        for (const auto& protocol : orderedProtocols) {
+        //            TransportListenInfo info;
+        //            info.protocol = protocol;
+        //            info.ip = listenIp.ip;
+        //            info.announcedAddress = listenIp.announcedIp;
+        //            info.port = port;
+        //            listenInfos.emplace_back(info);
+        //        }
+        //    }
+        //}
         
         flatbuffers::FlatBufferBuilder builder;
         
@@ -302,10 +299,11 @@ namespace srv {
             for (const auto& item : listenInfos) {
                 auto portRange = FBS::Transport::CreatePortRange(builder, item.portRange.min, item.portRange.max);
                 auto socketFlags = FBS::Transport::CreateSocketFlags(builder, item.flags.ipv6Only, item.flags.udpReusePort);
+                auto ip = !item.announcedAddress.empty() ? item.announcedAddress : item.announcedIp;
                 auto infoOffset = FBS::Transport::CreateListenInfoDirect(builder,
                                                                          item.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                          item.ip.c_str(),
-                                                                         !item.announcedAddress.empty() ? item.announcedAddress.c_str() : item.announcedIp.c_str(),
+                                                                         ip.c_str(),
                                                                          item.port,
                                                                          portRange,
                                                                          socketFlags,
@@ -414,7 +412,7 @@ namespace srv {
             return transportController;
         }
         
-        const auto& listenIp = options->listenIp;
+//        const auto& listenIp = options->listenIp;
         auto listenInfo = options->listenInfo;
         auto rtcpListenInfo = options->rtcpListenInfo;
         const uint16_t port = options->port;
@@ -428,12 +426,9 @@ namespace srv {
         const int32_t sctpSendBufferSize = options->sctpSendBufferSize;
         const nlohmann::json& appData = options->appData;
 
-        if (listenInfo.ip.empty() && listenIp.ip.empty()) {
-            SRV_LOGE("missing listenInfo and listenIp (one of them is mandatory)");
-            return nullptr;
-        }
-        else if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
-            SRV_LOGE("only one of listenInfo and listenIp must be given");
+        //if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+        if (listenInfo.ip.empty()) {
+            SRV_LOGE("missing listenInfo is mandatory");
             return nullptr;
         }
         
@@ -445,13 +440,13 @@ namespace srv {
         }
         
         // Convert deprecated TransportListenIps to TransportListenInfos.
-        if (!listenIp.ip.empty()) {
-            // Normalize IP string to TransportListenInfo object.
-            listenInfo.protocol = "udp";
-            listenInfo.ip = listenIp.ip;
-            listenInfo.announcedAddress = listenIp.announcedIp;
-            listenInfo.port = port;
-        }
+//        if (!listenIp.ip.empty()) {
+//            // Normalize IP string to TransportListenInfo object.
+//            listenInfo.protocol = "udp";
+//            listenInfo.ip = listenIp.ip;
+//            listenInfo.announcedAddress = listenIp.announcedIp;
+//            listenInfo.port = port;
+//        }
         
         TransportInternal internal;
         internal.routerId = _internal.routerId;

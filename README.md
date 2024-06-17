@@ -7,13 +7,15 @@
 
 3.应用层使用oatpp
 
-4.支持最新的mediasoup，worker通讯采用flatbuffers
+4.支持最新的mediasoup，应用层与worker通讯采用flatbuffers
 
-5.支持linux部署脚本
+5.应用层与worker通讯支持pipe和直接回调
 
-6.超简洁、超轻量
+6.支持linux部署脚本
 
-7.易拓展、好维护
+7.超简洁、超轻量
+
+8.易拓展、好维护
 
 # Build & Run
 

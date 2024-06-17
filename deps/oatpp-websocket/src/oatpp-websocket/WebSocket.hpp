@@ -28,7 +28,8 @@
 #include "./Frame.hpp"
 #include "./Config.hpp"
 
-#include "oatpp/core/data/stream/ChunkedBuffer.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
+#include "oatpp/provider/Provider.hpp"
 
 namespace oatpp { namespace websocket {
 
@@ -98,13 +99,13 @@ private:
    * if(shortMessageStream == nullptr) - read call readMessage() method of listener
    * if(shortMessageStream) - read message to shortMessageStream. Don't call listener
    */
-  void readPayload(const Frame::Header& frameHeader, oatpp::data::stream::ChunkedBuffer* shortMessageStream) const;
+  void readPayload(const Frame::Header& frameHeader, oatpp::data::stream::BufferOutputStream* shortMessageStream) const;
   
   void handleFrame(const Frame::Header& frameHeader);
 
 private:
   Config m_config;
-  std::shared_ptr<oatpp::data::stream::IOStream> m_connection;
+  provider::ResourceHandle<oatpp::data::stream::IOStream> m_connection;
   mutable std::shared_ptr<Listener> m_listener;
   v_int32 m_lastOpcode;
   mutable bool m_listening;
@@ -116,14 +117,14 @@ public:
    * @param connection - &id:oatpp::data::stream::IOStream;.
    * @param config - &id:oatpp::websocket::Config;.
    */
-  WebSocket(const std::shared_ptr<oatpp::data::stream::IOStream>& connection, const Config& config);
+  WebSocket(const provider::ResourceHandle<oatpp::data::stream::IOStream>& connection, const Config& config);
 
   /**
    * Constructor.
    * @param connection - &id:oatpp::data::stream::IOStream;.
    * @param maskOutgoingMessages - for servers should be `false`. For clients should be `true`.
    */
-  WebSocket(const std::shared_ptr<oatpp::data::stream::IOStream>& connection, bool maskOutgoingMessages);
+  WebSocket(const provider::ResourceHandle<oatpp::data::stream::IOStream>& connection, bool maskOutgoingMessages);
 
   /**
    * Deleted copy-constructor.
@@ -139,7 +140,7 @@ public:
    * @param config - &id:oatpp::websocket::Config;.
    * @return - `std::shared_ptr` to WebSocket.
    */
-  static std::shared_ptr<WebSocket> createShared(const std::shared_ptr<oatpp::data::stream::IOStream>& connection, const Config& config) {
+  static std::shared_ptr<WebSocket> createShared(const provider::ResourceHandle<oatpp::data::stream::IOStream>& connection, const Config& config) {
     return std::make_shared<WebSocket>(connection, config);
   }
 
@@ -149,7 +150,7 @@ public:
    * @param maskOutgoingMessages - for servers should be `false`. For clients should be `true`.
    * @return
    */
-  static std::shared_ptr<WebSocket> createShared(const std::shared_ptr<oatpp::data::stream::IOStream>& connection, bool maskOutgoingMessages) {
+  static std::shared_ptr<WebSocket> createShared(const provider::ResourceHandle<oatpp::data::stream::IOStream>& connection, bool maskOutgoingMessages) {
     return std::make_shared<WebSocket>(connection, maskOutgoingMessages);
   }
 
@@ -163,7 +164,7 @@ public:
    * Get WebSocket connection.
    * @return - &id:oatpp::data::stream::IOStream;.
    */
-  std::shared_ptr<oatpp::data::stream::IOStream> getConnection() const {
+  provider::ResourceHandle<oatpp::data::stream::IOStream> getConnection() const {
     return m_connection;
   }
 

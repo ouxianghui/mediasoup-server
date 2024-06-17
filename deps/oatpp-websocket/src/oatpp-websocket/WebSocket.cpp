@@ -25,16 +25,17 @@
 #include "WebSocket.hpp"
 
 #include "./Utils.hpp"
+#include "oatpp/base/Log.hpp"
 
 #if defined(WIN32) || defined(_WIN32)
-  #include <WinSock2.h>
+  #include <winsock2.h>
 #else
   #include <arpa/inet.h>
 #endif
 
 namespace oatpp { namespace websocket {
 
-WebSocket::WebSocket(const std::shared_ptr<oatpp::data::stream::IOStream>& connection, const Config& config)
+WebSocket::WebSocket(const provider::ResourceHandle<oatpp::data::stream::IOStream>& connection, const Config& config)
   : m_config(config)
   , m_connection(connection)
   , m_listener(nullptr)
@@ -42,7 +43,7 @@ WebSocket::WebSocket(const std::shared_ptr<oatpp::data::stream::IOStream>& conne
   , m_listening(false)
 {}
 
-WebSocket::WebSocket(const std::shared_ptr<oatpp::data::stream::IOStream>& connection, bool maskOutgoingMessages)
+WebSocket::WebSocket(const provider::ResourceHandle<oatpp::data::stream::IOStream>& connection, bool maskOutgoingMessages)
   : m_connection(connection)
   , m_listener(nullptr)
   , m_lastOpcode(-1)
@@ -70,7 +71,7 @@ bool WebSocket::checkForContinuation(const Frame::Header& frameHeader) {
 void WebSocket::readFrameHeader(Frame::Header& frameHeader) const {
   
   v_uint16 bb;
-  auto res = m_connection->readExactSizeDataSimple(&bb, 2);
+  auto res = m_connection.object->readExactSizeDataSimple(&bb, 2);
   if(res != 2) {
     throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::readFrameHeader()]: Error reading frame header");
   }
@@ -82,14 +83,14 @@ void WebSocket::readFrameHeader(Frame::Header& frameHeader) const {
     frameHeader.payloadLength = messageLen1;
   } else if(messageLen1 == 126) {
     v_uint16 messageLen2;
-    res = m_connection->readExactSizeDataSimple(&messageLen2, 2);
+    res = m_connection.object->readExactSizeDataSimple(&messageLen2, 2);
     if(res != 2) {
       throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::readFrameHeader()]: Error reading frame header. Reading payload length scenario 2.");
     }
     frameHeader.payloadLength = ntohs(messageLen2);
   } else if(messageLen1 == 127) {
     v_uint32 messageLen3[2];
-    res = m_connection->readExactSizeDataSimple(&messageLen3, 8);
+    res = m_connection.object->readExactSizeDataSimple(&messageLen3, 8);
     if(res != 8) {
       throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::readFrameHeader()]: Error reading frame header. Reading payload length scenario 3.");
     }
@@ -97,7 +98,7 @@ void WebSocket::readFrameHeader(Frame::Header& frameHeader) const {
   }
   
   if(frameHeader.hasMask) {
-    res = m_connection->readExactSizeDataSimple(frameHeader.mask, 4);
+    res = m_connection.object->readExactSizeDataSimple(frameHeader.mask, 4);
     if(res != 4) {
       throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::readFrameHeader()]: Error reading frame header. Reading mask.");
     }
@@ -113,14 +114,14 @@ void WebSocket::writeFrameHeader(const Frame::Header& frameHeader) const {
   
   bb = htons(bb);
   
-  auto res = m_connection->writeExactSizeDataSimple(&bb, 2);
+  auto res = m_connection.object->writeExactSizeDataSimple(&bb, 2);
   if(res != 2) {
     throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::writeFrameHeader()]: Error writing frame header");
   }
   
   if(messageLengthScenario == 2) {
     v_uint16 messageLen2 = htons(frameHeader.payloadLength);
-    res = m_connection->writeExactSizeDataSimple(&messageLen2, 2);
+    res = m_connection.object->writeExactSizeDataSimple(&messageLen2, 2);
     if(res != 2) {
       throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::writeFrameHeader()]: Error writing frame header. Writing payload length scenario 2.");
     }
@@ -128,14 +129,14 @@ void WebSocket::writeFrameHeader(const Frame::Header& frameHeader) const {
     v_uint32 messageLen3[2];
     messageLen3[0] = htonl(frameHeader.payloadLength >> 32);
     messageLen3[1] = htonl(frameHeader.payloadLength & 0xFFFFFFFF);
-    res = m_connection->writeExactSizeDataSimple(&messageLen3, 8);
+    res = m_connection.object->writeExactSizeDataSimple(&messageLen3, 8);
     if(res != 8) {
       throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::writeFrameHeader()]: Error writing frame header. Writing payload length scenario 3.");
     }
   }
   
   if(frameHeader.hasMask) {
-    res = m_connection->writeExactSizeDataSimple(frameHeader.mask, 4);
+    res = m_connection.object->writeExactSizeDataSimple(frameHeader.mask, 4);
     if(res != 4) {
       throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::writeFrameHeader()]: Error writing frame header. Writing mask.");
     }
@@ -143,7 +144,7 @@ void WebSocket::writeFrameHeader(const Frame::Header& frameHeader) const {
   
 }
   
-void WebSocket::readPayload(const Frame::Header& frameHeader, oatpp::data::stream::ChunkedBuffer* shortMessageStream) const {
+void WebSocket::readPayload(const Frame::Header& frameHeader, data::stream::BufferOutputStream* shortMessageStream) const {
   
   if(shortMessageStream && frameHeader.payloadLength > 125) {
     throw std::runtime_error("[oatpp::web::protocol::websocket::WebSocket::readPayload()]: Invalid payloadLength. See RFC-6455, section-5.5.");
@@ -159,7 +160,7 @@ void WebSocket::readPayload(const Frame::Header& frameHeader, oatpp::data::strea
       desiredSize = frameHeader.payloadLength - progress;
     }
     
-    auto res = m_connection->readSimple(buffer.get(), desiredSize);
+    auto res = m_connection.object->readSimple(buffer.get(), desiredSize);
     
     if(res > 0) {
       
@@ -227,15 +228,14 @@ void WebSocket::handleFrame(const Frame::Header& frameHeader) {
       
     case Frame::OPCODE_CLOSE:
       {
-        oatpp::data::stream::ChunkedBuffer messageStream;
+        oatpp::data::stream::BufferOutputStream messageStream;
         readPayload(frameHeader, &messageStream);
         if(m_listener) {
           v_uint16 code = 0;
           oatpp::String message;
-          if(messageStream.getSize() >= 2) {
-            messageStream.readSubstring(&code, 0, 2);
-            code = ntohs(code);
-            message = messageStream.getSubstring(2, messageStream.getSize() - 2);
+          if(messageStream.getCurrentPosition() >= 2) {
+            code = ntohs(*((p_uint16) messageStream.getData()));
+            message = messageStream.getSubstring(2, messageStream.getCurrentPosition() - 2);
           }
           if(!message) {
             message = "";
@@ -247,7 +247,7 @@ void WebSocket::handleFrame(const Frame::Header& frameHeader) {
       
     case Frame::OPCODE_PING:
       {
-        oatpp::data::stream::ChunkedBuffer messageStream;
+        oatpp::data::stream::BufferOutputStream messageStream;
         readPayload(frameHeader, &messageStream);
         if(m_listener) {
           m_listener->onPing(*this, messageStream.toString());
@@ -257,7 +257,7 @@ void WebSocket::handleFrame(const Frame::Header& frameHeader) {
       
     case Frame::OPCODE_PONG:
       {
-        oatpp::data::stream::ChunkedBuffer messageStream;
+        oatpp::data::stream::BufferOutputStream messageStream;
         readPayload(frameHeader, &messageStream);
         if(m_listener) {
           m_listener->onPong(*this, messageStream.toString());
@@ -288,9 +288,9 @@ void WebSocket::listen() {
       handleFrame(frameHeader);
     } while(frameHeader.opcode != Frame::OPCODE_CLOSE && m_listening);
   } catch(const std::runtime_error& error) {
-    OATPP_LOGD("[oatpp::web::protocol::websocket::WebSocket::listen()]", "Unhandled error occurred. Message='%s'", error.what());
+    OATPP_LOGd("[oatpp::web::protocol::websocket::WebSocket::listen()]", "Unhandled error occurred. Message='{}'", error.what());
   } catch(...) {
-    OATPP_LOGD("[oatpp::web::protocol::websocket::WebSocket::listen()]", "Unhandled error occurred");
+    OATPP_LOGd("[oatpp::web::protocol::websocket::WebSocket::listen()]", "Unhandled error occurred");
   }
   
 }
@@ -317,19 +317,19 @@ void WebSocket::sendFrameHeader(Frame::Header& frameHeader, bool fin, v_uint8 op
   
 bool WebSocket::sendOneFrame(bool fin, v_uint8 opcode, const oatpp::String& message) const {
   Frame::Header frameHeader;
-  if(message && message->getSize() > 0) {
-    sendFrameHeader(frameHeader, fin, opcode, message->getSize());
+  if(message && message->size() > 0) {
+    sendFrameHeader(frameHeader, fin, opcode, message->size());
     oatpp::v_io_size res;
     if(frameHeader.hasMask) {
-		std::unique_ptr<v_char8[]> encoded(new v_char8[message->getSize()]);
-      for(v_int32 i = 0; i < message->getSize(); i ++) {
-        encoded.get()[i] = message->getData()[i] ^ frameHeader.mask[i % 4];
+		std::unique_ptr<v_char8[]> encoded(new v_char8[message->size()]);
+      for(v_int32 i = 0; i < message->size(); i ++) {
+        encoded.get()[i] = message->data()[i] ^ frameHeader.mask[i % 4];
       }
-      res = m_connection->writeExactSizeDataSimple(encoded.get(), message->getSize());
+      res = m_connection.object->writeExactSizeDataSimple(encoded.get(), message->size());
     } else {
-      res = m_connection->writeExactSizeDataSimple(message->getData(), message->getSize());
+      res = m_connection.object->writeExactSizeDataSimple(message->data(), message->size());
     }
-    if(res != message->getSize()) {
+    if(res != message->size()) {
       return false;
     }
   } else {
@@ -342,10 +342,10 @@ void WebSocket::sendClose(v_uint16 code, const oatpp::String& message) const {
   
   code = htons(code);
   
-  oatpp::data::stream::ChunkedBuffer buffer;
+  oatpp::data::stream::BufferOutputStream buffer;
   buffer.writeSimple(&code, 2);
   if(message) {
-    buffer.writeSimple(message->getData(), message->getSize());
+    buffer.writeSimple(message->data(), message->size());
   }
   
   if(!sendOneFrame(true, Frame::OPCODE_CLOSE, buffer.toString())) {

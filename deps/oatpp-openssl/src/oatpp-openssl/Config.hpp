@@ -27,30 +27,64 @@
 
 #include "oatpp-openssl/configurer/ContextConfigurer.hpp"
 
-#include "oatpp/core/Types.hpp"
+#include "oatpp/Types.hpp"
 
 namespace oatpp { namespace openssl {
 
+/**
+ * Config.
+ */
 class Config {
 private:
   std::list<std::shared_ptr<configurer::ContextConfigurer>> m_contextConfigs;
 public:
 
+  /**
+   * Constructor.
+   */
   Config();
 
+  /**
+   * Virtual destructor.
+   */
   virtual ~Config();
 
+  /**
+   * Create shared `Config`.
+   * @return
+   */
   static std::shared_ptr<Config> createShared();
 
-  static std::shared_ptr<Config> createDefaultServerConfigShared(const oatpp::String& certFile,
-                                                                 const oatpp::String& privateKeyFile,
-                                                                 const oatpp::String& certChainFile = nullptr);
+  /**
+   * Create default shared `Config` for server.
+   * @param certChainFile
+   * @param privateKeyFile
+   * @return
+   */
+  static std::shared_ptr<Config> createDefaultServerConfigShared(const oatpp::String& certChainFile,
+                                                                 const oatpp::String& privateKeyFile);
 
+  /**
+   * Create default shared `Config` for client.
+   * @return
+   */
   static std::shared_ptr<Config> createDefaultClientConfigShared();
 
+  /**
+   * Clear context configurers.
+   */
   void clearContextConfigurers();
+
+  /**
+   * Add context configurer.
+   * @param contextConfigurer - &id:oatpp::openssl::configurer::ContextConfigurer;.
+   */
   void addContextConfigurer(const std::shared_ptr<configurer::ContextConfigurer>& contextConfigurer);
 
+  /**
+   * Configure SSL context.
+   * @param ctx
+   */
   void configureContext(SSL_CTX* ctx) const;
 
 };

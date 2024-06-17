@@ -29,12 +29,34 @@
 #include "oatpp/network/tcp/client/ConnectionProvider.hpp"
 
 #include <openssl/crypto.h>
+#include <openssl/err.h>
 
 namespace oatpp { namespace openssl { namespace client {
 
+void ConnectionProvider::ConnectionInvalidator::invalidate(const std::shared_ptr<data::stream::IOStream> &connection){
+
+  auto c = std::static_pointer_cast<oatpp::openssl::Connection>(connection);
+
+  /********************************************
+   * WARNING!!!
+   *
+   * c->closeTLS(); <--- DO NOT
+   *
+   * DO NOT CLOSE or DELETE TLS handles here.
+   * Remember - other threads can still be
+   * waiting for TLS events.
+   ********************************************/
+
+  /* Invalidate underlying transport */
+  auto s = c->getTransportStream();
+  s.invalidator->invalidate(s.object);
+
+}
+
 ConnectionProvider::ConnectionProvider(const std::shared_ptr<Config>& config,
                                        const std::shared_ptr<oatpp::network::ClientConnectionProvider>& streamProvider)
-  : m_config(config)
+  : m_connectionInvalidator(std::make_shared<ConnectionInvalidator>())
+  , m_config(config)
   , m_streamProvider(streamProvider)
   , m_ctx(nullptr)
 {
@@ -80,8 +102,8 @@ std::shared_ptr<ConnectionProvider> ConnectionProvider::createShared(const std::
     network::tcp::client::ConnectionProvider::createShared(address)
   );
 }
-  
-std::shared_ptr<data::stream::IOStream> ConnectionProvider::get(){
+
+provider::ResourceHandle<data::stream::IOStream> ConnectionProvider::get(){
 
   oatpp::String host;
   auto hostName = m_streamProvider->getProperty(oatpp::network::ConnectionProvider::PROPERTY_HOST);
@@ -96,9 +118,14 @@ std::shared_ptr<data::stream::IOStream> ConnectionProvider::get(){
   }
 
   auto ssl = SSL_new(m_ctx);
+  if(ssl == nullptr) {
+      std::string openssl_err_msg = ERR_error_string(ERR_get_error(), nullptr);
+      throw std::runtime_error("[oatpp::openssl::client::ConnectionProvider::get()]: Error. Could not instantiate ssl object." + openssl_err_msg);
+  }
   SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE);
   SSL_set_connect_state(ssl);
   SSL_set_tlsext_host_name(ssl, host->c_str());
+  SSL_set1_host(ssl, host->c_str());
 
   auto sslConnection = std::make_shared<Connection>(ssl, transportStream);
 
@@ -107,25 +134,30 @@ std::shared_ptr<data::stream::IOStream> ConnectionProvider::get(){
 
   sslConnection->initContexts();
 
-  return sslConnection;
+  return provider::ResourceHandle<data::stream::IOStream>(sslConnection, m_connectionInvalidator);
 
 }
 
-oatpp::async::CoroutineStarterForResult<const std::shared_ptr<data::stream::IOStream>&> ConnectionProvider::getAsync() {
+oatpp::async::CoroutineStarterForResult<const provider::ResourceHandle<data::stream::IOStream>&> ConnectionProvider::getAsync() {
 
 
-  class ConnectCoroutine : public oatpp::async::CoroutineWithResult<ConnectCoroutine, const std::shared_ptr<oatpp::data::stream::IOStream>&> {
+  class ConnectCoroutine : public oatpp::async::CoroutineWithResult<ConnectCoroutine, const provider::ResourceHandle<data::stream::IOStream>&> {
   private:
+    std::shared_ptr<ConnectionInvalidator> m_connectionInvalidator;
     SSL_CTX* m_ctx;
     std::shared_ptr<Config> m_config;
     std::shared_ptr<oatpp::network::ClientConnectionProvider> m_streamProvider;
   private:
-    std::shared_ptr<oatpp::data::stream::IOStream> m_stream;
+    provider::ResourceHandle<data::stream::IOStream> m_stream;
     std::shared_ptr<Connection> m_connection;
   public:
 
-    ConnectCoroutine(SSL_CTX* ctx, const std::shared_ptr<Config>& config, const std::shared_ptr<oatpp::network::ClientConnectionProvider>& streamProvider)
-      : m_ctx(ctx)
+    ConnectCoroutine(const std::shared_ptr<ConnectionInvalidator>& connectionInvalidator,
+                     SSL_CTX* ctx,
+                     const std::shared_ptr<Config>& config,
+                     const std::shared_ptr<network::ClientConnectionProvider>& streamProvider)
+      : m_connectionInvalidator(connectionInvalidator)
+      , m_ctx(ctx)
       , m_config(config)
       , m_streamProvider(streamProvider)
     {}
@@ -135,7 +167,7 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<data::stream::IOSt
       return m_streamProvider->getAsync().callbackTo(&ConnectCoroutine::onConnected);
     }
 
-    Action onConnected(const std::shared_ptr<oatpp::data::stream::IOStream>& stream) {
+    Action onConnected(const provider::ResourceHandle<data::stream::IOStream>& stream) {
       /* transport stream obtained */
       m_stream = stream;
       return yieldTo(&ConnectCoroutine::secureConnection);
@@ -153,6 +185,7 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<data::stream::IOSt
       SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE);
       SSL_set_connect_state(ssl);
       SSL_set_tlsext_host_name(ssl, host->c_str());
+      SSL_set1_host(ssl, host->c_str());
 
       m_connection = std::make_shared<Connection>(ssl, m_stream);
 
@@ -164,33 +197,13 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<data::stream::IOSt
     }
 
     Action onSuccess() {
-      return _return(m_connection);
+      return _return(provider::ResourceHandle<data::stream::IOStream>(m_connection, m_connectionInvalidator));
     }
 
 
   };
 
-  return ConnectCoroutine::startForResult(m_ctx, m_config, m_streamProvider);
-
-}
-
-void ConnectionProvider::invalidate(const std::shared_ptr<data::stream::IOStream>& connection) {
-
-  auto c = std::static_pointer_cast<oatpp::openssl::Connection>(connection);
-
-  /********************************************
-   * WARNING!!!
-   *
-   * c->closeTLS(); <--- DO NOT
-   *
-   * DO NOT CLOSE or DELETE TLS handles here.
-   * Remember - other threads can still be
-   * waiting for TLS events.
-   ********************************************/
-
-  /* Invalidate underlying transport */
-  auto s = c->getTransportStream();
-  m_streamProvider->invalidate(s);
+  return ConnectCoroutine::startForResult(m_connectionInvalidator, m_ctx, m_config, m_streamProvider);
 
 }
   

@@ -25,7 +25,7 @@
 #include "oatpp/network/tcp/Connection.hpp"
 #include "oatpp/encoding/Base64.hpp"
 #include "oatpp/network/tcp/Connection.hpp"
-#include "oatpp/core/utils/ConversionUtils.hpp"
+#include "oatpp/utils/Conversion.hpp"
 #include "utils/message.hpp"
 #include "srv_logger.h"
 #include "interface/i_consumer_controller.h"
@@ -286,7 +286,7 @@ void Peer::invalidateSocket()
 {
     if (_socket) {
         auto connection = _socket->getConnection();
-        auto c = std::static_pointer_cast<oatpp::network::tcp::Connection>(connection);
+        auto c = std::static_pointer_cast<oatpp::network::tcp::Connection>(connection.object);
         oatpp::v_io_handle handle = c->getHandle();
 #if defined(WIN32) || defined(_WIN32)
         shutdown(handle, SD_BOTH);
@@ -336,7 +336,7 @@ oatpp::async::CoroutineStarter Peer::readMessage(const std::shared_ptr<AsyncWebS
         //message->peerId = _id;
         //message->timestamp = oatpp::base::Environment::getMicroTickCount();
 
-        nlohmann::json msg = ::Message::parse(wholeMessage->std_str());
+        nlohmann::json msg = ::Message::parse(wholeMessage->c_str());
         return handleMessage(msg);
 
     } else if (size > 0) { // message frame received
@@ -423,7 +423,7 @@ void Peer::close()
     // TODO:
     if (_socket) {
         auto connection = _socket->getConnection();
-        auto c = std::static_pointer_cast<oatpp::network::tcp::Connection>(connection);
+        auto c = std::static_pointer_cast<oatpp::network::tcp::Connection>(connection.object);
         c->close();
     }
 

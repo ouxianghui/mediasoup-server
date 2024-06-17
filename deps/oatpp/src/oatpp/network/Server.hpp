@@ -28,10 +28,10 @@
 #include "oatpp/network/ConnectionHandler.hpp"
 #include "oatpp/network/ConnectionProvider.hpp"
 
-#include "oatpp/core/Types.hpp"
+#include "oatpp/Types.hpp"
 
-#include "oatpp/core/base/Countable.hpp"
-#include "oatpp/core/base/Environment.hpp"
+#include "oatpp/base/Countable.hpp"
+#include "oatpp/Environment.hpp"
 
 #include <atomic>
 #include <thread>
@@ -58,9 +58,8 @@ private:
   std::function<bool()> m_condition;
   std::thread m_thread;
   std::mutex m_mutex;
-  oatpp::concurrency::SpinLock m_spinlock;
 
-  std::shared_ptr<ServerConnectionProvider> m_connectionProvider;
+  std::shared_ptr<ConnectionProvider> m_connectionProvider;
   std::shared_ptr<ConnectionHandler> m_connectionHandler;
 
   bool m_threaded;
@@ -72,10 +71,10 @@ public:
    * @param connectionProvider - &id:oatpp::network::ConnectionProvider;.
    * @param connectionHandler - &id:oatpp::network::ConnectionHandler;.
    */
-  Server(const std::shared_ptr<ServerConnectionProvider>& connectionProvider,
+  Server(const std::shared_ptr<ConnectionProvider>& connectionProvider,
          const std::shared_ptr<ConnectionHandler>& connectionHandler);
 
-  virtual ~Server();
+  virtual ~Server() override;
 
  public:
 
@@ -156,21 +155,8 @@ public:
    */
   v_int32 getStatus();
 
-  /**
-   * Replaces the internal connection-provider
-   * @param connectionProvider - &id:oatpp::network::ConnectionProvider;.
-   */
-  void setConnectionProvider(const std::shared_ptr<ServerConnectionProvider>& connectionProvider);
-
-  /**
- * Replaces the internal connection-handler
- * @param connectionHandler - &id:oatpp::network::ConnectionHandler;.
- */
-  void setConnectionHandler(const std::shared_ptr<ConnectionHandler>& connectionHandler);
-  
 };
 
-  
 }}
 
 #endif /* oatpp_network_Server_hpp */

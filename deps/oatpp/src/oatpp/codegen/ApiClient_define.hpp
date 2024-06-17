@@ -42,8 +42,8 @@
  * </ul>
  */
 
-#include "oatpp/core/macro/basic.hpp"
-#include "oatpp/core/macro/codegen.hpp"
+#include "oatpp/macro/basic.hpp"
+#include "oatpp/macro/codegen.hpp"
 
 #define OATPP_MACRO_API_CLIENT_PARAM_MACRO(MACRO, TYPE, PARAM_LIST) MACRO(TYPE, PARAM_LIST)
 #define OATPP_MACRO_API_CLIENT_PARAM_TYPE(MACRO, TYPE, PARAM_LIST) const TYPE&
@@ -71,7 +71,7 @@ OATPP_MACRO_EXPAND(OATPP_MACRO_MACRO_SELECTOR(MACRO, (__VA_ARGS__)) (TYPE, __VA_
 // INIT
 
 /**
- * Codegen macoro to be used in classes extending &id:oatpp::web::client::ApiClient; to generate required fields/methods/constructors for ApiClient.
+ * Codegen macro to be used in classes extending &id:oatpp::web::client::ApiClient; to generate required fields/methods/constructors for ApiClient.
  * @param NAME - name of the ApiClient class.
  */
 #define API_CLIENT_INIT(NAME) \
@@ -129,7 +129,7 @@ __body = OATPP_MACRO_FIRSTARG PARAM_LIST;
 #define OATPP_MACRO_API_CLIENT_BODY_DTO(TYPE, PARAM_LIST) \
 __body = oatpp::web::protocol::http::outgoing::BufferBody::createShared( \
     m_objectMapper->writeToString(OATPP_MACRO_FIRSTARG PARAM_LIST), \
-    m_objectMapper->getInfo().http_content_type \
+    m_objectMapper->getInfo().httpContentType \
   );
 
 // BODY_STRING MACRO
@@ -220,7 +220,7 @@ OATPP_API_CALL_0(NAME, METHOD, PATH)
 OATPP_API_CALL_1(NAME, METHOD, PATH, __VA_ARGS__)
 
 /**
- * Codegen macoro to be used in `oatpp::web::client::ApiClient` to generate REST API-Calls.
+ * Codegen macro to be used in `oatpp::web::client::ApiClient` to generate REST API-Calls.
  * @param METHOD - Http method ("GET", "POST", "PUT", etc.)
  * @param PATH - Path to endpoint (without host)
  * @param NAME - Name of the generated method

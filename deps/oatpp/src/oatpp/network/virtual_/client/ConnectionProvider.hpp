@@ -31,11 +31,22 @@
 namespace oatpp { namespace network { namespace virtual_ { namespace client {
 
 /**
- * Provider of "virtual" connections for client.
+ * TestProvider of "virtual" connections for client.
  * See &id:oatpp::network::virtual_::Interface;, &id:oatpp::network::virtual_::Socket; <br>
  * Extends &id:oatpp::network::ClientConnectionProvider;.
  */
 class ConnectionProvider : public oatpp::network::ClientConnectionProvider {
+private:
+
+  class ConnectionInvalidator : public provider::Invalidator<data::stream::IOStream> {
+  public:
+
+    void invalidate(const std::shared_ptr<data::stream::IOStream>& connection) override;
+
+  };
+
+private:
+  std::shared_ptr<ConnectionInvalidator> m_invalidator;
 private:
   std::shared_ptr<virtual_::Interface> m_interface;
   v_io_size m_maxAvailableToRead;
@@ -46,14 +57,14 @@ public:
    * Constructor.
    * @param interface - &id:oatpp::network::virtual_::Interface;.
    */
-  ConnectionProvider(const std::shared_ptr<virtual_::Interface>& interface);
+  ConnectionProvider(const std::shared_ptr<virtual_::Interface>& _interface);
 
   /**
    * Create shared ConnectionProvider.
    * @param interface - &id:oatpp::network::virtual_::Interface;.
    * @return - `std::shared_ptr` to ConnectionProvider.
    */
-  static std::shared_ptr<ConnectionProvider> createShared(const std::shared_ptr<virtual_::Interface>& interface);
+  static std::shared_ptr<ConnectionProvider> createShared(const std::shared_ptr<virtual_::Interface>& _interface);
 
   /**
    * Limit the available amount of bytes to read from socket and limit the available amount of bytes to write to socket. <br>
@@ -67,7 +78,7 @@ public:
   }
 
   /**
-   * Implementation of &id:oatpp::provider::Provider::Stop; method.
+   * Implementation of &id:oatpp::provider::TestProvider::Stop; method.
    */
   void stop() override;
 
@@ -75,22 +86,13 @@ public:
    * Get connection.
    * @return - `std::shared_ptr` to &id:oatpp::data::stream::IOStream;.
    */
-  std::shared_ptr<data::stream::IOStream> get() override;
+  provider::ResourceHandle<data::stream::IOStream> get() override;
 
   /**
    * Get connection in asynchronous manner.
    * @return - &id:oatpp::async::CoroutineStarterForResult;.
    */
-  oatpp::async::CoroutineStarterForResult<const std::shared_ptr<data::stream::IOStream>&> getAsync() override;
-
-  /**
-   * Does nothing.
-   * @param connection
-   */
-  void invalidate(const std::shared_ptr<data::stream::IOStream>& connection) override {
-    (void)connection;
-    // DO Nothing.
-  }
+  oatpp::async::CoroutineStarterForResult<const provider::ResourceHandle<data::stream::IOStream>&> getAsync() override;
 
 };
   

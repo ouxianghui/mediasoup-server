@@ -26,29 +26,33 @@
 // Defaults
 
 /**
- * Codegen macoro to be used in classes extending &id:oatpp::data::mapping::type::Object; to generate required fields/methods/constructors for DTO object.
+ * Codegen macro to be used in classes extending &id:oatpp::data::type::Object; to generate required fields/methods/constructors for DTO object.
  * @param TYPE_NAME - name of the DTO class.
- * @param TYPE_EXTEND - name of the parent DTO class. If DTO extends &id:oatpp::data::mapping::type::Object; TYPE_EXETENDS should be `Object`.
+ * @param TYPE_EXTEND - name of the parent DTO class. If DTO extends &id:oatpp::data::type::Object; TYPE_EXETENDS should be `Object`.
  */
 #define DTO_INIT(TYPE_NAME, TYPE_EXTEND) \
   template<class __Z__T__PARAM> \
-  friend class oatpp::data::mapping::type::__class::Object; \
+  friend class oatpp::data::type::__class::Object; \
 public: \
   typedef TYPE_NAME Z__CLASS; \
   typedef TYPE_EXTEND Z__CLASS_EXTENDED; \
-  typedef oatpp::data::mapping::type::DTOWrapper<Z__CLASS> Wrapper; \
+  typedef oatpp::data::type::DTOWrapper<Z__CLASS> Wrapper; \
 private: \
+\
+  static const oatpp::Type* getParentType() { \
+    return oatpp::Object<Z__CLASS_EXTENDED>::Class::getType(); \
+  } \
+\
   static const char* Z__CLASS_TYPE_NAME() { \
     return #TYPE_NAME; \
   } \
 \
-  static oatpp::data::mapping::type::BaseObject::Properties* Z__CLASS_GET_FIELDS_MAP(){ \
-    static oatpp::data::mapping::type::BaseObject::Properties map = oatpp::data::mapping::type::BaseObject::Properties(); \
+  static oatpp::data::type::BaseObject::Properties* Z__CLASS_GET_FIELDS_MAP(){ \
+    static oatpp::data::type::BaseObject::Properties map = oatpp::data::type::BaseObject::Properties(); \
     return &map; \
   } \
-public: \
 \
-  TYPE_NAME() = default; \
+public: \
 \
   template<typename ... Args> \
   static Wrapper createShared(Args... args){ \
@@ -61,16 +65,17 @@ public: \
 \
 static v_int64 Z__PROPERTY_OFFSET_##NAME() { \
   char buffer[sizeof(Z__CLASS)]; \
-  auto obj = static_cast<Z__CLASS*>((void*)buffer); \
+  auto obj = static_cast<Z__CLASS*>(reinterpret_cast<void*>(buffer)); \
   auto ptr = &obj->NAME; \
-  return (v_int64) ptr - (v_int64) buffer; \
+  return reinterpret_cast<v_int64>(ptr) - reinterpret_cast<v_int64>(buffer); \
 } \
 \
-static oatpp::data::mapping::type::BaseObject::Property* Z__PROPERTY_SINGLETON_##NAME() { \
-  static oatpp::data::mapping::type::BaseObject::Property* property = \
-      new oatpp::data::mapping::type::BaseObject::Property(Z__PROPERTY_OFFSET_##NAME(), \
-                                                     #NAME, \
-                                                     TYPE::Class::getType()); \
+static oatpp::data::type::BaseObject::Property* Z__PROPERTY_SINGLETON_##NAME() { \
+  static oatpp::data::type::BaseObject::Property* property = \
+      new oatpp::data::type::BaseObject::Property(Z__PROPERTY_OFFSET_##NAME(), \
+                                                  #NAME, \
+                                                  #NAME, \
+                                                  TYPE::Class::getType()); \
   return property; \
 } \
 \
@@ -80,7 +85,8 @@ static bool Z__PROPERTY_INIT_##NAME(... /* default initializer for all cases */)
 } \
 \
 static TYPE Z__PROPERTY_INITIALIZER_PROXY_##NAME() { \
-  static bool initialized = Z__PROPERTY_INIT_##NAME(1 /* init info if found */); \
+  static bool initialized = Z__PROPERTY_INIT_##NAME(1 /* init info if found */,           \
+                                                    1 /* init type selector if found */); \
   (void)initialized; \
   return TYPE(); \
 } \
@@ -91,16 +97,17 @@ TYPE NAME = Z__PROPERTY_INITIALIZER_PROXY_##NAME()
 \
 static v_int64 Z__PROPERTY_OFFSET_##NAME() { \
   char buffer[sizeof(Z__CLASS)]; \
-  auto obj = static_cast<Z__CLASS*>((void*)buffer); \
+  auto obj = static_cast<Z__CLASS*>(reinterpret_cast<void*>(buffer)); \
   auto ptr = &obj->NAME; \
-  return (v_int64) ptr - (v_int64) buffer; \
+  return reinterpret_cast<v_int64>(ptr) - reinterpret_cast<v_int64>(buffer); \
 } \
 \
-static oatpp::data::mapping::type::BaseObject::Property* Z__PROPERTY_SINGLETON_##NAME() { \
-  static oatpp::data::mapping::type::BaseObject::Property* property = \
-      new oatpp::data::mapping::type::BaseObject::Property(Z__PROPERTY_OFFSET_##NAME(), \
-                                                     QUALIFIER, \
-                                                     TYPE::Class::getType()); \
+static oatpp::data::type::BaseObject::Property* Z__PROPERTY_SINGLETON_##NAME() { \
+  static oatpp::data::type::BaseObject::Property* property = \
+      new oatpp::data::type::BaseObject::Property(Z__PROPERTY_OFFSET_##NAME(), \
+                                                  QUALIFIER, \
+                                                  #NAME, \
+                                                  TYPE::Class::getType()); \
   return property; \
 } \
 \
@@ -110,7 +117,8 @@ static bool Z__PROPERTY_INIT_##NAME(... /* default initializer for all cases */)
 } \
 \
 static TYPE Z__PROPERTY_INITIALIZER_PROXY_##NAME() { \
-  static bool initialized = Z__PROPERTY_INIT_##NAME(1 /* init info if found */); \
+  static bool initialized = Z__PROPERTY_INIT_##NAME(1 /* init info if found */,           \
+                                                    1 /* init type selector if found */); \
   (void)initialized; \
   return TYPE(); \
 } \
@@ -130,13 +138,31 @@ OATPP_MACRO_EXPAND(OATPP_MACRO_MACRO_SELECTOR(OATPP_MACRO_DTO_FIELD_, (__VA_ARGS
 
 #define DTO_FIELD_INFO(NAME) \
 \
-static bool Z__PROPERTY_INIT_##NAME(int) { \
+static bool Z__PROPERTY_INIT_##NAME(int, ...) { \
   Z__PROPERTY_INIT_##NAME(); /* call first initialization */ \
   Z__PROPERTY_ADD_INFO_##NAME(&Z__PROPERTY_SINGLETON_##NAME()->info); \
   return true; \
 } \
 \
-static void Z__PROPERTY_ADD_INFO_##NAME(oatpp::data::mapping::type::BaseObject::Property::Info* info)
+static void Z__PROPERTY_ADD_INFO_##NAME(oatpp::data::type::BaseObject::Property::Info* info)
+
+
+#define DTO_FIELD_TYPE_SELECTOR(NAME) \
+\
+class Z__PROPERTY_TYPE_SELECTOR_##NAME : public oatpp::BaseObject::Property::FieldTypeSelector<Z__CLASS> { \
+public: \
+  const oatpp::Type* selectFieldType(Z__CLASS* self) override { \
+    return self->Z__PROPERTY_TYPE_SELECTOR_METHOD_##NAME(); \
+  } \
+}; \
+\
+static bool Z__PROPERTY_INIT_##NAME(int, int) { \
+  Z__PROPERTY_INIT_##NAME(1); /* call property info initialization */ \
+  Z__PROPERTY_SINGLETON_##NAME()->info.typeSelector = new Z__PROPERTY_TYPE_SELECTOR_##NAME(); \
+  return true; \
+} \
+\
+const oatpp::Type* Z__PROPERTY_TYPE_SELECTOR_METHOD_##NAME()
 
 // FOR EACH
 

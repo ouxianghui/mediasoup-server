@@ -27,7 +27,7 @@
 
 #include "./Pattern.hpp"
 
-#include "oatpp/core/Types.hpp"
+#include "oatpp/Types.hpp"
 
 #include <utility>
 #include <list>
@@ -148,7 +148,7 @@ public:
 
     for(auto& pair : m_endpointsByPattern) {
       auto mapping = pair.first->toString();
-      OATPP_LOGD("Router", "url '%s %s' -> mapped", (const char*)branch.getData(), (const char*) mapping->getData());
+      OATPP_LOGd("Router", "url '{} {}' -> mapped", reinterpret_cast<const char*>(branch.getData()), mapping)
     }
 
   }

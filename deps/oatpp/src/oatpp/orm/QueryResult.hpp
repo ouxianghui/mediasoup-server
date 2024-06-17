@@ -26,7 +26,8 @@
 #define oatpp_orm_QueryResult_hpp
 
 #include "Connection.hpp"
-#include "oatpp/core/Types.hpp"
+#include "oatpp/provider/Provider.hpp"
+#include "oatpp/Types.hpp"
 
 namespace oatpp { namespace orm {
 
@@ -45,7 +46,7 @@ public:
    * Get DB connection associated with this result.
    * @return
    */
-  virtual std::shared_ptr<Connection> getConnection() const = 0;
+  virtual provider::ResourceHandle<Connection> getConnection() const = 0;
 
   /**
    * Check if the query was successful.
@@ -93,7 +94,7 @@ public:
    */
   template<class Wrapper>
   Wrapper fetch(v_int64 count = -1) {
-    return fetch(Wrapper::Class::getType(), count).template staticCast<Wrapper>();
+    return fetch(Wrapper::Class::getType(), count).template cast<Wrapper>();
   }
 
 };

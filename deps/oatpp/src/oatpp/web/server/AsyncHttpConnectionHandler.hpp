@@ -27,18 +27,30 @@
 
 #include "oatpp/web/server/HttpProcessor.hpp"
 #include "oatpp/network/ConnectionHandler.hpp"
-#include "oatpp/core/async/Executor.hpp"
+#include "oatpp/async/Executor.hpp"
+#include "oatpp/concurrency/SpinLock.hpp"
+
+#include <unordered_map>
 
 namespace oatpp { namespace web { namespace server {
 
 /**
  * Asynchronous &id:oatpp::network::ConnectionHandler; for handling http communication.
  */
-class AsyncHttpConnectionHandler : public base::Countable, public network::ConnectionHandler {
+class AsyncHttpConnectionHandler : public base::Countable, public network::ConnectionHandler, public HttpProcessor::TaskProcessingListener {
+protected:
+
+  void onTaskStart(const provider::ResourceHandle<data::stream::IOStream>& connection) override;
+  void onTaskEnd(const provider::ResourceHandle<data::stream::IOStream>& connection) override;
+
+  void invalidateAllConnections();
+
 private:
   std::shared_ptr<oatpp::async::Executor> m_executor;
-private:
   std::shared_ptr<HttpProcessor::Components> m_components;
+  std::atomic_bool m_continue;
+  std::unordered_map<v_uint64, provider::ResourceHandle<data::stream::IOStream>> m_connections;
+  oatpp::concurrency::SpinLock m_connectionsLock;
 public:
 
   /**
@@ -105,6 +117,12 @@ public:
   static std::shared_ptr<AsyncHttpConnectionHandler> createShared(const std::shared_ptr<HttpRouter>& router,
                                                                   const std::shared_ptr<oatpp::async::Executor>& executor);
   
+  static std::shared_ptr<AsyncHttpConnectionHandler> createShared(const std::shared_ptr<HttpProcessor::Components>& components,
+                                                                  const std::shared_ptr<oatpp::async::Executor>& executor);
+
+  static std::shared_ptr<AsyncHttpConnectionHandler> createShared(const std::shared_ptr<HttpProcessor::Components>& components,
+                                                                  v_int32 threadCount = oatpp::async::Executor::VALUE_SUGGESTED);
+
   void setErrorHandler(const std::shared_ptr<handler::ErrorHandler>& errorHandler);
 
   /**
@@ -122,12 +140,19 @@ public:
   void addResponseInterceptor(const std::shared_ptr<interceptor::ResponseInterceptor>& interceptor);
 
   
-  void handleConnection(const std::shared_ptr<IOStream>& connection, const std::shared_ptr<const ParameterMap>& params) override;
+  void handleConnection(const provider::ResourceHandle<IOStream>& connection,
+                        const std::shared_ptr<const ParameterMap>& params) override;
 
   /**
    * Will call m_executor.stop()
    */
   void stop() override;
+
+  /**
+   * Get connections count.
+   * @return
+   */
+  v_uint64 getConnectionsCount();
   
 };
   

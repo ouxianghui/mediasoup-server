@@ -29,6 +29,7 @@
 #include "oatpp/web/protocol/http/incoming/BodyDecoder.hpp"
 #include "oatpp/web/url/mapping/Pattern.hpp"
 #include "oatpp/network/Url.hpp"
+#include "oatpp/data/Bundle.hpp"
 
 namespace oatpp { namespace web { namespace protocol { namespace http { namespace incoming {
 
@@ -36,9 +37,6 @@ namespace oatpp { namespace web { namespace protocol { namespace http { namespac
  * Class http::incoming::Request AKA IncomingRequest represents client's incoming request.
  */
 class Request : public oatpp::base::Countable {
-public:
-  OBJECT_POOL(Incoming_Request_Pool, Request, 32)
-  SHARED_OBJECT_POOL(Shared_Incoming_Request_Pool, Request, 32)
 private:
 
   std::shared_ptr<oatpp::data::stream::IOStream> m_connection;
@@ -55,6 +53,8 @@ private:
 
   mutable bool m_queryParamsParsed; // used for lazy parsing of QueryParams
   mutable http::QueryParams m_queryParams;
+
+  data::Bundle m_bundle;
 
 public:
   
@@ -164,33 +164,40 @@ public:
 
   /**
    * Replaces or adds header.
-   * @param key - &id:oatpp::String;.
-   * @param value - &id:oatpp::String;.
+   * @param key - &id:oatpp::data::share::StringKeyLabelCI;.
+   * @param value - &id:oatpp::data::share::StringKeyLabel;.
    * @return - `true` if header was replaces, `false` if header was added.
    */
-  bool putOrReplaceHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value);
+  bool putOrReplaceHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value);
 
   /**
    * Add http header.
-   * @param key - &id:oatpp::data::share::StringKeyLabelCI_FAST;.
+   * @param key - &id:oatpp::data::share::StringKeyLabelCI;.
    * @param value - &id:oatpp::data::share::StringKeyLabel;.
    */
-  void putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value);
+  void putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value);
 
   /**
    * Add http header if not already exists.
-   * @param key - &id:oatpp::data::share::StringKeyLabelCI_FAST;.
+   * @param key - &id:oatpp::data::share::StringKeyLabelCI;.
    * @param value - &id:oatpp::data::share::StringKeyLabel;.
    * @return - `true` if header was added.
    */
-  bool putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value);
+  bool putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value);
 
   /**
    * Get header value
-   * @param headerName - &id:oatpp::data::share::StringKeyLabelCI_FAST;.
+   * @param headerName - &id:oatpp::data::share::StringKeyLabelCI;.
    * @return - &id:oatpp::String;.
    */
-  oatpp::String getHeader(const oatpp::data::share::StringKeyLabelCI_FAST& headerName) const;
+  oatpp::String getHeader(const oatpp::data::share::StringKeyLabelCI& headerName) const;
+
+  /**
+   * Get all header values
+   * @param headerName
+   * @return
+   */
+  std::vector<oatpp::String> getHeaderValues(const oatpp::data::share::StringKeyLabelCI& headerName) const;
 
   /**
    * Get path variable according to path-pattern
@@ -209,17 +216,41 @@ public:
   oatpp::String getPathTail() const;
 
   /**
+   * Put data to bundle.
+   * @param key
+   * @param polymorph
+   */
+  void putBundleData(const oatpp::String& key, const oatpp::Void& polymorph);
+
+  /**
+   * Get data from bundle by key.
+   * @tparam WrapperType
+   * @param key
+   * @return
+   */
+  template<typename WrapperType>
+  WrapperType getBundleData(const oatpp::String& key) const {
+    return m_bundle.template get<WrapperType>(key);
+  }
+
+  /**
+   * Get bundle object.
+   * @return
+   */
+  const data::Bundle& getBundle() const;
+
+  /**
    * Transfer body. <br>
    * Read body chunk by chunk and pass chunks to the `writeCallback`.
    * @param writeCallback - &id:oatpp::data::stream::WriteCallback;.
    */
-  void transferBody(data::stream::WriteCallback* writeCallback) const;
+  void transferBody(const base::ObjectHandle<data::stream::WriteCallback>& writeCallback) const;
 
   /**
    * Stream content of the body-stream to toStream
    * @param toStream
    */
-  void transferBodyToStream(oatpp::data::stream::OutputStream* toStream) const;
+  void transferBodyToStream(const base::ObjectHandle<data::stream::OutputStream>& toStream) const;
 
   /**
    * Transfer body stream to string
@@ -234,8 +265,8 @@ public:
    * @return DTO
    */
   template<class Wrapper>
-  Wrapper readBodyToDto(data::mapping::ObjectMapper* objectMapper) const {
-    return objectMapper->readFromString<Wrapper>(m_bodyDecoder->decodeToString(m_headers, m_bodyStream.get()));
+  Wrapper readBodyToDto(const base::ObjectHandle<data::mapping::ObjectMapper>& objectMapper) const {
+    return objectMapper->readFromString<Wrapper>(m_bodyDecoder->decodeToString(m_headers, m_bodyStream.get(), m_connection.get()));
   }
   
   // Async
@@ -270,7 +301,7 @@ public:
   template<class Wrapper>
   oatpp::async::CoroutineStarterForResult<const Wrapper&>
   readBodyToDtoAsync(const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& objectMapper) const {
-    return m_bodyDecoder->decodeToDtoAsync<Wrapper>(m_headers, m_bodyStream, objectMapper);
+    return m_bodyDecoder->decodeToDtoAsync<Wrapper>(m_headers, m_bodyStream, m_connection, objectMapper);
   }
   
 };

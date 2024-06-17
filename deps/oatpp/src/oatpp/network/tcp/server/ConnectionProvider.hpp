@@ -22,21 +22,31 @@
  *
  ***************************************************************************/
 
-#ifndef oatpp_netword_tcp_server_ConnectionProvider_hpp
-#define oatpp_netword_tcp_server_ConnectionProvider_hpp
+#ifndef oatpp_network_tcp_server_ConnectionProvider_hpp
+#define oatpp_network_tcp_server_ConnectionProvider_hpp
 
 #include "oatpp/network/Address.hpp"
 #include "oatpp/network/ConnectionProvider.hpp"
 #include "oatpp/network/tcp/Connection.hpp"
+#include "oatpp/network/tcp/ConnectionConfigurer.hpp"
 
-#include "oatpp/core/Types.hpp"
+#include "oatpp/Types.hpp"
 
 namespace oatpp { namespace network { namespace tcp { namespace server {
 
 /**
  * Simple provider of TCP connections.
  */
-class ConnectionProvider : public base::Countable, public ServerConnectionProvider {
+class ConnectionProvider : public ServerConnectionProvider {
+private:
+
+  class ConnectionInvalidator : public provider::Invalidator<data::stream::IOStream> {
+  public:
+
+    void invalidate(const std::shared_ptr<data::stream::IOStream>& connection) override;
+
+  };
+
 public:
 
   /**
@@ -75,16 +85,18 @@ public:
   };
 
 private:
+  std::shared_ptr<ConnectionInvalidator> m_invalidator;
   network::Address m_address;
   std::atomic<bool> m_closed;
   oatpp::v_io_handle m_serverHandle;
   bool m_useExtendedConnections;
+  std::shared_ptr<ConnectionConfigurer> m_connectionConfigurer;
 private:
   oatpp::v_io_handle instantiateServer();
 private:
-  bool prepareConnectionHandle(oatpp::v_io_handle handle);
-  std::shared_ptr<data::stream::IOStream> getDefaultConnection();
-  std::shared_ptr<data::stream::IOStream> getExtendedConnection();
+  void prepareConnectionHandle(oatpp::v_io_handle handle);
+  provider::ResourceHandle<data::stream::IOStream> getDefaultConnection();
+  provider::ResourceHandle<data::stream::IOStream> getExtendedConnection();
 public:
 
   /**
@@ -109,9 +121,15 @@ public:
   }
 
   /**
+   * Set connection configurer.
+   * @param connectionConfigurer
+   */
+  void setConnectionConfigurer(const std::shared_ptr<ConnectionConfigurer>& connectionConfigurer);
+
+  /**
    * Virtual destructor.
    */
-  ~ConnectionProvider();
+  ~ConnectionProvider() override;
 
   /**
    * Close accept-socket.
@@ -122,7 +140,7 @@ public:
    * Get incoming connection.
    * @return &id:oatpp::data::stream::IOStream;.
    */
-  std::shared_ptr<data::stream::IOStream> get() override;
+  provider::ResourceHandle<data::stream::IOStream> get() override;
 
   /**
    * No need to implement this.<br>
@@ -132,7 +150,7 @@ public:
    * <br>
    * *It may be implemented later*
    */
-  oatpp::async::CoroutineStarterForResult<const std::shared_ptr<data::stream::IOStream>&> getAsync() override {
+  oatpp::async::CoroutineStarterForResult<const provider::ResourceHandle<data::stream::IOStream>&> getAsync() override {
     /*
      *  No need to implement this.
      *  For Asynchronous IO in oatpp it is considered to be a good practice
@@ -143,13 +161,6 @@ public:
      */
     throw std::runtime_error("[oatpp::network::tcp::server::ConnectionProvider::getAsync()]: Error. Not implemented.");
   }
-
-  /**
-   * Call shutdown read and write on an underlying file descriptor.
-   * `connection` **MUST** be an object previously obtained from **THIS** connection provider.
-   * @param connection
-   */
-  void invalidate(const std::shared_ptr<data::stream::IOStream>& connection) override;
 
   /**
    * Get address - &id:oatpp::network::Address;.

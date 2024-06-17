@@ -25,70 +25,13 @@
 #ifndef oatpp_web_mime_multipart_Reader_hpp
 #define oatpp_web_mime_multipart_Reader_hpp
 
+#include "PartReader.hpp"
 #include "Multipart.hpp"
 #include "StatefulParser.hpp"
 
 #include <unordered_map>
 
 namespace oatpp { namespace web { namespace mime { namespace multipart {
-
-/**
- * Abstract read handler of multipart parts.
- */
-class PartReader {
-public:
-
-  /**
-   * Default virtual destructor.
-   */
-  virtual ~PartReader() = default;
-
-  /**
-   * Called when new part headers are parsed and part object is created.
-   * @param part
-   */
-  virtual void onNewPart(const std::shared_ptr<Part>& part) = 0;
-
-  /**
-   * Called on each new chunk of data is parsed for the multipart-part. <br>
-   * When all data is read, called again with `data == nullptr && size == 0` to indicate end of the part.
-   * @param part
-   * @param data - pointer to buffer containing chunk data.
-   * @param size - size of the buffer.
-   */
-  virtual void onPartData(const std::shared_ptr<Part>& part, p_char8 data, oatpp::v_io_size size) = 0;
-
-};
-
-/**
- * Abstract Async read handler of multipart parts.
- */
-class AsyncPartReader {
-public:
-
-  /**
-   * Default virtual destructor.
-   */
-  virtual ~AsyncPartReader() = default;
-
-  /**
-   * Called when new part headers are parsed and part object is created.
-   * @param part
-   * @return - &id:oatpp::async::CoroutineStarter;.
-   */
-  virtual async::CoroutineStarter onNewPartAsync(const std::shared_ptr<Part>& part) = 0;
-
-  /**
-   * Called on each new chunk of data is parsed for the multipart-part. <br>
-   * When all data is read, called again with `data == nullptr && size == 0` to indicate end of the part.
-   * @param part
-   * @param data - pointer to buffer containing chunk data.
-   * @param size - size of the buffer.
-   * @return - &id:oatpp::async::CoroutineStarter;.
-   */
-  virtual async::CoroutineStarter onPartDataAsync(const std::shared_ptr<Part>& part, p_char8 data, oatpp::v_io_size size) = 0;
-
-};
 
 class Reader; // FWD
 
@@ -121,7 +64,7 @@ public:
 
   void onPartHeaders(const Headers& partHeaders) override;
 
-  void onPartData(p_char8 data, v_buff_size size) override;
+  void onPartData(const char* data, v_buff_size size) override;
 
   void setPartReader(const oatpp::String& partName, const std::shared_ptr<PartReader>& reader);
 
@@ -162,7 +105,7 @@ public:
 
   async::CoroutineStarter onPartHeadersAsync(const Headers& partHeaders) override;
 
-  async::CoroutineStarter onPartDataAsync(p_char8 data, v_buff_size size) override;
+  async::CoroutineStarter onPartDataAsync(const char* data, v_buff_size size) override;
 
   void setPartReader(const oatpp::String& partName, const std::shared_ptr<AsyncPartReader>& reader);
 

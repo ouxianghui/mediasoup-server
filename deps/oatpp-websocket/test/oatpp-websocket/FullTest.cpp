@@ -21,7 +21,7 @@
 
 #include "oatpp-test/web/ClientServerTestRunner.hpp"
 
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/macro/component.hpp"
 
 namespace oatpp { namespace test { namespace websocket {
 
@@ -64,10 +64,8 @@ public:
    *  Create ObjectMapper component to serialize/deserialize DTOs in Contoller's API
    */
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, apiObjectMapper)([] {
-    auto serializerConfig = oatpp::parser::json::mapping::Serializer::Config::createShared();
-    auto deserializerConfig = oatpp::parser::json::mapping::Deserializer::Config::createShared();
-    deserializerConfig->allowUnknownFields = false;
-    auto objectMapper = oatpp::parser::json::mapping::ObjectMapper::createShared(serializerConfig, deserializerConfig);
+    auto objectMapper = std::make_shared<oatpp::json::ObjectMapper>();
+    objectMapper->deserializerConfig().mapper.allowUnknownFields = false;
     return objectMapper;
   }());
 
@@ -100,21 +98,21 @@ class ClientWebSocketListener : public oatpp::websocket::WebSocket::Listener {
 private:
   static constexpr const char *const TAG = "ClientWebSocketListener";
 private:
-  oatpp::data::stream::ChunkedBuffer m_messageBuffer;
+  oatpp::data::stream::BufferOutputStream m_messageBuffer;
 public:
 
   void onPing(const WebSocket &socket, const oatpp::String &message) override {
-    OATPP_LOGD(TAG, "Ping frame received. Sending Pong back.");
+    OATPP_LOGd(TAG, "Ping frame received. Sending Pong back.");
     socket.sendPong("");
   }
 
   void onPong(const WebSocket &socket, const oatpp::String &message) override {
-    OATPP_LOGD(TAG, "Pong frame received. Do nothing.");
+    OATPP_LOGd(TAG, "Pong frame received. Do nothing.");
     // DO NOTHING
   }
 
   void onClose(const WebSocket &socket, v_uint16 code, const oatpp::String &message) override {
-    OATPP_LOGD(TAG, "Close frame received. Code=%hd, Message='%s'", code, message->c_str());
+    OATPP_LOGd(TAG, "Close frame received. Code={}, Message='{}'", code, message);
   }
 
   /**
@@ -125,9 +123,9 @@ public:
   void readMessage(const WebSocket &socket, v_uint8 opcode, p_char8 data, oatpp::v_io_size size) override {
     if (size == 0) {
       auto wholeMessage = m_messageBuffer.toString();
-      OATPP_LOGD(TAG, "Message='%s'", wholeMessage->c_str());
+      OATPP_LOGd(TAG, "Message='{}'", wholeMessage);
       socket.sendOneFrameText("Hello from oatpp! Your message was: " + wholeMessage);
-      m_messageBuffer.clear();
+      m_messageBuffer.setCurrentPosition(0);
     } else if (size > 0) {
       m_messageBuffer.writeSimple(data, size);
     }

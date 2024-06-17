@@ -10,8 +10,8 @@
 #pragma once
 
 #include "dto/dtos.hpp"
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
-#include "oatpp/core/Types.hpp"
+#include "oatpp/json/ObjectMapper.hpp"
+#include "oatpp/Types.hpp"
 
 #include <chrono>
 
@@ -45,7 +45,7 @@ public:
     void runStatLoop();
 
 private:
-    oatpp::parser::json::mapping::ObjectMapper _objectMapper;
+    oatpp::json::ObjectMapper _objectMapper;
     
 private:
     oatpp::List<oatpp::Object<StatPointDto>> _dataPoints = oatpp::List<oatpp::Object<StatPointDto>>::createShared();

@@ -14,19 +14,21 @@
 #include <string>
 #include "dto/config.hpp"
 #include "utils/statistics.hpp"
+#include "oatpp/Environment.hpp"
 #include "oatpp-openssl/server/ConnectionProvider.hpp"
 #include "oatpp/web/server/interceptor/RequestInterceptor.hpp"
 #include "oatpp/web/server/AsyncHttpConnectionHandler.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
 #include "oatpp/network/tcp/server/ConnectionProvider.hpp"
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
-#include "oatpp/core/macro/component.hpp"
-#include "oatpp/core/base/CommandLineArguments.hpp"
-#include "oatpp/core/utils/ConversionUtils.hpp"
+#include "oatpp/json/ObjectMapper.hpp"
+#include "oatpp/json/Serializer.hpp"
+#include "oatpp/macro/component.hpp"
+#include "oatpp/base/CommandLineArguments.hpp"
+#include "oatpp/utils/Conversion.hpp"
 #include "config.h"
 
 /**
- *  Class which creates and holds Application components and registers components in oatpp::base::Environment
+ *  Class which creates and holds Application components and registers components in oatpp::Environment
  *  Order of components initialization is from top to bottom
  */
 class AppComponent
@@ -82,7 +84,7 @@ public:
         }
 
         bool success;
-        auto _port = oatpp::utils::conversion::strToUInt32(portText, success);
+        auto _port = oatpp::utils::Conversion::strToUInt32(portText, success);
         if (!success || _port > 65535) {
             throw std::runtime_error("Invalid port!");
         }
@@ -123,8 +125,8 @@ public:
 
         // TODO: use valid cert
         if (appConfig->useTLS) {
-            OATPP_LOGD("oatpp::openssl::Config", "key_path='%s'", appConfig->tlsPrivateKeyPath->c_str());
-            OATPP_LOGD("oatpp::openssl::Config", "chn_path='%s'", appConfig->tlsCertificateChainPath->c_str());
+            OATPP_LOGd("oatpp::openssl::Config", "key_path='%s'", appConfig->tlsPrivateKeyPath->c_str());
+            OATPP_LOGd("oatpp::openssl::Config", "chn_path='%s'", appConfig->tlsCertificateChainPath->c_str());
 
             auto config = oatpp::openssl::Config::createDefaultServerConfigShared(appConfig->tlsCertificateChainPath->c_str(),
                                                                                   appConfig->tlsPrivateKeyPath->c_str());
@@ -158,8 +160,8 @@ public:
      *  Create ObjectMapper component to serialize/deserialize DTOs in Contoller's API
      */
     OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, apiObjectMapper)([] {
-        auto mapper = oatpp::parser::json::mapping::ObjectMapper::createShared();
-        mapper->getSerializer()->getConfig()->includeNullFields = false;
+        auto mapper = std::make_shared<oatpp::json::ObjectMapper>();
+        mapper->serializerConfig().mapper.includeNullFields = false;
         return mapper;
     }());
 

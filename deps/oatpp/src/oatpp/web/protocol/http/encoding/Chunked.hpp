@@ -26,7 +26,7 @@
 #define oatpp_web_protocol_http_encoding_Chunked_hpp
 
 #include "EncoderProvider.hpp"
-#include "oatpp/core/data/stream/BufferStream.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
 
 namespace oatpp { namespace web { namespace protocol { namespace http { namespace encoding {
 
@@ -43,7 +43,7 @@ private:
 public:
 
   /**
-   * If the client is using the input stream to read data and push it to the processor,
+   * If the client is using the input stream to read data and add it to the processor,
    * the client MAY ask the processor for a suggested read size.
    * @return - suggested read size.
    */
@@ -82,7 +82,7 @@ public:
   DecoderChunked();
 
   /**
-   * If the client is using the input stream to read data and push it to the processor,
+   * If the client is using the input stream to read data and add it to the processor,
    * the client MAY ask the processor for a suggested read size.
    * @return - suggested read size.
    */

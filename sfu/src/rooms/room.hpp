@@ -16,7 +16,7 @@
 #include "peer.hpp"
 #include "dto/dtos.hpp"
 #include "utils/statistics.hpp"
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/macro/component.hpp"
 #include "nlohmann/json.hpp"
 #include "oatpp-websocket/AsyncConnectionHandler.hpp"
 

@@ -45,7 +45,7 @@ std::shared_ptr<Request> Request::createShared(const std::shared_ptr<oatpp::data
                                                const std::shared_ptr<oatpp::data::stream::InputStream>& bodyStream,
                                                const std::shared_ptr<const http::incoming::BodyDecoder>& bodyDecoder)
 {
-  return Shared_Incoming_Request_Pool::allocateShared(connection, startingLine, headers, bodyStream, bodyDecoder);
+  return std::make_shared<Request>(connection, startingLine, headers, bodyStream, bodyDecoder);
 }
 
 std::shared_ptr<oatpp::data::stream::IOStream> Request::getConnection() {
@@ -105,21 +105,30 @@ bool Request::putOrReplaceHeader(const String &key, const String &value) {
   return m_headers.putOrReplace(key, value);
 }
 
-bool Request::putOrReplaceHeader_Unsafe(const data::share::StringKeyLabelCI_FAST &key,
+bool Request::putOrReplaceHeader_Unsafe(const data::share::StringKeyLabelCI& key,
                                         const data::share::StringKeyLabel &value) {
   return m_headers.putOrReplace(key, value);
 }
 
-void Request::putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value) {
+void Request::putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value) {
   m_headers.put(key, value);
 }
 
-bool Request::putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value) {
+bool Request::putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value) {
   return m_headers.putIfNotExists(key, value);
 }
 
-oatpp::String Request::getHeader(const oatpp::data::share::StringKeyLabelCI_FAST& headerName) const{
+oatpp::String Request::getHeader(const oatpp::data::share::StringKeyLabelCI& headerName) const{
   return m_headers.get(headerName);
+}
+
+std::vector<oatpp::String> Request::getHeaderValues(const oatpp::data::share::StringKeyLabelCI& headerName) const {
+  std::vector<oatpp::String> result;
+  auto range = m_headers.getAll_Unsafe().equal_range(headerName);
+  for (auto it = range.first; it != range.second; ++it) {
+    result.emplace_back(it->second.toString());
+  }
+  return result;
 }
 
 oatpp::String Request::getPathVariable(const oatpp::data::share::StringKeyLabel& name) const {
@@ -130,28 +139,36 @@ oatpp::String Request::getPathTail() const {
   return m_pathVariables.getTail();
 }
 
-void Request::transferBody(data::stream::WriteCallback* writeCallback) const {
-  m_bodyDecoder->decode(m_headers, m_bodyStream.get(), writeCallback);
+void Request::putBundleData(const oatpp::String& key, const oatpp::Void& polymorph) {
+  m_bundle.put(key, polymorph);
 }
 
-void Request::transferBodyToStream(oatpp::data::stream::OutputStream* toStream) const {
-  m_bodyDecoder->decode(m_headers, m_bodyStream.get(), toStream);
+const data::Bundle& Request::getBundle() const {
+  return m_bundle;
+}
+
+void Request::transferBody(const base::ObjectHandle<data::stream::WriteCallback>& writeCallback) const {
+  m_bodyDecoder->decode(m_headers, m_bodyStream.get(), writeCallback.get(), m_connection.get());
+}
+
+void Request::transferBodyToStream(const base::ObjectHandle<oatpp::data::stream::OutputStream>& toStream) const {
+  m_bodyDecoder->decode(m_headers, m_bodyStream.get(), toStream.get(), m_connection.get());
 }
 
 oatpp::String Request::readBodyToString() const {
-  return m_bodyDecoder->decodeToString(m_headers, m_bodyStream.get());
+  return m_bodyDecoder->decodeToString(m_headers, m_bodyStream.get(), m_connection.get());
 }
 
 async::CoroutineStarter Request::transferBodyAsync(const std::shared_ptr<data::stream::WriteCallback>& writeCallback) const {
-  return m_bodyDecoder->decodeAsync(m_headers, m_bodyStream, writeCallback);
+  return m_bodyDecoder->decodeAsync(m_headers, m_bodyStream, writeCallback, m_connection);
 }
 
 async::CoroutineStarter Request::transferBodyToStreamAsync(const std::shared_ptr<oatpp::data::stream::OutputStream>& toStream) const {
-  return m_bodyDecoder->decodeAsync(m_headers, m_bodyStream, toStream);
+  return m_bodyDecoder->decodeAsync(m_headers, m_bodyStream, toStream, m_connection);
 }
 
 async::CoroutineStarterForResult<const oatpp::String&> Request::readBodyToStringAsync() const {
-  return m_bodyDecoder->decodeToStringAsync(m_headers, m_bodyStream);
+  return m_bodyDecoder->decodeToStringAsync(m_headers, m_bodyStream, m_connection);
 }
 
 }}}}}

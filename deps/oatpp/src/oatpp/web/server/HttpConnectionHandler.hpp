@@ -27,6 +27,9 @@
 
 #include "oatpp/web/server/HttpProcessor.hpp"
 #include "oatpp/network/ConnectionHandler.hpp"
+#include "oatpp/concurrency/SpinLock.hpp"
+
+#include <unordered_map>
 
 namespace oatpp { namespace web { namespace server {
 
@@ -34,9 +37,19 @@ namespace oatpp { namespace web { namespace server {
  * Simple ConnectionHandler (&id:oatpp::network::ConnectionHandler;) for handling HTTP communication. <br>
  * Will create one thread per each connection to handle communication.
  */
-class HttpConnectionHandler : public base::Countable, public network::ConnectionHandler {
+class HttpConnectionHandler : public base::Countable, public network::ConnectionHandler, public HttpProcessor::TaskProcessingListener {
+protected:
+
+  void onTaskStart(const provider::ResourceHandle<data::stream::IOStream>& connection) override;
+  void onTaskEnd(const provider::ResourceHandle<data::stream::IOStream>& connection) override;
+
+  void invalidateAllConnections();
+
 private:
   std::shared_ptr<HttpProcessor::Components> m_components;
+  std::atomic_bool m_continue;
+  std::unordered_map<v_uint64, provider::ResourceHandle<data::stream::IOStream>> m_connections;
+  oatpp::concurrency::SpinLock m_connectionsLock;
 public:
 
   /**
@@ -97,12 +110,19 @@ public:
    * Implementation of &id:oatpp::network::ConnectionHandler::handleConnection;.
    * @param connection - &id:oatpp::data::stream::IOStream; representing connection.
    */
-  void handleConnection(const std::shared_ptr<IOStream>& connection, const std::shared_ptr<const ParameterMap>& params) override;
+  void handleConnection(const provider::ResourceHandle<IOStream>& connection,
+                        const std::shared_ptr<const ParameterMap>& params) override;
 
   /**
    * Tell all worker threads to exit when done.
    */
   void stop() override;
+
+  /**
+   * Get connections count.
+   * @return
+   */
+  v_uint64 getConnectionsCount();
   
 };
   

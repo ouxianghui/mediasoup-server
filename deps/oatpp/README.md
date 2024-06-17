@@ -1,3 +1,7 @@
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://vshymanskyy.github.io/StandWithUkraine/)
+
+---
+
 <div align="center">
   <img alt="Oat++ Logo" src="https://raw.githubusercontent.com/lganzzzo/oatpp-website-res/master/logo_x400.png" width="200px"/>
 </div>
@@ -6,9 +10,6 @@
 <p align="center">
   <a href="https://dev.azure.com/lganzzzo/lganzzzo/_build?definitionId=1">
     <img src="https://dev.azure.com/lganzzzo/lganzzzo/_apis/build/status/oatpp.oatpp" alt="oatpp build status" />
-  </a>
-  <a href="https://lgtm.com/projects/g/oatpp/oatpp/context:cpp">
-    <img src="https://img.shields.io/lgtm/grade/cpp/g/oatpp/oatpp.svg?logo=lgtm&logoWidth=18" alt="Language grade: C/C++" />
   </a>
   <a href="https://gitter.im/oatpp-framework/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge">
     <img src="https://badges.gitter.im/oatpp-framework/Lobby.svg" alt="Join the chat at https://gitter.im/oatpp-framework/Lobby" />
@@ -19,8 +20,9 @@
 
 **News**  
 
-- Hey, meet the new oatpp version `1.2.5`! See the [changelog](changelog/1.2.5.md) for details.  
-- Check out the new oatpp ORM - read more [here](https://oatpp.io/docs/components/orm/).  
+- ⚠️ Attention! Oat++ main repo is bumping its version to 1.4.0. While 1.4.0 is **IN DEVELOPMENT** use `1.3.0-latest` tag.
+- Follow the [changelog](https://github.com/oatpp/oatpp/blob/master/changelog/1.4.0.md) for news and features in version `1.4.0`.
+- Consider supporting Oat++ via the [GitHub sponsors](https://github.com/sponsors/oatpp) page.
 
 ---
 

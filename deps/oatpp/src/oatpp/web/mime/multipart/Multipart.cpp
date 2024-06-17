@@ -26,7 +26,7 @@
 
 #include "oatpp/web/protocol/http/Http.hpp"
 #include "oatpp/encoding/Base64.hpp"
-#include "oatpp/core/utils/Random.hpp"
+#include "oatpp/utils/Random.hpp"
 
 namespace oatpp { namespace web { namespace mime { namespace multipart {
 
@@ -58,8 +58,8 @@ void Multipart::writeNextPartSimple(const std::shared_ptr<Part>& part) {
 }
 
 oatpp::String Multipart::generateRandomBoundary(v_int32 boundarySize) {
-  std::unique_ptr<v_char8[]> buffer(new v_char8[boundarySize]);
-  utils::random::Random::randomBytes(buffer.get(), boundarySize);
+  std::unique_ptr<v_char8[]> buffer(new v_char8[static_cast<unsigned long>(boundarySize)]);
+  utils::Random::randomBytes(buffer.get(), boundarySize);
   return encoding::Base64::encode(buffer.get(), boundarySize, encoding::Base64::ALPHABET_BASE64_URL_SAFE);
 }
 

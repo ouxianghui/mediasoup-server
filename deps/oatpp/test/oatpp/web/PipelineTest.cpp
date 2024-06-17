@@ -29,7 +29,7 @@
 #include "oatpp/web/server/HttpConnectionHandler.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
 
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
+#include "oatpp/json/ObjectMapper.hpp"
 
 #include "oatpp/network/tcp/server/ConnectionProvider.hpp"
 #include "oatpp/network/tcp/client/ConnectionProvider.hpp"
@@ -38,8 +38,8 @@
 #include "oatpp/network/virtual_/server/ConnectionProvider.hpp"
 #include "oatpp/network/virtual_/Interface.hpp"
 
-#include "oatpp/core/data/stream/BufferStream.hpp"
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
+#include "oatpp/macro/component.hpp"
 
 #include "oatpp-test/web/ClientServerTestRunner.hpp"
 
@@ -63,9 +63,9 @@ public:
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ServerConnectionProvider>, serverConnectionProvider)([this] {
 
     if(m_port == 0) { // Use oatpp virtual interface
-      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, interface);
+      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, _interface);
       return std::static_pointer_cast<oatpp::network::ServerConnectionProvider>(
-        oatpp::network::virtual_::server::ConnectionProvider::createShared(interface)
+        oatpp::network::virtual_::server::ConnectionProvider::createShared(_interface)
       );
     }
 
@@ -85,15 +85,15 @@ public:
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, objectMapper)([] {
-    return oatpp::parser::json::mapping::ObjectMapper::createShared();
+    return std::make_shared<oatpp::json::ObjectMapper>();
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ClientConnectionProvider>, clientConnectionProvider)([this] {
 
     if(m_port == 0) {
-      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, interface);
+      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, _interface);
       return std::static_pointer_cast<oatpp::network::ClientConnectionProvider>(
-        oatpp::network::virtual_::client::ConnectionProvider::createShared(interface)
+        oatpp::network::virtual_::client::ConnectionProvider::createShared(_interface)
       );
     }
 
@@ -129,29 +129,29 @@ void PipelineTest::onRun() {
 
   runner.addController(app::Controller::createShared());
 
-  runner.run([this, &runner] {
+  runner.run([this] {
 
     OATPP_COMPONENT(std::shared_ptr<oatpp::network::ClientConnectionProvider>, clientConnectionProvider);
 
     auto connection = clientConnectionProvider->get();
-    connection->setInputStreamIOMode(oatpp::data::stream::IOMode::BLOCKING);
+    connection.object->setInputStreamIOMode(oatpp::data::stream::IOMode::BLOCKING);
 
     std::thread pipeInThread([this, connection] {
 
-      oatpp::data::stream::ChunkedBuffer pipelineStream;
+      oatpp::data::stream::BufferOutputStream pipelineStream;
 
       for (v_int32 i = 0; i < m_pipelineSize; i++) {
         pipelineStream << SAMPLE_IN;
       }
 
       auto dataToSend = pipelineStream.toString();
-      OATPP_LOGD(TAG, "Sending %d bytes", dataToSend->getSize());
+      OATPP_LOGd(TAG, "Sending {} bytes", dataToSend->size())
 
       oatpp::data::stream::BufferInputStream inputStream(dataToSend);
 
       oatpp::data::buffer::IOBuffer ioBuffer;
 
-      auto res = oatpp::data::stream::transfer(&inputStream, connection.get(), 0, ioBuffer.getData(), ioBuffer.getSize());
+      oatpp::data::stream::transfer(&inputStream, connection.object.get(), 0, ioBuffer.getData(), ioBuffer.getSize());
 
     });
 
@@ -161,15 +161,15 @@ void PipelineTest::onRun() {
       oatpp::data::stream::BufferOutputStream receiveStream;
       oatpp::data::buffer::IOBuffer ioBuffer;
 
-      v_io_size transferSize = sample->getSize() * m_pipelineSize;
+      v_io_size transferSize = static_cast<v_io_size>(sample->size() * static_cast<size_t>(m_pipelineSize));
 
-      OATPP_LOGD(TAG, "want to Receive %d bytes", transferSize);
-      auto res = oatpp::data::stream::transfer(connection.get(), &receiveStream, transferSize, ioBuffer.getData(), ioBuffer.getSize());
+      OATPP_LOGd(TAG, "want to Receive {} bytes", transferSize)
+      oatpp::data::stream::transfer(connection.object.get(), &receiveStream, transferSize, ioBuffer.getData(), ioBuffer.getSize());
 
       auto result = receiveStream.toString();
 
-      OATPP_ASSERT(result->getSize() == sample->getSize() * m_pipelineSize);
-      //OATPP_ASSERT(result == wantedResult); // headers may come in different order on different OSs
+      OATPP_ASSERT(result->size() == sample->size() * static_cast<size_t>(m_pipelineSize))
+      //OATPP_ASSERT(result == wantedResult) // headers may come in different order on different OSs
 
     });
 

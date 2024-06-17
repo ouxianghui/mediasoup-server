@@ -26,8 +26,8 @@
 
 #include "oatpp/web/protocol/http/Http.hpp"
 
-#include "oatpp/core/parser/Caret.hpp"
-#include "oatpp/core/parser/ParsingError.hpp"
+#include "oatpp/utils/parser/Caret.hpp"
+#include "oatpp/utils/parser/ParsingError.hpp"
 
 namespace oatpp { namespace web { namespace mime { namespace multipart {
 
@@ -40,7 +40,7 @@ void StatefulParser::ListenerCall::setOnHeadersCall() {
   size = 0;
 }
 
-void StatefulParser::ListenerCall::setOnDataCall(p_char8 pData, v_buff_size pSize) {
+void StatefulParser::ListenerCall::setOnDataCall(const char* pData, v_buff_size pSize) {
   callType = CALL_ON_DATA;
   data = pData;
   size = pSize;
@@ -64,6 +64,9 @@ void StatefulParser::ListenerCall::call(StatefulParser* parser) {
         parser->m_listener->onPartData(data, size);
         break;
 
+      default:
+        break;
+
     }
 
   }
@@ -84,6 +87,9 @@ async::CoroutineStarter StatefulParser::ListenerCall::callAsync(StatefulParser* 
 
       case CALL_ON_DATA:
         return parser->m_asyncListener->onPartDataAsync(data, size);
+
+      default:
+        break;
 
     }
 
@@ -122,10 +128,10 @@ void StatefulParser::parseHeaders(Headers& headers) {
   m_currPartIndex ++;
 
   auto headersText = m_headersBuffer.toString();
-  m_headersBuffer.clear();
+  m_headersBuffer.setCurrentPosition(0);
 
   protocol::http::Status status;
-  parser::Caret caret(headersText);
+  utils::parser::Caret caret(headersText);
 
   protocol::http::Parser::parseHeaders(headers, headersText.getPtr(), caret, status);
 
@@ -134,18 +140,18 @@ void StatefulParser::parseHeaders(Headers& headers) {
 StatefulParser::ListenerCall StatefulParser::parseNext_Boundary(data::buffer::InlineWriteData& inlineData) {
 
   ListenerCall result;
-  p_char8 data = (p_char8)inlineData.currBufferPtr;
+  auto data = inlineData.currBufferPtr;
   auto size = inlineData.bytesLeft;
 
-  p_char8 sampleData = m_nextBoundarySample->getData();
-  v_io_size sampleSize = m_nextBoundarySample->getSize();
+  auto sampleData = m_nextBoundarySample->data();
+  v_io_size sampleSize = static_cast<v_io_size>(m_nextBoundarySample->size());
 
   if (m_currPartIndex == 0) {
-    sampleData = m_firstBoundarySample->getData();
-    sampleSize = m_firstBoundarySample->getSize();
+    sampleData = m_firstBoundarySample->data();
+    sampleSize = static_cast<v_io_size>(m_firstBoundarySample->size());
   } else {
-    sampleData = m_nextBoundarySample->getData();
-    sampleSize = m_nextBoundarySample->getSize();
+    sampleData = m_nextBoundarySample->data();
+    sampleSize = static_cast<v_io_size>(m_nextBoundarySample->size());
   }
 
   v_io_size checkSize = sampleSize - m_currBoundaryCharIndex;
@@ -153,7 +159,7 @@ StatefulParser::ListenerCall StatefulParser::parseNext_Boundary(data::buffer::In
     checkSize = size;
   }
 
-  parser::Caret caret(data, size);
+  utils::parser::Caret caret(reinterpret_cast<const char*>(data), size);
 
   if(caret.isAtText(&sampleData[m_currBoundaryCharIndex], checkSize, true)) {
 
@@ -192,7 +198,7 @@ StatefulParser::ListenerCall StatefulParser::parseNext_Boundary(data::buffer::In
 
 void StatefulParser::parseNext_AfterBoundary(data::buffer::InlineWriteData& inlineData) {
 
-  p_char8 data = (p_char8) inlineData.currBufferPtr;
+  p_char8 data = reinterpret_cast<p_char8>(const_cast<void*>(inlineData.currBufferPtr));
   auto size = inlineData.bytesLeft;
 
   if(m_currBoundaryCharIndex == 0) {
@@ -236,7 +242,7 @@ StatefulParser::ListenerCall StatefulParser::parseNext_Headers(data::buffer::Inl
 
   ListenerCall result;
 
-  p_char8 data = (p_char8) inlineData.currBufferPtr;
+  p_char8 data = reinterpret_cast<p_char8>(const_cast<void*>(inlineData.currBufferPtr));
   auto size = inlineData.bytesLeft;
 
   for(v_buff_size i = 0; i < size; i ++) {
@@ -246,7 +252,7 @@ StatefulParser::ListenerCall StatefulParser::parseNext_Headers(data::buffer::Inl
 
     if(m_headerSectionEndAccumulator == HEADERS_SECTION_END) {
 
-      if(m_headersBuffer.getSize() + i > m_maxPartHeadersSize) {
+      if(m_headersBuffer.getCurrentPosition() + i > m_maxPartHeadersSize) {
         throw std::runtime_error("[oatpp::web::mime::multipart::StatefulParser::parseNext_Headers()]: Error. Too large heades.");
       }
 
@@ -264,8 +270,8 @@ StatefulParser::ListenerCall StatefulParser::parseNext_Headers(data::buffer::Inl
 
   }
 
-  if(m_headersBuffer.getSize() + size > m_maxPartHeadersSize) {
-    throw std::runtime_error("[oatpp::web::mime::multipart::StatefulParser::parseNext_Headers()]: Error. Too large heades.");
+  if(m_headersBuffer.getCurrentPosition() + size > m_maxPartHeadersSize) {
+    throw std::runtime_error("[oatpp::web::mime::multipart::StatefulParser::parseNext_Headers()]: Error. Headers section is too large.");
   }
 
   m_headersBuffer.writeSimple(data, size);
@@ -280,10 +286,10 @@ StatefulParser::ListenerCall StatefulParser::parseNext_Data(data::buffer::Inline
 
   ListenerCall result;
 
-  p_char8 data = (p_char8) inlineData.currBufferPtr;
+  const char* data = reinterpret_cast<const char*>(inlineData.currBufferPtr);
   auto size = inlineData.bytesLeft;
 
-  parser::Caret caret(data, size);
+  utils::parser::Caret caret(data, size);
 
   bool rFound = caret.findChar('\r');
   if(rFound && !m_checkForBoundary) {

@@ -28,22 +28,22 @@
 
 namespace oatpp { namespace network {
 
-oatpp::String Url::Parser::parseScheme(oatpp::parser::Caret& caret) {
+oatpp::String Url::Parser::parseScheme(oatpp::utils::parser::Caret& caret) {
   v_buff_size pos0 = caret.getPosition();
   caret.findChar(':');
   v_buff_size size = caret.getPosition() - pos0;
   if(size > 0) {
-    std::unique_ptr<v_char8[]> buff(new v_char8[size]);
-    std::memcpy(buff.get(), &caret.getData()[pos0], size);
-    oatpp::base::StrBuffer::lowerCase(buff.get(), size);
-    return oatpp::String((const char*)buff.get(), size, true);
+    std::unique_ptr<v_char8[]> buff(new v_char8[static_cast<unsigned long>(size)]);
+    std::memcpy(buff.get(), &caret.getData()[pos0], static_cast<size_t>(size));
+    utils::String::lowerCase_ASCII(buff.get(), size);
+    return oatpp::String(reinterpret_cast<const char*>(buff.get()), size);
   }
   return nullptr;
 }
 
-Url::Authority Url::Parser::parseAuthority(oatpp::parser::Caret& caret) {
+Url::Authority Url::Parser::parseAuthority(oatpp::utils::parser::Caret& caret) {
   
-  p_char8 data = caret.getData();
+  const char* data = caret.getData();
   v_buff_size pos0 = caret.getPosition();
   v_buff_size pos = pos0;
   
@@ -52,7 +52,7 @@ Url::Authority Url::Parser::parseAuthority(oatpp::parser::Caret& caret) {
   v_buff_size portPos = -1;
   
   while (pos < caret.getDataSize()) {
-    v_char8 a = data[pos];
+    v_char8 a = static_cast<v_char8>(data[pos]);
     if(a == '@') {
       atPos = pos;
       pos ++;
@@ -75,35 +75,35 @@ Url::Authority Url::Parser::parseAuthority(oatpp::parser::Caret& caret) {
   Url::Authority result;
   
   if(atPos > -1) {
-    result.userInfo = oatpp::String((const char*)&data[pos0], atPos - pos0, true);
+    result.userInfo = oatpp::String(&data[pos0], atPos - pos0);
   }
   
   if(portPos > hostPos) {
-    result.host = oatpp::String((const char*)&data[hostPos], portPos - 1 - hostPos, true);
+    result.host = oatpp::String(&data[hostPos], portPos - 1 - hostPos);
     char* end;
-    result.port = std::strtol((const char*)&data[portPos], &end, 10);
-    bool success = (((v_buff_size)end - (v_buff_size)&data[portPos]) == pos - portPos);
+    result.port = static_cast<v_int32>(std::strtol(&data[portPos], &end, 10));
+    bool success = ((reinterpret_cast<v_buff_size>(end) - reinterpret_cast<v_buff_size>(&data[portPos])) == pos - portPos);
     if(!success) {
       caret.setError("Invalid port string");
     }
   } else {
-    result.host = oatpp::String((const char*)&data[hostPos], pos - pos0, true);
+    result.host = oatpp::String(&data[hostPos], pos - pos0);
   }
   
   return result;
   
 }
 
-oatpp::String Url::Parser::parsePath(oatpp::parser::Caret& caret) {
+oatpp::String Url::Parser::parsePath(oatpp::utils::parser::Caret& caret) {
   auto label = caret.putLabel();
-  caret.findCharFromSet((p_char8)"?#", 2);
+  caret.findCharFromSet("?#", 2);
   if(label.getSize() > 0) {
-    return label.toString(true);
+    return label.toString();
   }
   return nullptr;
 }
 
-void Url::Parser::parseQueryParams(Url::Parameters& params, oatpp::parser::Caret& caret) {
+void Url::Parser::parseQueryParams(Url::Parameters& params, oatpp::utils::parser::Caret& caret) {
 
   if(caret.findChar('?')) {
 
@@ -128,11 +128,11 @@ void Url::Parser::parseQueryParams(Url::Parameters& params, oatpp::parser::Caret
 }
 
 void Url::Parser::parseQueryParams(Url::Parameters& params, const oatpp::String& str) {
-  oatpp::parser::Caret caret(str.getPtr());
+  oatpp::utils::parser::Caret caret(str.getPtr());
   parseQueryParams(params, caret);
 }
 
-Url::Parameters Url::Parser::parseQueryParams(oatpp::parser::Caret& caret) {
+Url::Parameters Url::Parser::parseQueryParams(oatpp::utils::parser::Caret& caret) {
   Url::Parameters params;
   parseQueryParams(params, caret);
   return params;
@@ -144,19 +144,23 @@ Url::Parameters Url::Parser::parseQueryParams(const oatpp::String& str) {
   return params;
 }
 
-Url Url::Parser::parseUrl(oatpp::parser::Caret& caret) {
+Url Url::Parser::parseUrl(oatpp::utils::parser::Caret& caret) {
 
   Url result;
 
   if(caret.findChar(':')) {
-    caret.setPosition(0);
-    result.scheme = parseScheme(caret);
-    caret.canContinueAtChar(':', 1);
+    if(caret.canContinueAtChar(':', 1) && !caret.isAtText("//", 2, true)) {
+      caret.setPosition(0);
+    } else {
+      caret.setPosition(0);
+      result.scheme = parseScheme(caret);
+      caret.canContinueAtChar(':', 1);
+    }
   } else {
     caret.setPosition(0);
   }
 
-  caret.isAtText((p_char8)"//", 2, true);
+  caret.isAtText("//", 2, true);
 
   if(!caret.isAtChar('/')) {
     result.authority = parseAuthority(caret);
@@ -169,7 +173,7 @@ Url Url::Parser::parseUrl(oatpp::parser::Caret& caret) {
 }
 
 Url Url::Parser::parseUrl(const oatpp::String& str) {
-  oatpp::parser::Caret caret(str);
+  oatpp::utils::parser::Caret caret(str);
   return parseUrl(caret);
 }
   

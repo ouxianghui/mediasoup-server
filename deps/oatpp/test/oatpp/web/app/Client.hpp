@@ -30,7 +30,7 @@
 #include "oatpp/web/client/ApiClient.hpp"
 #include "oatpp/web/protocol/http/outgoing/MultipartBody.hpp"
 #include "oatpp/encoding/Base64.hpp"
-#include "oatpp/core/macro/codegen.hpp"
+#include "oatpp/macro/codegen.hpp"
 
 namespace oatpp { namespace test { namespace web { namespace app {
   
@@ -62,6 +62,8 @@ public:
   API_CALL("GET", "enum/as-number", getHeaderEnumAsNumber, HEADER(Enum<AllowedPathParams>::AsNumber, enumValue, "enum"))
 
   API_CALL("POST", "echo", echoBody, BODY_STRING(String, body))
+  API_CALL("POST", "testBodyIsNull1", testBodyIsNull1, BODY_STRING(String, body))
+  API_CALL("POST", "testBodyIsNull2", testBodyIsNull2, BODY_STRING(String, body))
   API_CALL("GET", "header-value-set", headerValueSet, HEADER(String, valueSet, "X-VALUE-SET"))
 
   API_CALL("GET", "default-basic-authorization", defaultBasicAuthorization, AUTHORIZATION_BASIC(String, authString))
@@ -76,6 +78,8 @@ public:
 
   API_CALL("GET", "test/interceptors", getInterceptors)
 
+  API_CALL("GET", "test/errorhandling", getCaughtError)
+
   API_CALL_HEADERS(getDefaultHeaders1) {
     headers.put("X-DEFAULT", "hello_1");
   }
@@ -85,6 +89,10 @@ public:
     headers.put("X-DEFAULT", "hello_2");
   }
   API_CALL("GET", "default_headers/{param}", getDefaultHeaders2, PATH(String, param))
+
+  API_CALL("GET", "bundle", getBundle)
+
+  API_CALL("GET", "host_header", getHostHeader)
 
   API_CALL_ASYNC("GET", "/", getRootAsync)
   API_CALL_ASYNC("GET", "/", getRootAsyncWithCKA, HEADER(String, connection, "Connection"))

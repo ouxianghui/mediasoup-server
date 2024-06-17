@@ -38,12 +38,12 @@
  * *For details see:*
  * <ul>
  *   <li>[Data Transfer Object(DTO) component](https://oatpp.io/docs/components/dto/)</li>
- *   <li>&id:oatpp::data::mapping::type::Object;</li>
+ *   <li>&id:oatpp::data::type::Object;</li>
  * </ul>
  */
 
-#include "oatpp/core/macro/basic.hpp"
-#include "oatpp/core/macro/codegen.hpp"
+#include "oatpp/macro/basic.hpp"
+#include "oatpp/macro/codegen.hpp"
 
 #include "./dto/base_define.hpp"
 #include "./dto/enum_define.hpp"

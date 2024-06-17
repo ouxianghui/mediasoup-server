@@ -27,16 +27,25 @@
 
 #include "ContextConfigurer.hpp"
 
-#include "oatpp/core/Types.hpp"
+#include "oatpp/Types.hpp"
 
 namespace oatpp { namespace openssl { namespace configurer {
 
+/**
+ * Context configurer for private key file.
+ * @extends &id:oatpp::openssl::configurer::ContextConfigurer;.
+ */
 class PrivateKeyFile : public ContextConfigurer {
 private:
   oatpp::String m_filename;
   int m_filetype;
 public:
 
+  /**
+   * Constructor.
+   * @param filename
+   * @param filetype
+   */
   PrivateKeyFile(const oatpp::String& filename, int filetype = SSL_FILETYPE_PEM);
 
   void configure(SSL_CTX* ctx) override;

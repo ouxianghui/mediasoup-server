@@ -6,7 +6,8 @@
  *                (_____)(__)(__)(__)  |_|    |_|
  *
  *
- * Copyright 2018-present, Leonid Stryzhevskyi <lganzzzo@gmail.com>
+ * Copyright 2018-present, Leonid Stryzhevskyi <lganzzzo@gmail.com>,
+ * Matthias Haselmaier <mhaselmaier@gmail.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +26,9 @@
 #ifndef oatpp_openssl_Connection_hpp
 #define oatpp_openssl_Connection_hpp
 
-#include "oatpp/core/data/stream/Stream.hpp"
-#include "oatpp/core/data/buffer/FIFOBuffer.hpp"
+#include "oatpp/provider/Provider.hpp"
+#include "oatpp/data/stream/Stream.hpp"
+#include "oatpp/data/buffer/FIFOBuffer.hpp"
 
 #include <openssl/ssl.h>
 
@@ -71,7 +73,7 @@ private:
   BIO* m_rbio;
   BIO* m_wbio;
 private:
-  std::shared_ptr<oatpp::data::stream::IOStream> m_stream;
+  provider::ResourceHandle<data::stream::IOStream> m_stream;
 private:
   std::atomic<bool> m_initialized;
 private:
@@ -87,7 +89,7 @@ public:
    * @param ssl - pointer to OpenSSL ssl object;.
    * @param stream - underlying transport stream. &id:oatpp::data::stream::IOStream;.
    */
-  Connection(SSL* ssl, const std::shared_ptr<oatpp::data::stream::IOStream>& stream);
+  Connection(SSL* ssl, const provider::ResourceHandle<data::stream::IOStream>& stream);
 
   /**
    * Virtual destructor.
@@ -154,8 +156,14 @@ public:
    * Get the underlying transport stream.
    * @return
    */
-  std::shared_ptr<data::stream::IOStream> getTransportStream();
+  provider::ResourceHandle<data::stream::IOStream> getTransportStream();
   
+  /**
+   * Get the OpenSSL context.
+   * @return
+   */
+  SSL* getOpenSSLContext() const;
+
 };
   
 }}

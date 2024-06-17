@@ -33,7 +33,7 @@
 #include "oatpp/web/server/AsyncHttpConnectionHandler.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
 
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
+#include "oatpp/json/ObjectMapper.hpp"
 
 #include "oatpp/network/tcp/server/ConnectionProvider.hpp"
 #include "oatpp/network/tcp/client/ConnectionProvider.hpp"
@@ -42,7 +42,7 @@
 #include "oatpp/network/virtual_/server/ConnectionProvider.hpp"
 #include "oatpp/network/virtual_/Interface.hpp"
 
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/macro/component.hpp"
 
 #include "oatpp-test/web/ClientServerTestRunner.hpp"
 
@@ -72,9 +72,9 @@ public:
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ServerConnectionProvider>, serverConnectionProvider)([this] {
 
     if(m_port == 0) {
-      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, interface);
+      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, _interface);
       return std::static_pointer_cast<oatpp::network::ServerConnectionProvider>(
-        oatpp::network::virtual_::server::ConnectionProvider::createShared(interface)
+        oatpp::network::virtual_::server::ConnectionProvider::createShared(_interface)
       );
     }
 
@@ -90,20 +90,20 @@ public:
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ConnectionHandler>, serverConnectionHandler)([] {
     OATPP_COMPONENT(std::shared_ptr<oatpp::web::server::HttpRouter>, router);
-    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, executor);
-    return oatpp::web::server::AsyncHttpConnectionHandler::createShared(router, executor);
+    OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, executr);
+    return oatpp::web::server::AsyncHttpConnectionHandler::createShared(router, executr);
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, objectMapper)([] {
-    return oatpp::parser::json::mapping::ObjectMapper::createShared();
+    return std::make_shared<oatpp::json::ObjectMapper>();
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ClientConnectionProvider>, clientConnectionProvider)([this] {
 
     if(m_port == 0) {
-      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, interface);
+      OATPP_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, _interface);
       return std::static_pointer_cast<oatpp::network::ClientConnectionProvider>(
-        oatpp::network::virtual_::client::ConnectionProvider::createShared(interface)
+        oatpp::network::virtual_::client::ConnectionProvider::createShared(_interface)
       );
     }
 
@@ -115,13 +115,13 @@ public:
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<app::Client>, appClient)([] {
 
-    OATPP_COMPONENT(std::shared_ptr<oatpp::network::ClientConnectionProvider>, clientConnectionProvider);
-    OATPP_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, objectMapper);
+    OATPP_COMPONENT(std::shared_ptr<oatpp::network::ClientConnectionProvider>, clientConnectionProvidr);
+    OATPP_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, objMapper);
 
     auto retryPolicy = std::make_shared<oatpp::web::client::SimpleRetryPolicy>(5, std::chrono::seconds(1));
 
-    auto requestExecutor = oatpp::web::client::HttpRequestExecutor::createShared(clientConnectionProvider, retryPolicy);
-    return app::Client::createShared(requestExecutor, objectMapper);
+    auto requestExecutor = oatpp::web::client::HttpRequestExecutor::createShared(clientConnectionProvidr, retryPolicy);
+    return app::Client::createShared(requestExecutor, objMapper);
 
   }());
 
@@ -142,12 +142,12 @@ public:
   }
 
   Action onResponse(const std::shared_ptr<IncomingResponse>& response) {
-    OATPP_ASSERT(response->getStatusCode() == 200 && "ClientCoroutine_getRootAsync");
+    OATPP_ASSERT(response->getStatusCode() == 200 && "ClientCoroutine_getRootAsync")
     return response->readBodyToStringAsync().callbackTo(&ClientCoroutine_getRootAsync::onBodyRead);
   }
 
   Action onBodyRead(const oatpp::String& body) {
-    OATPP_ASSERT(body == "Hello World Async!!!");
+    OATPP_ASSERT(body == "Hello World Async!!!")
     ++ SUCCESS_COUNTER;
     return finish();
   }
@@ -155,11 +155,11 @@ public:
   Action handleError(Error* error) override {
     if(error->is<oatpp::AsyncIOError>()) {
       auto e = static_cast<oatpp::AsyncIOError*>(error);
-      OATPP_LOGE("[FullAsyncClientTest::ClientCoroutine_getRootAsync::handleError()]", "AsyncIOError. %s, %d", e->what(), e->getCode());
+      OATPP_LOGe("[FullAsyncClientTest::ClientCoroutine_getRootAsync::handleError()]", "AsyncIOError. {}, {}", e->what(), e->getCode())
     } else {
-      OATPP_LOGE("[FullAsyncClientTest::ClientCoroutine_getRootAsync::handleError()]", "Error. %s", error->what());
+      OATPP_LOGe("[FullAsyncClientTest::ClientCoroutine_getRootAsync::handleError()]", "Error. {}", error->what())
     }
-    OATPP_ASSERT(!"Error");
+    OATPP_ASSERT(!"Error")
     return error;
   }
 
@@ -183,13 +183,13 @@ public:
   }
 
   Action onResponse(const std::shared_ptr<IncomingResponse>& response) {
-    OATPP_ASSERT(response->getStatusCode() == 200 && "ClientCoroutine_postBodyAsync");
+    OATPP_ASSERT(response->getStatusCode() == 200 && "ClientCoroutine_postBodyAsync")
     return response->readBodyToDtoAsync<oatpp::Object<app::TestDto>>(objectMapper).callbackTo(&ClientCoroutine_postBodyAsync::onBodyRead);
   }
 
   Action onBodyRead(const oatpp::Object<app::TestDto>& body) {
-    OATPP_ASSERT(body);
-    OATPP_ASSERT(body->testValue == "my_test_body");
+    OATPP_ASSERT(body)
+    OATPP_ASSERT(body->testValue == "my_test_body")
     ++ SUCCESS_COUNTER;
     return finish();
   }
@@ -197,11 +197,11 @@ public:
   Action handleError(Error* error) override {
     if(error->is<oatpp::AsyncIOError>()) {
       auto e = static_cast<oatpp::AsyncIOError*>(error);
-      OATPP_LOGE("[FullAsyncClientTest::ClientCoroutine_postBodyAsync::handleError()]", "AsyncIOError. %s, %d", e->what(), e->getCode());
+      OATPP_LOGe("[FullAsyncClientTest::ClientCoroutine_postBodyAsync::handleError()]", "AsyncIOError. {}, {}", e->what(), e->getCode())
     } else {
-      OATPP_LOGE("[FullAsyncClientTest::ClientCoroutine_postBodyAsync::handleError()]", "Error. %s", error->what());
+      OATPP_LOGe("[FullAsyncClientTest::ClientCoroutine_postBodyAsync::handleError()]", "Error. {}", error->what())
     }
-    OATPP_ASSERT(!"Error");
+    OATPP_ASSERT(!"Error")
     return error;
   }
 
@@ -221,7 +221,7 @@ private:
 public:
 
   Action act() override {
-    oatpp::data::stream::ChunkedBuffer stream;
+    oatpp::data::stream::BufferOutputStream stream;
     for(v_int32 i = 0; i < oatpp::data::buffer::IOBuffer::BUFFER_SIZE; i++) {
       stream.writeSimple("0123456789", 10);
     }
@@ -230,12 +230,12 @@ public:
   }
 
   Action onResponse(const std::shared_ptr<IncomingResponse>& response) {
-    OATPP_ASSERT(response->getStatusCode() == 200 && "ClientCoroutine_echoBodyAsync");
+    OATPP_ASSERT(response->getStatusCode() == 200 && "ClientCoroutine_echoBodyAsync")
     return response->readBodyToStringAsync().callbackTo(&ClientCoroutine_echoBodyAsync::onBodyRead);
   }
 
   Action onBodyRead(const oatpp::String& body) {
-    OATPP_ASSERT(body == m_data);
+    OATPP_ASSERT(body == m_data)
     ++ SUCCESS_COUNTER;
     return finish();
   }
@@ -244,12 +244,12 @@ public:
     if(error) {
       if(error->is<oatpp::AsyncIOError>()) {
         auto e = static_cast<oatpp::AsyncIOError*>(error);
-        OATPP_LOGE("[FullAsyncClientTest::ClientCoroutine_echoBodyAsync::handleError()]", "AsyncIOError. %s, %d", e->what(), e->getCode());
+        OATPP_LOGe("[FullAsyncClientTest::ClientCoroutine_echoBodyAsync::handleError()]", "AsyncIOError. {}, {}", e->what(), e->getCode())
       } else {
-        OATPP_LOGE("[FullAsyncClientTest::ClientCoroutine_echoBodyAsync::handleError()]", "Error. %s", error->what());
+        OATPP_LOGe("[FullAsyncClientTest::ClientCoroutine_echoBodyAsync::handleError()]", "Error. {}", error->what())
       }
     }
-    OATPP_ASSERT(!"Error");
+    OATPP_ASSERT(!"Error")
     return error;
   }
 
@@ -267,7 +267,7 @@ void FullAsyncClientTest::onRun() {
 
   runner.addController(app::ControllerAsync::createShared());
 
-  runner.run([this, &runner] {
+  runner.run([this] {
 
     OATPP_COMPONENT(std::shared_ptr<oatpp::async::Executor>, executor);
 
@@ -289,31 +289,31 @@ void FullAsyncClientTest::onRun() {
       ClientCoroutine_echoBodyAsync::SUCCESS_COUNTER != -1
     ) {
 
-      OATPP_LOGV("Client", "Root=%d, postBody=%d, echoBody=%d",
+      OATPP_LOGv("Client", "Root={}, postBody={}, echoBody={}",
         ClientCoroutine_getRootAsync::SUCCESS_COUNTER.load(),
         ClientCoroutine_postBodyAsync::SUCCESS_COUNTER.load(),
         ClientCoroutine_echoBodyAsync::SUCCESS_COUNTER.load()
-      );
+      )
 
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
       if(ClientCoroutine_getRootAsync::SUCCESS_COUNTER == iterations){
         ClientCoroutine_getRootAsync::SUCCESS_COUNTER = -1;
-        OATPP_LOGV("Client", "getRootAsync - DONE!");
+        OATPP_LOGv("Client", "getRootAsync - DONE!")
       }
       if(ClientCoroutine_postBodyAsync::SUCCESS_COUNTER == iterations){
         ClientCoroutine_postBodyAsync::SUCCESS_COUNTER = -1;
-        OATPP_LOGV("Client", "postBodyAsync - DONE!");
+        OATPP_LOGv("Client", "postBodyAsync - DONE!")
       }
       if(ClientCoroutine_echoBodyAsync::SUCCESS_COUNTER == iterations){
         ClientCoroutine_echoBodyAsync::SUCCESS_COUNTER = -1;
-        OATPP_LOGV("Client", "echoBodyAsync - DONE!");
+        OATPP_LOGv("Client", "echoBodyAsync - DONE!")
       }
     }
 
-    OATPP_ASSERT(ClientCoroutine_getRootAsync::SUCCESS_COUNTER == -1); // -1 is success
-    OATPP_ASSERT(ClientCoroutine_postBodyAsync::SUCCESS_COUNTER == -1); // -1 is success
-    OATPP_ASSERT(ClientCoroutine_echoBodyAsync::SUCCESS_COUNTER == -1); // -1 is success
+    OATPP_ASSERT(ClientCoroutine_getRootAsync::SUCCESS_COUNTER == -1) // -1 is success
+    OATPP_ASSERT(ClientCoroutine_postBodyAsync::SUCCESS_COUNTER == -1) // -1 is success
+    OATPP_ASSERT(ClientCoroutine_echoBodyAsync::SUCCESS_COUNTER == -1) // -1 is success
 
     executor->waitTasksFinished(); // Wait executor tasks before quit.
     executor->stop();

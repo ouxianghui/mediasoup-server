@@ -8,7 +8,7 @@
 #include "oatpp-websocket/ConnectionHandler.hpp"
 #include "oatpp-websocket/WebSocket.hpp"
 
-#include "oatpp/core/data/stream/ChunkedBuffer.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
 
 namespace oatpp { namespace test { namespace websocket { namespace app {
 
@@ -16,21 +16,21 @@ class WebSocketListener : public oatpp::websocket::WebSocket::Listener {
 private:
   static constexpr const char *const TAG = "WebSocketListener";
 private:
-  oatpp::data::stream::ChunkedBuffer m_messageBuffer;
+  oatpp::data::stream::BufferOutputStream m_messageBuffer;
 public:
 
   void onPing(const WebSocket &socket, const oatpp::String &message) override {
-    OATPP_LOGD(TAG, "Ping frame received. Sending Pong back.");
+    OATPP_LOGd(TAG, "Ping frame received. Sending Pong back.");
     socket.sendPong("");
   }
 
   void onPong(const WebSocket &socket, const oatpp::String &message) override {
-    OATPP_LOGD(TAG, "Pong frame received. Do nothing.");
+    OATPP_LOGd(TAG, "Pong frame received. Do nothing.");
     // DO NOTHING
   }
 
   void onClose(const WebSocket &socket, v_uint16 code, const oatpp::String &message) override {
-    OATPP_LOGD(TAG, "Close frame received. Code=%hd, Message='%s'", code, message->c_str());
+    OATPP_LOGd(TAG, "Close frame received. Code={}, Message='{}'", code, message);
   }
 
   /**
@@ -41,9 +41,9 @@ public:
   void readMessage(const WebSocket &socket, v_uint8 opcode, p_char8 data, oatpp::v_io_size size) override {
     if (size == 0) {
       auto wholeMessage = m_messageBuffer.toString();
-      OATPP_LOGD(TAG, "Message='%s'", wholeMessage->c_str());
+      OATPP_LOGd(TAG, "Message='{}'", wholeMessage);
       socket.sendOneFrameText("Hello from oatpp! Your message was: " + wholeMessage);
-      m_messageBuffer.clear();
+      m_messageBuffer.setCurrentPosition(0);
     } else if (size > 0) {
       m_messageBuffer.writeSimple(data, size);
     }
@@ -60,7 +60,7 @@ public:
    *  Called when socket is created
    */
   void onAfterCreate(const oatpp::websocket::WebSocket &socket, const std::shared_ptr<const ParameterMap>& params) override {
-    OATPP_LOGD(TAG, "New incomming connection %d", &socket);
+    OATPP_LOGd(TAG, "New incoming connection {}", reinterpret_cast<v_uint64>(std::addressof(socket)));
 
     // set listener
     socket.setListener(std::make_shared<WebSocketListener>());
@@ -70,7 +70,7 @@ public:
    *  Called before socket instance is destroyed.
    */
   void onBeforeDestroy(const oatpp::websocket::WebSocket &socket) override {
-    OATPP_LOGD(TAG, "Closing connection %d", &socket);
+    OATPP_LOGd(TAG, "Closing connection {}", reinterpret_cast<v_uint64>(std::addressof(socket)));
   }
 
 };

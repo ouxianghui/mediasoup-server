@@ -72,7 +72,7 @@ void SchemaMigration::migrate() {
           break;
 
         case SOURCE_FILE:
-          script = base::StrBuffer::loadFromFile(source.param->c_str());
+          script = oatpp::String::loadFromFile(source.param->c_str());
           break;
 
         default:
@@ -86,6 +86,10 @@ void SchemaMigration::migrate() {
 
   }
 
+}
+
+v_int64 SchemaMigration::getSchemaVersion() {
+  return m_executor->getSchemaVersion(m_suffix);
 }
 
 }}

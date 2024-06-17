@@ -25,6 +25,7 @@
 #include "Connector.hpp"
 
 #include "./Handshaker.hpp"
+#include "oatpp/base/Log.hpp"
 
 namespace oatpp { namespace websocket {
 
@@ -33,14 +34,14 @@ Connector::Connector(const std::shared_ptr<oatpp::network::ClientConnectionProvi
   , m_requestExecutor(connectionProvider)
 {}
 
-std::shared_ptr<Connector::Connection> Connector::connect(const oatpp::String& path, const Headers& headers) {
+provider::ResourceHandle<Connector::Connection> Connector::connect(const oatpp::String& path, const Headers& headers) {
 
   auto connection = m_connectionProvider->get();
   if(!connection) {
     throw std::runtime_error("[oatpp::web::client::Connector::connectAndHandshake()]: Can't connect. Call to ConnectionProvider::get() failed.");
   }
 
-  auto connectionProxy = std::make_shared<web::client::HttpRequestExecutor::ConnectionProxy>(m_connectionProvider, connection);
+  auto connectionProxy = std::make_shared<web::client::HttpRequestExecutor::ConnectionProxy>(connection);
   auto connectionHandle = std::make_shared<web::client::HttpRequestExecutor::HttpConnectionHandle>(connectionProxy);
   
   Handshaker::Headers allHeaders;
@@ -57,7 +58,7 @@ std::shared_ptr<Connector::Connection> Connector::connect(const oatpp::String& p
   if(res == Handshaker::STATUS_OK) {
     return connection;
   } else if(res == Handshaker::STATUS_SERVER_ERROR) {
-    OATPP_LOGD("[oatpp::web::client::Connector::connectAndHandshake()]", "Server response code=%d", response->getStatusCode());
+    OATPP_LOGd("[oatpp::web::client::Connector::connectAndHandshake()]", "Server response code={}", response->getStatusCode());
     throw std::runtime_error("[oatpp::web::client::Connector::connectAndHandshake()]: Server responded with invalid code");
   } else if(res == Handshaker::STATUS_SERVER_WRONG_KEY) {
     throw std::runtime_error("[oatpp::web::client::Connector::connectAndHandshake()]: Server wrong handshake key");
@@ -69,14 +70,14 @@ std::shared_ptr<Connector::Connection> Connector::connect(const oatpp::String& p
   
 }
 
-oatpp::async::CoroutineStarterForResult<const std::shared_ptr<Connector::Connection>&> Connector::connectAsync(const oatpp::String& path, const Headers& headers) {
+oatpp::async::CoroutineStarterForResult<const provider::ResourceHandle<Connector::Connection>&> Connector::connectAsync(const oatpp::String& path, const Headers& headers) {
   
-  class ConnectCoroutine : public oatpp::async::CoroutineWithResult<ConnectCoroutine, const std::shared_ptr<Connection>&> {
+  class ConnectCoroutine : public oatpp::async::CoroutineWithResult<ConnectCoroutine, const provider::ResourceHandle<Connection>&> {
   private:
     std::shared_ptr<oatpp::network::ClientConnectionProvider> m_connectionProvider;
     oatpp::web::client::HttpRequestExecutor m_requestExecutor;
     oatpp::String m_path;
-    std::shared_ptr<Connection> m_connection;
+    provider::ResourceHandle<Connection> m_connection;
     Handshaker::Headers m_handshakeHeaders;
   public:
     
@@ -99,11 +100,11 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<Connector::Connect
       return m_connectionProvider->getAsync().callbackTo(&ConnectCoroutine::onConnected);
     }
     
-    Action onConnected(const std::shared_ptr<Connection>& connection) {
+    Action onConnected(const provider::ResourceHandle<Connection>& connection) {
       
       m_connection = connection;
 
-      auto connectionProxy = std::make_shared<web::client::HttpRequestExecutor::ConnectionProxy>(m_connectionProvider, connection);
+      auto connectionProxy = std::make_shared<web::client::HttpRequestExecutor::ConnectionProxy>(connection);
       auto connectionHandle = std::make_shared<web::client::HttpRequestExecutor::HttpConnectionHandle>(connectionProxy);
       Handshaker::clientsideHandshake(m_handshakeHeaders);
 

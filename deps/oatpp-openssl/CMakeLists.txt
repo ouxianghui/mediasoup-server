@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
 ###################################################################################################
 ## These variables are passed to oatpp-module-install.cmake script
 ## use these variables to configure module installation
 
 set(OATPP_THIS_MODULE_NAME oatpp-openssl) ## name of the module (also name of folders in installation dirs)
-set(OATPP_THIS_MODULE_VERSION "1.2.5") ## version of the module (also sufix of folders in installation dirs)
+set(OATPP_THIS_MODULE_VERSION "1.4.0") ## version of the module (also sufix of folders in installation dirs)
 set(OATPP_THIS_MODULE_LIBRARIES oatpp-openssl) ## list of libraries to find when find_package is called
 set(OATPP_THIS_MODULE_TARGETS oatpp-openssl) ## list of targets to install
 set(OATPP_THIS_MODULE_DIRECTORIES oatpp-openssl) ## list of directories to install
@@ -20,12 +20,11 @@ project(${OATPP_THIS_MODULE_NAME}
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(OATPP_DIR_SRC "Path to oatpp module directory (sources)")
 option(OATPP_DIR_LIB "Path to directory with liboatpp (directory containing ex: liboatpp.so or liboatpp.dynlib)")
-option(OATPP_BUILD_TESTS "Build tests for this module" OFF)
+option(OATPP_BUILD_TESTS "Build tests for this module" ON)
 option(OATPP_INSTALL "Install module binaries" ON)
-option(OPENSSL_INCLUDE_DIR "Path to oatpp module directory (OPENSSL_INCLUDE_DIR)")
-option(OPENSSL_LIBRARIES "Path to oatpp module directory (OPENSSL_LIBRARIES)")
-option(OPENSSL_VERSION "Path to oatpp module directory (OPENSSL_VERSION)")
-set(OATPP_MODULES_LOCATION "CUSTOM" CACHE STRING "Location where to find oatpp modules. can be [INSTALLED|EXTERNAL|CUSTOM]")
+option(OATPP_MSVC_LINK_STATIC_RUNTIME "MSVC: Link with static runtime (/MT and /MTd)." OFF)
+
+set(OATPP_MODULES_LOCATION "INSTALLED" CACHE STRING "Location where to find oatpp modules. can be [INSTALLED|EXTERNAL|CUSTOM]")
 
 ###################################################################################################
 ## get oatpp main module in specified location
@@ -43,8 +42,10 @@ if(OATPP_MODULES_LOCATION STREQUAL OATPP_MODULES_LOCATION_INSTALLED)
     get_target_property(OATPP_INCLUDE oatpp::oatpp INTERFACE_INCLUDE_DIRECTORIES)
     message("OATPP_INCLUDE=${OATPP_INCLUDE}")
 
-    get_target_property(OATPP_TEST_INCLUDE oatpp::oatpp-test INTERFACE_INCLUDE_DIRECTORIES)
-    message("OATPP_TEST_INCLUDE=${OATPP_TEST_INCLUDE}")
+    if(OATPP_BUILD_TESTS)
+        get_target_property(OATPP_TEST_INCLUDE oatpp::oatpp-test INTERFACE_INCLUDE_DIRECTORIES)
+        message("OATPP_TEST_INCLUDE=${OATPP_TEST_INCLUDE}")
+    endif()
 
 elseif(OATPP_MODULES_LOCATION STREQUAL OATPP_MODULES_LOCATION_EXTERNAL)
 
@@ -88,6 +89,9 @@ endif()
 
 include(cmake/module-utils.cmake)
 
+include(cmake/msvc-runtime.cmake)
+configure_msvc_runtime()
+
 ###################################################################################################
 ## get dependencies
 
@@ -97,7 +101,7 @@ message("## ${OATPP_THIS_MODULE_NAME} module. Resolving dependencies...\n")
 ##############################
 ## Find Openssl dependency
 
-#find_package(OpenSSL 1.1 REQUIRED)
+find_package(OpenSSL 1.1 REQUIRED)
 
 message("OPENSSL_INCLUDE_DIR=${OPENSSL_INCLUDE_DIR}")
 message("OPENSSL_LIBRARIES=${OPENSSL_LIBRARIES}")
@@ -108,9 +112,9 @@ message("\n#####################################################################
 ###################################################################################################
 ## define targets
 
-add_subdirectory("src")
+add_subdirectory(src)
 
 if(OATPP_BUILD_TESTS)
     enable_testing()
-    add_subdirectory("test")
+    add_subdirectory(test)
 endif()

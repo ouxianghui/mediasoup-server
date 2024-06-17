@@ -49,6 +49,9 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
 
 set(PROJECT_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/release/include 
+${CMAKE_CURRENT_SOURCE_DIR}/release/include/oatpp-1.4.0/oatpp
+${CMAKE_CURRENT_SOURCE_DIR}/release/include/oatpp-1.4.0/oatpp-openssl
+${CMAKE_CURRENT_SOURCE_DIR}/release/include/oatpp-1.4.0/oatpp-websocket
 ${CMAKE_CURRENT_SOURCE_DIR}/worker/include 
 ${CMAKE_CURRENT_SOURCE_DIR}/release/include/concurrentqueue
 ${CMAKE_CURRENT_SOURCE_DIR}/deps/json/single_include

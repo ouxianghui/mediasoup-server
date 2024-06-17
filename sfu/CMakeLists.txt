@@ -111,9 +111,9 @@ target_link_libraries(${PROJECT_NAME}
     libworker.a
     libcontroller.a
     # ${PROJECT_LIB_DIR}/liburing.a
-    ${PROJECT_LIB_DIR}/liboatpp-websocket.a
-    ${PROJECT_LIB_DIR}/liboatpp.a
-    ${PROJECT_LIB_DIR}/liboatpp-openssl.a
+    ${PROJECT_LIB_DIR}/oatpp-1.4.0/liboatpp-websocket.a
+    ${PROJECT_LIB_DIR}/oatpp-1.4.0/liboatpp.a
+    ${PROJECT_LIB_DIR}/oatpp-1.4.0/liboatpp-openssl.a
     ${PROJECT_LIB_DIR}/libuv.a
     ${PROJECT_LIB_DIR}/libssl.a
     ${PROJECT_LIB_DIR}/libcrypto.a
@@ -141,9 +141,9 @@ target_link_libraries(${PROJECT_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libworker.a
     ${CMAKE_CURRENT_SOURCE_DIR}/../build/${CMAKE_BUILD_TYPE}/libcontroller.a
     ${PROJECT_LIB_DIR}/liburing.a
-    ${PROJECT_LIB_DIR}/liboatpp-websocket.a
-    ${PROJECT_LIB_DIR}/liboatpp.a
-    ${PROJECT_LIB_DIR}/liboatpp-openssl.a
+    ${PROJECT_LIB_DIR}/oatpp-1.4.0/liboatpp-websocket.a
+    ${PROJECT_LIB_DIR}/oatpp-1.4.0/liboatpp.a
+    ${PROJECT_LIB_DIR}/oatpp-1.4.0/liboatpp-openssl.a
     ${PROJECT_LIB_DIR}/libuv.a
     ${PROJECT_LIB_DIR}/libssl.a
     ${PROJECT_LIB_DIR}/libcrypto.a

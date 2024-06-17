@@ -28,8 +28,8 @@
 #include "Executor.hpp"
 #include "Transaction.hpp"
 
-#include "oatpp/core/data/stream/Stream.hpp"
-#include "oatpp/core/Types.hpp"
+#include "oatpp/data/stream/Stream.hpp"
+#include "oatpp/Types.hpp"
 
 namespace oatpp { namespace orm {
 
@@ -58,7 +58,7 @@ public:
    * Get database connection.
    * @return
    */
-  std::shared_ptr<Connection> getConnection();
+  provider::ResourceHandle<Connection> getConnection();
 
   /**
    * Set enabled type interpretations.
@@ -94,7 +94,7 @@ public:
    */
   std::shared_ptr<QueryResult> execute(const data::share::StringTemplate& queryTemplate,
                                        const std::unordered_map<oatpp::String, oatpp::Void>& params,
-                                       const std::shared_ptr<Connection>& connection = nullptr);
+                                       const provider::ResourceHandle<Connection>& connection = nullptr);
 
   /**
    * Execute arbitrary query.
@@ -105,14 +105,14 @@ public:
    */
   std::shared_ptr<QueryResult> executeQuery(const oatpp::String& query,
                                             const std::unordered_map<oatpp::String, oatpp::Void>& params,
-                                            const std::shared_ptr<Connection>& connection = nullptr);
+                                            const provider::ResourceHandle<Connection>& connection = nullptr);
 
   /**
    * Begin database transaction.
    * @param connection - database connection.
    * @return - &id:oatpp::orm::Transaction;.
    */
-  Transaction beginTransaction(const std::shared_ptr<Connection>& connection = nullptr);
+  Transaction beginTransaction(const provider::ResourceHandle<Connection>& connection = nullptr);
 
 };
 

@@ -25,8 +25,8 @@
 #ifndef oatpp_web_mime_multipart_Part_hpp
 #define oatpp_web_mime_multipart_Part_hpp
 
-#include "oatpp/core/data/share/LazyStringMap.hpp"
-#include "oatpp/core/data/stream/Stream.hpp"
+#include "oatpp/data/share/LazyStringMap.hpp"
+#include "oatpp/data/resource/Resource.hpp"
 
 namespace oatpp { namespace web { namespace mime { namespace multipart {
 
@@ -39,57 +39,40 @@ public:
    * Typedef for headers map. Headers map key is case-insensitive.
    * For more info see &id:oatpp::data::share::LazyStringMap;.
    */
-  typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI_FAST> Headers;
+  typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI> Headers;
 private:
   oatpp::String m_name;
   oatpp::String m_filename;
   Headers m_headers;
-  std::shared_ptr<data::stream::InputStream> m_inputStream;
-  oatpp::String m_inMemoryData;
-  v_int64 m_knownSize;
+  std::shared_ptr<data::resource::Resource> m_payload;
 private:
   const char* m_tagName;
   std::shared_ptr<oatpp::base::Countable> m_tagObject;
 public:
 
   /**
-   * Constructor.
-   * @param headers - headers of the part.
-   * @param inputStream - input stream of the part data.
-   * @param inMemoryData - possible in-memory data of the part. Same data as the referred by input stream. For convenience purposes.
-   * @param knownSize - known size of the data in the input stream. Pass `-1` value if size is unknown.
-   */
-  Part(const Headers& headers,
-       const std::shared_ptr<data::stream::InputStream>& inputStream,
-       const oatpp::String& inMemoryData,
-       v_int64 knownSize);
-
-  /**
-   * Constructor.
-   * @param headers - headers of the part.
-   */
-  Part(const Headers& headers);
-
-  /**
    * Default constructor.
    */
-  Part();
+  Part() = default;
 
   /**
-   * Set part data info.
-   * @param inputStream - input stream of the part data.
-   * @param inMemoryData - possible in-memory data of the part. Same data as the referred by input stream. For convenience purposes.
-   * @param knownSize - known size of the data in the input stream. Pass `-1` value if size is unknown.
+   * Constructor.
+   * @param headers - headers of the part.
+   * @param payload - part payload.
    */
-  void setDataInfo(const std::shared_ptr<data::stream::InputStream>& inputStream,
-                   const oatpp::String& inMemoryData,
-                   v_int64 knownSize);
+  Part(const Headers& headers, const std::shared_ptr<data::resource::Resource>& payload = nullptr);
 
   /**
-   * Same as `setDataInfo(inputStream, nullptr, -1);.`
-   * @param inputStream - input stream of the part data.
+   * Set payload.
+   * @param payload
    */
-  void setDataInfo(const std::shared_ptr<data::stream::InputStream>& inputStream);
+  void setPayload(const std::shared_ptr<data::resource::Resource>& payload);
+
+  /**
+   * Get payload.
+   * @return
+   */
+  std::shared_ptr<data::resource::Resource> getPayload();
 
   /**
    * Get name of the part.
@@ -114,42 +97,22 @@ public:
    * @param headerName
    * @return header value
    */
-  oatpp::String getHeader(const oatpp::data::share::StringKeyLabelCI_FAST& headerName) const;
+  oatpp::String getHeader(const oatpp::data::share::StringKeyLabelCI& headerName) const;
 
   /**
    * Add http header.
-   * @param key - &id:oatpp::data::share::StringKeyLabelCI_FAST;.
+   * @param key - &id:oatpp::data::share::StringKeyLabelCI;.
    * @param value - &id:oatpp::data::share::StringKeyLabel;.
    */
-  void putHeader(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value);
+  void putHeader(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value);
 
   /**
    * Add http header if not already exists.
-   * @param key - &id:oatpp::data::share::StringKeyLabelCI_FAST;.
+   * @param key - &id:oatpp::data::share::StringKeyLabelCI;.
    * @param value - &id:oatpp::data::share::StringKeyLabel;.
    * @return - `true` if header was added.
    */
-  bool putHeaderIfNotExists(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value);
-
-  /**
-   * Get input stream of the part data.
-   * @return - input stream of the part data.
-   */
-  std::shared_ptr<data::stream::InputStream> getInputStream() const;
-
-  /**
-   * Get in-memory data (if applicable). <br>
-   * It may be possible set for the part in case of storing part data in memory. <br>
-   * This property is optional. Preferred way to access data of the part is through `getInputStream()` method.
-   * @return - in-memory data.
-   */
-  oatpp::String getInMemoryData() const;
-
-  /**
-   * Return known size of the part data.
-   * @return - known size of the part data. `-1` - if size is unknown.
-   */
-  v_int64 getKnownSize() const;
+  bool putHeaderIfNotExists(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value);
 
   /**
    * Tag-object - object used to associate some data with the Part. <br>

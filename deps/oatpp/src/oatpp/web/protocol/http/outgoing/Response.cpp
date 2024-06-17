@@ -25,7 +25,7 @@
 #include "./Response.hpp"
 
 #include "oatpp/web/protocol/http/encoding/Chunked.hpp"
-#include "oatpp/core/utils/ConversionUtils.hpp"
+#include "oatpp/utils/Conversion.hpp"
 
 namespace oatpp { namespace web { namespace protocol { namespace http { namespace outgoing {
 
@@ -37,7 +37,7 @@ Response::Response(const Status& status,
 
 std::shared_ptr<Response> Response::createShared(const Status& status,
                                                  const std::shared_ptr<Body>& body) {
-  return Shared_Outgoing_Response_Pool::allocateShared(status, body);
+  return std::make_shared<Response>(status, body);
 }
 
 const Status& Response::getStatus() const {
@@ -46,6 +46,10 @@ const Status& Response::getStatus() const {
 
 protocol::http::Headers& Response::getHeaders() {
   return m_headers;
+}
+
+std::shared_ptr<Body> Response::getBody() const {
+  return m_body;
 }
 
 void Response::putHeader(const oatpp::String& key, const oatpp::String& value) {
@@ -60,21 +64,29 @@ bool Response::putOrReplaceHeader(const String &key, const String &value) {
   return m_headers.putOrReplace(key, value);
 }
 
-bool Response::putOrReplaceHeader_Unsafe(const data::share::StringKeyLabelCI_FAST &key,
+bool Response::putOrReplaceHeader_Unsafe(const data::share::StringKeyLabelCI& key,
                                          const data::share::StringKeyLabel &value) {
   return m_headers.putOrReplace(key, value);
 }
 
-void Response::putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value) {
+void Response::putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value) {
   m_headers.put(key, value);
 }
 
-bool Response::putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value) {
+bool Response::putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value) {
   return m_headers.putIfNotExists(key, value);
 }
 
-oatpp::String Response::getHeader(const oatpp::data::share::StringKeyLabelCI_FAST& headerName) const {
+oatpp::String Response::getHeader(const oatpp::data::share::StringKeyLabelCI& headerName) const {
   return m_headers.get(headerName);
+}
+
+void Response::putBundleData(const oatpp::String& key, const oatpp::Void& polymorph) {
+  m_bundle.put(key, polymorph);
+}
+
+const data::Bundle& Response::getBundle() const {
+  return m_bundle;
 }
 
 void Response::setConnectionUpgradeHandler(const std::shared_ptr<oatpp::network::ConnectionHandler>& handler) {
@@ -109,7 +121,7 @@ void Response::send(data::stream::OutputStream* stream,
       bodySize = m_body->getKnownSize();
 
       if (bodySize >= 0) {
-        m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::conversion::int64ToStr(bodySize));
+        m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::Conversion::int64ToStr(bodySize));
       } else {
         m_headers.put_LockFree(Header::TRANSFER_ENCODING, Header::Value::TRANSFER_ENCODING_CHUNKED);
       }
@@ -226,7 +238,7 @@ oatpp::async::CoroutineStarter Response::sendAsync(const std::shared_ptr<Respons
           bodySize = m_this->m_body->getKnownSize();
 
           if (bodySize >= 0) {
-            m_this->m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::conversion::int64ToStr(bodySize));
+            m_this->m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::Conversion::int64ToStr(bodySize));
           } else {
             m_this->m_headers.put_LockFree(Header::TRANSFER_ENCODING, Header::Value::TRANSFER_ENCODING_CHUNKED);
           }

@@ -25,6 +25,7 @@
 #ifndef oatpp_web_server_handler_ErrorHandler_hpp
 #define oatpp_web_server_handler_ErrorHandler_hpp
 
+#include "oatpp/web/protocol/http/incoming/Request.hpp"
 #include "oatpp/web/protocol/http/outgoing/Response.hpp"
 #include "oatpp/web/protocol/http/Http.hpp"
 
@@ -42,29 +43,17 @@ public:
   typedef web::protocol::http::Headers Headers;
 public:
   /**
-   * Virtual destructor since the class is ment to be derived from.
+   * Virtual destructor since the class is meant to be derived from.
    * */
   virtual ~ErrorHandler() = default;
 
   /**
    * Implement this method!
-   * @param status - &id:oatpp::web::protocol::http::Status;.
-   * @param message - &id:oatpp::String;.
-   * @param Headers - &id:oatpp::web::protocol::http::Headers;
+   * @param exceptionPtr - `std::exception_ptr`.
    * @return - std::shared_ptr to &id:oatpp::web::protocol::http::outgoing::Response;.
    */
-  virtual
-  std::shared_ptr<protocol::http::outgoing::Response>
-  handleError(const protocol::http::Status& status, const oatpp::String& message, const Headers& headers) = 0;
+  virtual std::shared_ptr<protocol::http::outgoing::Response> handleError(const std::exception_ptr& exceptionPtr) = 0;
 
-  /**
-   * Convenience method to call `handleError` method with no headers.
-   * @param status - &id:oatpp::web::protocol::http::Status;
-   * @param message - &id:oatpp::String;.
-   * @return - std::shared_ptr to &id:oatpp::web::protocol::http::outgoing::Response;.
-   */
-  std::shared_ptr<protocol::http::outgoing::Response> handleError(const protocol::http::Status& status, const oatpp::String& message);
-  
 };
 
 /**
@@ -72,29 +61,32 @@ public:
  */
 class DefaultErrorHandler : public oatpp::base::Countable, public ErrorHandler {
 public:
-  /**
-   * Constructor.
-   */
-  DefaultErrorHandler()
-  {}
+
+  struct HttpServerErrorStacktrace {
+    std::shared_ptr<protocol::http::incoming::Request> request;
+    protocol::http::Status status;
+    Headers headers;
+    std::list<oatpp::String> stack;
+  };
+
+private:
+  void unwrapErrorStack(HttpServerErrorStacktrace& stacktrace, const std::exception& e);
 public:
 
   /**
-   * Create shared DefaultErrorHandler.
-   * @return - `std::shared_ptr` to DefaultErrorHandler.
+   * Constructor.
    */
-  static std::shared_ptr<DefaultErrorHandler> createShared() {
-    return std::make_shared<DefaultErrorHandler>();
-  }
+  DefaultErrorHandler() = default;
+
+  std::shared_ptr<protocol::http::outgoing::Response> handleError(const std::exception_ptr& error) override;
 
   /**
-   * Implementation of &l:ErrorHandler::handleError ();
-   * @param status - &id:oatpp::web::protocol::http::Status;.
-   * @param message - &id:oatpp::String;.
-   * @return - &id:oatpp::web::protocol::http::outgoing::Response;.
+   * Reimplement this method for custom error rendering.
+   * Render error method.
+   * @param stacktrace
+   * @return
    */
-  std::shared_ptr<protocol::http::outgoing::Response>
-  handleError(const protocol::http::Status& status, const oatpp::String& message, const Headers& headers) override;
+  virtual std::shared_ptr<protocol::http::outgoing::Response> renderError(const HttpServerErrorStacktrace& stacktrace);
 
 };
   

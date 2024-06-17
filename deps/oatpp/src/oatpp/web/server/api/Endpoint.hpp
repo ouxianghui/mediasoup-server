@@ -22,8 +22,8 @@
  *
  ***************************************************************************/
 
-#ifndef oatpp_web_server_rest_Endpoint_hpp
-#define oatpp_web_server_rest_Endpoint_hpp
+#ifndef oatpp_web_server_api_Endpoint_hpp
+#define oatpp_web_server_api_Endpoint_hpp
 
 #include "oatpp/web/server/HttpRequestHandler.hpp"
 
@@ -58,10 +58,10 @@ public:
     struct Param {
       
       Param();
-      Param(const oatpp::String& pName, oatpp::data::mapping::type::Type* pType);
+      Param(const oatpp::String& pName, oatpp::data::type::Type* pType);
 
       oatpp::String name;
-      oatpp::data::mapping::type::Type* type;
+      oatpp::data::type::Type* type;
 
       oatpp::String description;
       oatpp::Boolean required = true;
@@ -92,17 +92,17 @@ public:
        * @param name
        * @return new or existing parameter
        */
-      Param& add(const oatpp::String& name, oatpp::data::mapping::type::Type* type);
+      Param& add(const oatpp::String& name, oatpp::data::type::Type* type);
 
       /**
        * Add parameter name to list order
        * @tparam T
-       * @param name
+       * @param aname
        * @return new or existing parameter
        */
       template<class T>
-      Param& add(const oatpp::String& name) {
-        return add(name, T::Class::getType());
+      Param& add(const oatpp::String& aname) {
+        return add(aname, T::Class::getType());
       }
 
       /**
@@ -119,7 +119,7 @@ public:
      */
     struct ContentHints {
       oatpp::String contentType;
-      oatpp::data::mapping::type::Type* schema;
+      oatpp::data::type::Type* schema;
       oatpp::String description;
       std::list<std::pair<oatpp::String, oatpp::Any>> examples;
 
@@ -231,8 +231,8 @@ public:
      * @param contentType
      */
     template<class Wrapper>
-    ContentHints& addConsumes(const oatpp::String& contentType, const oatpp::String& description = oatpp::String()) {
-      consumes.push_back({contentType, Wrapper::Class::getType(), description});
+    ContentHints& addConsumes(const oatpp::String& contentType, const oatpp::String& desc = oatpp::String()) {
+      consumes.push_back({contentType, Wrapper::Class::getType(), desc});
       return consumes.back();
     }
 
@@ -249,6 +249,17 @@ public:
       hint.contentType = contentType;
       hint.description = responseDescription.get() == nullptr ? status.description : responseDescription;
       hint.schema = Wrapper::Class::getType();
+      return hint;
+    }
+
+    /**
+     * Add response info with no message-body to endpoint
+     * @param status
+     * @param responseDescription
+     */
+    ContentHints& addResponse(const oatpp::web::protocol::http::Status& status, const oatpp::String& responseDescription = oatpp::String()) {
+      auto& hint = responses[status];
+      hint.description = responseDescription.get() == nullptr ? status.description : responseDescription;
       return hint;
     }
 
@@ -286,7 +297,20 @@ private:
   std::function<std::shared_ptr<Endpoint::Info>()> m_infoBuilder;
   
 };
+
+/**
+ * Collection of endpoints.
+ */
+struct Endpoints {
+
+  std::list<std::shared_ptr<Endpoint>> list;
+
+  void append(const std::list<std::shared_ptr<Endpoint>>& endpoints);
+  void append(const Endpoints& endpoints);
+  void append(const std::shared_ptr<Endpoint>& endpoint);
+
+};
   
 }}}}
 
-#endif /* oatpp_web_server_rest_Endpoint_hpp */
+#endif /* oatpp_web_server_api_Endpoint_hpp */

@@ -30,13 +30,14 @@
 
 #include "oatpp-openssl/client/ConnectionProvider.hpp"
 #include "oatpp-openssl/server/ConnectionProvider.hpp"
+#include "oatpp-openssl/configurer/TrustStore.hpp"
 
 #include "oatpp/web/client/HttpRequestExecutor.hpp"
 
 #include "oatpp/web/server/AsyncHttpConnectionHandler.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
 
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
+#include "oatpp/json/ObjectMapper.hpp"
 
 #include "oatpp/network/tcp/server/ConnectionProvider.hpp"
 #include "oatpp/network/tcp/client/ConnectionProvider.hpp"
@@ -45,7 +46,7 @@
 #include "oatpp/network/virtual_/server/ConnectionProvider.hpp"
 #include "oatpp/network/virtual_/Interface.hpp"
 
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/macro/component.hpp"
 
 #include "oatpp-test/web/ClientServerTestRunner.hpp"
 
@@ -81,8 +82,8 @@ public:
       streamProvider = oatpp::network::tcp::server::ConnectionProvider::createShared({"localhost", m_port});
     }
 
-    OATPP_LOGD("oatpp::openssl::Config", "pem='%s'", CERT_PEM_PATH);
-    OATPP_LOGD("oatpp::openssl::Config", "crt='%s'", CERT_CRT_PATH);
+    OATPP_LOGd("oatpp::openssl::Config", "pem='{}'", CERT_PEM_PATH);
+    OATPP_LOGd("oatpp::openssl::Config", "crt='{}'", CERT_CRT_PATH);
 
     auto config = oatpp::openssl::Config::createDefaultServerConfigShared(CERT_CRT_PATH, CERT_PEM_PATH);
     return oatpp::openssl::server::ConnectionProvider::createShared(config, streamProvider);
@@ -100,7 +101,7 @@ public:
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, objectMapper)([] {
-    return oatpp::parser::json::mapping::ObjectMapper::createShared();
+    return std::make_shared<oatpp::json::ObjectMapper>();
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ClientConnectionProvider>, clientConnectionProvider)([this] {
@@ -115,6 +116,8 @@ public:
     }
 
     auto config = oatpp::openssl::Config::createDefaultClientConfigShared();
+    OATPP_LOGd("oatpp::openssl::Config", "trust='{}'", CERT_CRT_PATH);
+    config->addContextConfigurer(std::make_shared<oatpp::openssl::configurer::TrustStore>(CERT_CRT_PATH, nullptr));
     return oatpp::openssl::client::ConnectionProvider::createShared(config, streamProvider);
 
   }());
@@ -144,7 +147,7 @@ void FullAsyncTest::onRun() {
 
     v_int32 iterationsStep = m_iterationsPerStep;
 
-    auto lastTick = oatpp::base::Environment::getMicroTickCount();
+    auto lastTick = oatpp::Environment::getMicroTickCount();
 
     for(v_int32 i = 0; i < iterationsStep * 10; i ++) {
 
@@ -182,7 +185,7 @@ void FullAsyncTest::onRun() {
       }
 
       { // test Big Echo with body
-        oatpp::data::stream::ChunkedBuffer stream;
+        oatpp::data::stream::BufferOutputStream stream;
         for(v_int32 i = 0; i < oatpp::data::buffer::IOBuffer::BUFFER_SIZE; i++) {
           stream.writeSimple("0123456789", 10);
         }
@@ -197,9 +200,9 @@ void FullAsyncTest::onRun() {
       }
 
       if((i + 1) % iterationsStep == 0) {
-        auto ticks = oatpp::base::Environment::getMicroTickCount() - lastTick;
-        lastTick = oatpp::base::Environment::getMicroTickCount();
-        OATPP_LOGD("i", "%d, tick=%d", i + 1, ticks);
+        auto ticks = oatpp::Environment::getMicroTickCount() - lastTick;
+        lastTick = oatpp::Environment::getMicroTickCount();
+        OATPP_LOGd("i", "{}, tick={}", i + 1, ticks);
       }
       
     }

@@ -9,6 +9,7 @@
 
 #include "statistics.hpp"
 #include <thread>
+#include "oatpp/Environment.hpp"
 
 void Statistics::takeSample()
 {
@@ -17,7 +18,7 @@ void Statistics::takeSample()
 
     std::lock_guard<std::mutex> guard(_dataLock);
 
-    auto nowMicro = oatpp::base::Environment::getMicroTickCount();
+    auto nowMicro = oatpp::Environment::getMicroTickCount();
 
     oatpp::Object<StatPointDto> point;
 

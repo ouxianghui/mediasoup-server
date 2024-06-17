@@ -25,14 +25,17 @@
 #include "./ConnectionProvider.hpp"
 
 #include "oatpp/network/tcp/Connection.hpp"
-#include "oatpp/core/utils/ConversionUtils.hpp"
+#include "oatpp/utils/Conversion.hpp"
+#include "oatpp/base/Log.hpp"
 
 #include <fcntl.h>
+#include <errno.h>
+#include <string.h>
 
 #if defined(WIN32) || defined(_WIN32)
   #include <io.h>
-  #include <WinSock2.h>
-  #include <WS2tcpip.h>
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
 #else
   #include <netdb.h>
   #include <arpa/inet.h>
@@ -42,20 +45,46 @@
 
 namespace oatpp { namespace network { namespace tcp { namespace client {
 
-ConnectionProvider::ConnectionProvider(const network::Address& address)
-  : m_address(address)
-{
-  setProperty(PROPERTY_HOST, address.host);
-  setProperty(PROPERTY_PORT, oatpp::utils::conversion::int32ToStr(address.port));
+void ConnectionProvider::ConnectionInvalidator::invalidate(const std::shared_ptr<data::stream::IOStream>& connection) {
+
+  /************************************************
+   * WARNING!!!
+   *
+   * shutdown(handle, SHUT_RDWR)    <--- DO!
+   * close(handle);                 <--- DO NOT!
+   *
+   * DO NOT CLOSE file handle here -
+   * USE shutdown instead.
+   * Using close prevent FDs popping out of epoll,
+   * and they'll be stuck there forever.
+   ************************************************/
+
+  auto c = std::static_pointer_cast<network::tcp::Connection>(connection);
+  v_io_handle handle = c->getHandle();
+
+#if defined(WIN32) || defined(_WIN32)
+  shutdown(handle, SD_BOTH);
+#else
+  shutdown(handle, SHUT_RDWR);
+#endif
+
 }
 
-std::shared_ptr<oatpp::data::stream::IOStream> ConnectionProvider::get() {
+ConnectionProvider::ConnectionProvider(const network::Address& address)
+  : m_invalidator(std::make_shared<ConnectionInvalidator>())
+  , m_address(address)
+{
+  setProperty(PROPERTY_HOST, address.host);
+  setProperty(PROPERTY_PORT, oatpp::utils::Conversion::int32ToStr(address.port));
+}
 
-  auto portStr = oatpp::utils::conversion::int32ToStr(m_address.port);
+provider::ResourceHandle<data::stream::IOStream> ConnectionProvider::get() {
 
-  struct addrinfo hints;
+  auto portStr = oatpp::utils::Conversion::int32ToStr(m_address.port);
 
-  memset(&hints, 0, sizeof(struct addrinfo));
+  addrinfo hints;
+
+  memset(&hints, 0, sizeof(addrinfo));
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = 0;
   hints.ai_protocol = 0;
@@ -63,11 +92,12 @@ std::shared_ptr<oatpp::data::stream::IOStream> ConnectionProvider::get() {
   switch(m_address.family) {
     case Address::IP_4: hints.ai_family = AF_INET; break;
     case Address::IP_6: hints.ai_family = AF_INET6; break;
+    case Address::UNSPEC:
     default:
       hints.ai_family = AF_UNSPEC;
   }
 
-  struct addrinfo* result;
+  addrinfo* result;
   auto res = getaddrinfo(m_address.host->c_str(), portStr->c_str(), &hints, &result);
 
   if (res != 0) {
@@ -84,8 +114,9 @@ std::shared_ptr<oatpp::data::stream::IOStream> ConnectionProvider::get() {
     throw std::runtime_error("[oatpp::network::tcp::client::ConnectionProvider::getConnection()]. Error. Call to getaddrinfo() returned no results.");
   }
 
-  struct addrinfo* currResult = result;
+  addrinfo* currResult = result;
   oatpp::v_io_handle clientHandle = INVALID_IO_HANDLE;
+  int err = 0;
 
   while(currResult != nullptr) {
 
@@ -93,9 +124,10 @@ std::shared_ptr<oatpp::data::stream::IOStream> ConnectionProvider::get() {
 
     if(clientHandle >= 0) {
 
-      if(connect(clientHandle, currResult->ai_addr, (int)currResult->ai_addrlen) == 0) {
+      if(connect(clientHandle, currResult->ai_addr, currResult->ai_addrlen) == 0) {
         break;
       } else {
+          err = errno;
 #if defined(WIN32) || defined(_WIN32)
 		    ::closesocket(clientHandle);
 #else
@@ -112,41 +144,48 @@ std::shared_ptr<oatpp::data::stream::IOStream> ConnectionProvider::get() {
   freeaddrinfo(result);
 
   if(currResult == nullptr) {
-    throw std::runtime_error("[oatpp::network::tcp::client::ConnectionProvider::getConnection()]: Error. Can't connect.");
+    throw std::runtime_error("[oatpp::network::tcp::client::ConnectionProvider::getConnection()]: Error. Can't connect: " +
+                                 std::string(strerror(err)));
   }
 
 #ifdef SO_NOSIGPIPE
   int yes = 1;
   v_int32 ret = setsockopt(clientHandle, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(int));
   if(ret < 0) {
-    OATPP_LOGD("[oatpp::network::tcp::client::ConnectionProvider::getConnection()]", "Warning. Failed to set %s for socket", "SO_NOSIGPIPE");
+    OATPP_LOGd("[oatpp::network::tcp::client::ConnectionProvider::getConnection()]", "Warning. Failed to set {} for socket", "SO_NOSIGPIPE")
   }
 #endif
 
-  return std::make_shared<oatpp::network::tcp::Connection>(clientHandle);
+  return provider::ResourceHandle<data::stream::IOStream>(
+      std::make_shared<oatpp::network::tcp::Connection>(clientHandle),
+      m_invalidator
+  );
 
 }
 
-oatpp::async::CoroutineStarterForResult<const std::shared_ptr<oatpp::data::stream::IOStream>&> ConnectionProvider::getAsync() {
+oatpp::async::CoroutineStarterForResult<const provider::ResourceHandle<data::stream::IOStream>&> ConnectionProvider::getAsync() {
 
-  class ConnectCoroutine : public oatpp::async::CoroutineWithResult<ConnectCoroutine, const std::shared_ptr<oatpp::data::stream::IOStream>&> {
+  class ConnectCoroutine : public oatpp::async::CoroutineWithResult<ConnectCoroutine, const provider::ResourceHandle<oatpp::data::stream::IOStream>&> {
   private:
+    std::shared_ptr<ConnectionInvalidator> m_connectionInvalidator;
     network::Address m_address;
     oatpp::v_io_handle m_clientHandle;
   private:
-    struct addrinfo* m_result;
-    struct addrinfo* m_currentResult;
+    addrinfo* m_result;
+    addrinfo* m_currentResult;
     bool m_isHandleOpened;
   public:
 
-    ConnectCoroutine(const network::Address& address)
-      : m_address(address)
+    ConnectCoroutine(const std::shared_ptr<ConnectionInvalidator>& connectionInvalidator,
+                     const network::Address& address)
+      : m_connectionInvalidator(connectionInvalidator)
+      , m_address(address)
       , m_result(nullptr)
       , m_currentResult(nullptr)
       , m_isHandleOpened(false)
     {}
 
-    ~ConnectCoroutine() {
+    ~ConnectCoroutine() override {
       if(m_result != nullptr) {
         freeaddrinfo(m_result);
       }
@@ -154,11 +193,11 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<oatpp::data::strea
 
     Action act() override {
 
-      auto portStr = oatpp::utils::conversion::int32ToStr(m_address.port);
+      auto portStr = oatpp::utils::Conversion::int32ToStr(m_address.port);
 
-      struct addrinfo hints;
+      addrinfo hints;
 
-      memset(&hints, 0, sizeof(struct addrinfo));
+      memset(&hints, 0, sizeof(addrinfo));
       hints.ai_socktype = SOCK_STREAM;
       hints.ai_flags = 0;
       hints.ai_protocol = 0;
@@ -166,6 +205,7 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<oatpp::data::strea
       switch(m_address.family) {
         case Address::IP_4: hints.ai_family = AF_INET; break;
         case Address::IP_6: hints.ai_family = AF_INET6; break;
+        case Address::UNSPEC:
         default:
           hints.ai_family = AF_UNSPEC;
       }
@@ -227,7 +267,7 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<oatpp::data::strea
         int yes = 1;
         v_int32 ret = setsockopt(m_clientHandle, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(int));
         if(ret < 0) {
-          OATPP_LOGD("[oatpp::network::tcp::client::ConnectionProvider::getConnectionAsync()]", "Warning. Failed to set %s for socket", "SO_NOSIGPIPE");
+          OATPP_LOGd("[oatpp::network::tcp::client::ConnectionProvider::getConnectionAsync()]", "Warning. Failed to set {} for socket", "SO_NOSIGPIPE")
         }
 #endif
 
@@ -243,25 +283,34 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<oatpp::data::strea
     Action doConnect() {
       errno = 0;
 
-      auto res = connect(m_clientHandle, m_currentResult->ai_addr, (int)m_currentResult->ai_addrlen);
+      auto res = connect(m_clientHandle, m_currentResult->ai_addr, m_currentResult->ai_addrlen);
 
 #if defined(WIN32) || defined(_WIN32)
 
       auto error = WSAGetLastError();
 
       if(res == 0 || error == WSAEISCONN) {
-        return _return(std::make_shared<oatpp::network::tcp::Connection>(m_clientHandle));
+        return _return(provider::ResourceHandle<data::stream::IOStream>(
+                std::make_shared<oatpp::network::tcp::Connection>(m_clientHandle),
+                m_connectionInvalidator
+            ));
       }
       if(error == WSAEWOULDBLOCK || error == WSAEINPROGRESS) {
         return ioWait(m_clientHandle, oatpp::async::Action::IOEventType::IO_EVENT_WRITE);
-      } else if(error == WSAEINTR) {
+      } else if(error == WSAEINTR || error == WSAEALREADY) {
         return ioRepeat(m_clientHandle, oatpp::async::Action::IOEventType::IO_EVENT_WRITE);
+      } else if(error == WSAEINVAL) {
+         return AbstractCoroutine::error(new async::Error(
+                  "[oatpp::network::tcp::client::ConnectionProvider::doConnect()]: Error. The parameter m_clientHandle is a listening socket."));
       }
 
 #else
 
       if(res == 0 || errno == EISCONN) {
-        return _return(std::make_shared<oatpp::network::tcp::Connection>(m_clientHandle));
+        return _return(provider::ResourceHandle<data::stream::IOStream>(
+                std::make_shared<oatpp::network::tcp::Connection>(m_clientHandle),
+                m_connectionInvalidator
+            ));
       }
       if(errno == EALREADY || errno == EINPROGRESS) {
         return ioWait(m_clientHandle, oatpp::async::Action::IOEventType::IO_EVENT_WRITE);
@@ -278,32 +327,7 @@ oatpp::async::CoroutineStarterForResult<const std::shared_ptr<oatpp::data::strea
 
   };
 
-  return ConnectCoroutine::startForResult(m_address);
-
-}
-
-void ConnectionProvider::invalidate(const std::shared_ptr<data::stream::IOStream>& connection) {
-
-  /************************************************
-   * WARNING!!!
-   *
-   * shutdown(handle, SHUT_RDWR)    <--- DO!
-   * close(handle);                 <--- DO NOT!
-   *
-   * DO NOT CLOSE file handle here -
-   * USE shutdown instead.
-   * Using close prevent FDs popping out of epoll,
-   * and they'll be stuck there forever.
-   ************************************************/
-
-  auto c = std::static_pointer_cast<network::tcp::Connection>(connection);
-  v_io_handle handle = c->getHandle();
-
-#if defined(WIN32) || defined(_WIN32)
-  shutdown(handle, SD_BOTH);
-#else
-  shutdown(handle, SHUT_RDWR);
-#endif
+  return ConnectCoroutine::startForResult(m_invalidator, m_address);
 
 }
 

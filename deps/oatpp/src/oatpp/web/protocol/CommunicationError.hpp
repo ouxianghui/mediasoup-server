@@ -25,7 +25,7 @@
 #ifndef oatpp_web_protocol_CommunicationError_hpp
 #define oatpp_web_protocol_CommunicationError_hpp
 
-#include "oatpp/core/IODefinitions.hpp"
+#include "oatpp/IODefinitions.hpp"
 
 namespace oatpp { namespace web { namespace protocol {
 
@@ -123,7 +123,7 @@ public:
    * Get error info.
    * @return - error info.
    */
-  Info getInfo() {
+  Info getInfo() const {
     return m_info;
   }
   

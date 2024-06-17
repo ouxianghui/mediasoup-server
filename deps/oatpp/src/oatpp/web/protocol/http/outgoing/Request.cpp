@@ -25,9 +25,9 @@
 #include "Request.hpp"
 
 #include "oatpp/web/protocol/http/encoding/Chunked.hpp"
-#include "oatpp/core/data/stream/BufferStream.hpp"
-#include "oatpp/core/data/buffer/IOBuffer.hpp"
-#include "oatpp/core/utils/ConversionUtils.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
+#include "oatpp/data/buffer/IOBuffer.hpp"
+#include "oatpp/utils/Conversion.hpp"
 
 namespace oatpp { namespace web { namespace protocol { namespace http { namespace outgoing {
 
@@ -45,7 +45,7 @@ std::shared_ptr<Request> Request::createShared(const oatpp::data::share::StringK
                                                const oatpp::data::share::StringKeyLabel& path,
                                                const Headers& headers,
                                                const std::shared_ptr<Body>& body) {
-  return Shared_Outgoing_Request_Pool::allocateShared(method, path, headers, body);
+  return std::make_shared<Request>(method, path, headers, body);
 }
 
 const oatpp::data::share::StringKeyLabel& Request::getMethod() const {
@@ -71,21 +71,30 @@ bool Request::putHeaderIfNotExists(const oatpp::String& key, const oatpp::String
 bool Request::putOrReplaceHeader(const String &key, const String &value) {
   return m_headers.putOrReplace(key, value);
 }
-bool Request::putOrReplaceHeader_Unsafe(const data::share::StringKeyLabelCI_FAST &key,
+
+bool Request::putOrReplaceHeader_Unsafe(const data::share::StringKeyLabelCI& key,
                                         const data::share::StringKeyLabel &value) {
   return m_headers.putOrReplace(key, value);
 }
 
-void Request::putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value) {
+void Request::putHeader_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value) {
   m_headers.put(key, value);
 }
 
-bool Request::putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI_FAST& key, const oatpp::data::share::StringKeyLabel& value) {
+bool Request::putHeaderIfNotExists_Unsafe(const oatpp::data::share::StringKeyLabelCI& key, const oatpp::data::share::StringKeyLabel& value) {
   return m_headers.putIfNotExists(key, value);
 }
 
-oatpp::String Request::getHeader(const oatpp::data::share::StringKeyLabelCI_FAST& headerName) const{
+oatpp::String Request::getHeader(const oatpp::data::share::StringKeyLabelCI& headerName) const{
   return m_headers.get(headerName);
+}
+
+void Request::putBundleData(const oatpp::String& key, const oatpp::Void& polymorph) {
+  m_bundle.put(key, polymorph);
+}
+
+const data::Bundle& Request::getBundle() const {
+  return m_bundle;
 }
 
 std::shared_ptr<Body> Request::getBody() {
@@ -103,7 +112,7 @@ void Request::send(data::stream::OutputStream* stream){
     bodySize = m_body->getKnownSize();
 
     if(bodySize >= 0) {
-      m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::conversion::int64ToStr(bodySize));
+      m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::Conversion::int64ToStr(bodySize));
     } else {
       m_headers.put_LockFree(Header::TRANSFER_ENCODING, Header::Value::TRANSFER_ENCODING_CHUNKED);
     }
@@ -184,7 +193,7 @@ oatpp::async::CoroutineStarter Request::sendAsync(std::shared_ptr<Request> _this
         bodySize = m_this->m_body->getKnownSize();
 
         if(bodySize >= 0) {
-          m_this->m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::conversion::int64ToStr(bodySize));
+          m_this->m_headers.put_LockFree(Header::CONTENT_LENGTH, utils::Conversion::int64ToStr(bodySize));
         } else {
           m_this->m_headers.put_LockFree(Header::TRANSFER_ENCODING, Header::Value::TRANSFER_ENCODING_CHUNKED);
         }

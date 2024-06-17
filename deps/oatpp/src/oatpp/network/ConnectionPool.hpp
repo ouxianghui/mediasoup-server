@@ -26,7 +26,7 @@
 #define oatpp_network_ConnectionPool_hpp
 
 #include "ConnectionProvider.hpp"
-#include "oatpp/core/provider/Pool.hpp"
+#include "oatpp/provider/Pool.hpp"
 
 namespace oatpp { namespace network {
 
@@ -36,7 +36,7 @@ namespace oatpp { namespace network {
  */
 struct ConnectionAcquisitionProxy : public provider::AcquisitionProxy<data::stream::IOStream, ConnectionAcquisitionProxy> {
 
-  ConnectionAcquisitionProxy(const std::shared_ptr<data::stream::IOStream>& resource,
+  ConnectionAcquisitionProxy(const provider::ResourceHandle<data::stream::IOStream>& resource,
                              const std::shared_ptr<PoolInstance>& pool)
     : provider::AcquisitionProxy<data::stream::IOStream, ConnectionAcquisitionProxy>(resource, pool)
   {}

@@ -6,7 +6,8 @@
  *                (_____)(__)(__)(__)  |_|    |_|
  *
  *
- * Copyright 2018-present, Leonid Stryzhevskyi <lganzzzo@gmail.com>
+ * Copyright 2018-present, Leonid Stryzhevskyi <lganzzzo@gmail.com>,
+ * Matthias Haselmaier <mhaselmaier@gmail.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +24,7 @@
  ***************************************************************************/
 
 #include "Connection.hpp"
-
-//#include <openssl/err.h>
+#include "ErrorStack.hpp"
 
 namespace oatpp { namespace openssl {
 
@@ -51,8 +51,6 @@ void Connection::ConnectionContext::init() {
 
     do {
 
-      //ERR_clear_error();
-
       m_connection->m_readAction = async::Action::createActionByType(async::Action::TYPE_NONE);
       m_connection->m_writeAction = async::Action::createActionByType(async::Action::TYPE_NONE);
 
@@ -70,9 +68,8 @@ void Connection::ConnectionContext::init() {
         case SSL_ERROR_WANT_WRITE:
           break;
         default:
-          //std::string errStr = std::string(ERR_error_string(ERR_get_error(), nullptr));
-          //OATPP_LOGE("[oatpp::openssl::Connection::ConnectionContext::init()]", "Error. Handshake failed. code=%d, msg='%s'", err, errStr.c_str());
-          //throw std::runtime_error("[oatpp::openssl::Connection::ConnectionContext::init()]: Error. Handshake failed. " + errStr);
+//          ErrorStack::logErrors("[oatpp::openssl::Connection::ConnectionContext::init()]");
+//          throw std::runtime_error("[oatpp::openssl::Connection::ConnectionContext::init()]: Error. Handshake failed.");
           return;
       }
 
@@ -118,8 +115,9 @@ async::CoroutineStarter Connection::ConnectionContext::initAsync() {
         case SSL_ERROR_WANT_WRITE:
           break;
         default:
-          OATPP_LOGE("[oatpp::openssl::Connection::ConnectionContext::initAsync()]", "Error. Handshake failed. err=%d", err);
-          throw std::runtime_error("[oatpp::openssl::Connection::ConnectionContext::initAsync()]: Error. Handshake failed.");
+//          ErrorStack::logErrors("[oatpp::openssl::Connection::ConnectionContext::initAsync()]");
+//          return error<Error>("[oatpp::openssl::Connection::ConnectionContext::initAsync()]: Error. Handshake failed.");
+          return finish();
       }
 
       if(res == 1) {
@@ -189,7 +187,7 @@ int Connection::BioWrite(BIO* bio, const char* data, int size) {
     BIO_set_retry_write(bio);
     return -1;
   }
-  auto res = _this->m_stream->write(data, size, _this->m_writeAction);
+  auto res = _this->m_stream.object->write(data, size, _this->m_writeAction);
 
   if(res > 0) {
     return res;
@@ -221,7 +219,7 @@ int Connection::BioRead(BIO* bio, char* data, int size) {
     BIO_set_retry_read(bio);
     return -1;
   }
-  auto res = _this->m_stream->read(data, size, _this->m_readAction);
+  auto res = _this->m_stream.object->read(data, size, _this->m_readAction);
 
   if(res > 0) {
     return res;
@@ -247,7 +245,7 @@ int Connection::BioRead(BIO* bio, char* data, int size) {
 
 }
 
-Connection::Connection(SSL* ssl, const std::shared_ptr<oatpp::data::stream::IOStream>& stream)
+Connection::Connection(SSL* ssl, const provider::ResourceHandle<data::stream::IOStream>& stream)
   : m_ssl(ssl)
   , m_rbio(BIO_new(getBioMethod()))
   , m_wbio(BIO_new(getBioMethod()))
@@ -260,14 +258,14 @@ Connection::Connection(SSL* ssl, const std::shared_ptr<oatpp::data::stream::IOSt
 
   SSL_set_bio(m_ssl, m_rbio, m_wbio);
 
-  auto& streamInContext = stream->getInputStreamContext();
+  auto& streamInContext = stream.object->getInputStreamContext();
   data::stream::Context::Properties inProperties(streamInContext.getProperties());
   inProperties.put("tls", "openssl");
   inProperties.getAll();
 
   m_inContext = new ConnectionContext(this, streamInContext.getStreamType(), std::move(inProperties));
 
-  auto& streamOutContext = stream->getOutputStreamContext();
+  auto& streamOutContext = stream.object->getOutputStreamContext();
   if(streamInContext == streamOutContext) {
     m_outContext = m_inContext;
   } else {
@@ -338,11 +336,11 @@ oatpp::v_io_size Connection::read(void *buff, v_buff_size count, async::Action& 
 }
 
 void Connection::setOutputStreamIOMode(oatpp::data::stream::IOMode ioMode) {
-  m_stream->setOutputStreamIOMode(ioMode);
+  m_stream.object->setOutputStreamIOMode(ioMode);
 }
 
 oatpp::data::stream::IOMode Connection::getOutputStreamIOMode() {
-  return m_stream->getOutputStreamIOMode();
+  return m_stream.object->getOutputStreamIOMode();
 }
 
 oatpp::data::stream::Context& Connection::getOutputStreamContext() {
@@ -350,19 +348,23 @@ oatpp::data::stream::Context& Connection::getOutputStreamContext() {
 }
 
 void Connection::setInputStreamIOMode(oatpp::data::stream::IOMode ioMode) {
-  m_stream->setInputStreamIOMode(ioMode);
+  m_stream.object->setInputStreamIOMode(ioMode);
 }
 
 oatpp::data::stream::IOMode Connection::getInputStreamIOMode() {
-  return m_stream->getInputStreamIOMode();
+  return m_stream.object->getInputStreamIOMode();
 }
 
 oatpp::data::stream::Context& Connection::getInputStreamContext() {
   return *m_inContext;
 }
 
-std::shared_ptr<data::stream::IOStream> Connection::getTransportStream() {
+provider::ResourceHandle<data::stream::IOStream> Connection::getTransportStream() {
   return m_stream;
+}
+
+SSL* Connection::getOpenSSLContext() const {
+  return m_ssl;
 }
   
 }}

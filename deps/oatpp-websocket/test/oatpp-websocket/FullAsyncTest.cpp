@@ -21,7 +21,7 @@
 
 #include "oatpp-test/web/ClientServerTestRunner.hpp"
 
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/macro/component.hpp"
 
 namespace oatpp { namespace test { namespace websocket {
 
@@ -77,10 +77,8 @@ public:
    *  Create ObjectMapper component to serialize/deserialize DTOs in Contoller's API
    */
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, apiObjectMapper)([] {
-    auto serializerConfig = oatpp::parser::json::mapping::Serializer::Config::createShared();
-    auto deserializerConfig = oatpp::parser::json::mapping::Deserializer::Config::createShared();
-    deserializerConfig->allowUnknownFields = false;
-    auto objectMapper = oatpp::parser::json::mapping::ObjectMapper::createShared(serializerConfig, deserializerConfig);
+    auto objectMapper = std::make_shared<oatpp::json::ObjectMapper>();
+    objectMapper->deserializerConfig().mapper.allowUnknownFields = false;
     return objectMapper;
   }());
 
@@ -115,7 +113,7 @@ private:
   v_int64 m_lastTick = 0;
   v_int32 m_messageCounter = 0;
   bool m_printLog;
-  oatpp::data::stream::ChunkedBuffer m_messageBuffer;
+  oatpp::data::stream::BufferOutputStream m_messageBuffer;
 public:
 
   ClientSocketListener(bool printLog)
@@ -138,10 +136,13 @@ public:
     if(size == 0) {
       m_messageCounter ++;
       auto wholeMessage = m_messageBuffer.toString();
-      m_messageBuffer.clear();
+      m_messageBuffer.setCurrentPosition(0);
       if(m_printLog) {
-        auto tick = oatpp::base::Environment::getMicroTickCount();
-        OATPP_LOGD("client", "sid=%d, received %s, latency=%d, messageCount=%d", socket.get(), wholeMessage->c_str(), tick - m_lastTick, m_messageCounter);
+        auto tick = oatpp::Environment::getMicroTickCount();
+        OATPP_LOGd("client", "sid={}, received {}, latency={}, messageCount={}",
+                   reinterpret_cast<v_uint64>(socket.get()),
+                   wholeMessage, tick - m_lastTick,
+                   m_messageCounter);
         m_lastTick = tick;
       }
     } else if(size > 0) {
@@ -196,7 +197,7 @@ public:
     return connector->connectAsync("ws").callbackTo(&ClientCoroutine::onConnected);
   }
 
-  Action onConnected(const std::shared_ptr<oatpp::data::stream::IOStream>& connection) {
+  Action onConnected(const oatpp::provider::ResourceHandle<oatpp::data::stream::IOStream>& connection) {
     ++ CONNECTIONS;
     socket = oatpp::websocket::AsyncWebSocket::createShared(connection, true);
     socket->setListener(std::make_shared<ClientSocketListener>(m_printLog));
@@ -206,13 +207,13 @@ public:
 
   Action onFinishListen() {
     ++ FINISHED_COUNTER;
-    OATPP_LOGD("Client", "Finished count=%d", FINISHED_COUNTER.load());
+    OATPP_LOGd("Client", "Finished count={}", FINISHED_COUNTER.load());
     return finish();
   }
 
   Action handleError(Error* error) override {
     if(error) {
-      OATPP_LOGD("Client", "Error. !!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!! %s", error->what());
+      OATPP_LOGd("Client", "Error. !!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!! {}", error->what());
     }
     return error;
   }
@@ -256,7 +257,7 @@ void FullAsyncTest::onRun() {
 
     /////////////////////////////////////////////////////////////////////////////////////
 
-    OATPP_LOGD("AAA", "waiting...");
+    OATPP_LOGd("AAA", "waiting...");
 
     while(true) {
       std::this_thread::sleep_for(std::chrono::milliseconds(200));

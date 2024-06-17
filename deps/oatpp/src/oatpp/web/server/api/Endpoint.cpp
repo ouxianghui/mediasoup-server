@@ -24,8 +24,6 @@
 
 #include "Endpoint.hpp"
 
-#include "oatpp/core/data/stream/ChunkedBuffer.hpp"
-
 namespace oatpp { namespace web { namespace server { namespace api {
 
 Endpoint::Info::Param::Param()
@@ -34,7 +32,7 @@ Endpoint::Info::Param::Param()
 {}
 
 Endpoint::Info::Param::Param(const oatpp::String& pName,
-                             oatpp::data::mapping::type::Type* pType)
+                             oatpp::data::type::Type* pType)
   : name(pName)
   , type(pType)
 {}
@@ -43,16 +41,16 @@ const std::list<oatpp::String>& Endpoint::Info::Params::getOrder() const {
   return m_order;
 }
 
-Endpoint::Info::Param& Endpoint::Info::Params::add(const oatpp::String& name, oatpp::data::mapping::type::Type* type) {
-  m_order.push_back(name);
-  Endpoint::Info::Param& param = operator [](name);
-  param.name = name;
+Endpoint::Info::Param& Endpoint::Info::Params::add(const oatpp::String& aname, oatpp::data::type::Type* type) {
+  m_order.push_back(aname);
+  Endpoint::Info::Param& param = operator [](aname);
+  param.name = aname;
   param.type = type;
   return param;
 }
 
-Endpoint::Info::Param& Endpoint::Info::Params::operator [](const oatpp::String& name) {
-  return m_params[name];
+Endpoint::Info::Param& Endpoint::Info::Params::operator [](const oatpp::String& aname) {
+  return m_params[aname];
 }
 
 Endpoint::Info::Info() : hide(false)
@@ -63,7 +61,7 @@ std::shared_ptr<Endpoint::Info> Endpoint::Info::createShared(){
 }
 
 oatpp::String Endpoint::Info::toString() {
-  oatpp::data::stream::ChunkedBuffer stream;
+  oatpp::data::stream::BufferOutputStream stream;
   
   stream << "\nEndpoint\n";
   
@@ -114,6 +112,20 @@ std::shared_ptr<Endpoint::Info> Endpoint::info() {
     m_info = m_infoBuilder();
   }
   return m_info;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void Endpoints::append(const std::list<std::shared_ptr<Endpoint>>& endpoints) {
+  list.insert(list.end(), endpoints.begin(), endpoints.end());
+}
+
+void Endpoints::append(const Endpoints& endpoints) {
+  append(endpoints.list);
+}
+
+void Endpoints::append(const std::shared_ptr<Endpoint>& endpoint) {
+  list.push_back(endpoint);
 }
 
 }}}}

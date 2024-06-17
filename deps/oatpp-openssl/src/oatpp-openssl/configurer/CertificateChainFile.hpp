@@ -27,15 +27,23 @@
 
 #include "ContextConfigurer.hpp"
 
-#include "oatpp/core/Types.hpp"
+#include "oatpp/Types.hpp"
 
 namespace oatpp { namespace openssl { namespace configurer {
 
+/**
+ * Context configurer for certificate chain file.
+ * @extends &id:oatpp::openssl::configurer::ContextConfigurer;.
+ */
 class CertificateChainFile : public ContextConfigurer {
 private:
   oatpp::String m_filename;
 public:
 
+  /**
+   * Constructor.
+   * @param filename
+   */
   CertificateChainFile(const oatpp::String& filename);
 
   void configure(SSL_CTX* ctx) override;

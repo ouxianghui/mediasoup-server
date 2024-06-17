@@ -24,46 +24,38 @@
 
 #include "UnitTest.hpp"
 
-#include "oatpp/core/base/memory/MemoryPool.hpp"
-
 #include <chrono>
 
 namespace oatpp { namespace test {
 
 void UnitTest::run(v_int32 times) {
   
-  OATPP_LOGI(TAG, "\033[1mSTART\033[0m...");
+  OATPP_LOGi(TAG, "\033[1mSTART\033[0m...")
   
-  v_counter objectsCount = base::Environment::getObjectsCount();
-  v_counter objectsCreated = base::Environment::getObjectsCreated();
+  v_counter objectsCount = oatpp::Environment::getObjectsCount();
+  v_counter objectsCreated = oatpp::Environment::getObjectsCreated();
+
+  before();
   
-  v_int64 ticks = base::Environment::getMicroTickCount();
+  v_int64 ticks = oatpp::Environment::getMicroTickCount();
   
   for(v_int32 i = 0; i < times; i++){
     onRun();
   }
   
-  v_int64 millis = base::Environment::getMicroTickCount() - ticks;
+  v_int64 millis = oatpp::Environment::getMicroTickCount() - ticks;
+
+  after();
   
-  v_counter leakingObjects = base::Environment::getObjectsCount() - objectsCount;
-  v_counter objectsCreatedPerTest = base::Environment::getObjectsCreated() - objectsCreated;
+  v_counter leakingObjects = oatpp::Environment::getObjectsCount() - objectsCount;
+  v_counter objectsCreatedPerTest = oatpp::Environment::getObjectsCreated() - objectsCreated;
   
   if(leakingObjects == 0){
-    OATPP_LOGI(TAG, "\033[1mFINISHED\033[0m - \033[1;32msuccess!\033[0m");
-    OATPP_LOGI(TAG, "\033[33m%d(micro), %d(objs)\033[0m\n", millis, objectsCreatedPerTest);
+    OATPP_LOGi(TAG, "\033[1mFINISHED\033[0m - \033[1;32msuccess!\033[0m")
+    OATPP_LOGi(TAG, "\033[33m{}(micro), {}(objs)\033[0m\n", millis, objectsCreatedPerTest)
   }else{
 
-    OATPP_LOGE(TAG, "\033[1mFINISHED\033[0m - \033[1;31mfailed\033[0m, leakingObjects = %d", leakingObjects);
-    
-    auto POOLS = oatpp::base::memory::MemoryPool::POOLS;
-    auto it = POOLS.begin();
-    while (it != POOLS.end()) {
-      auto pool = it->second;
-      if(pool->getObjectsCount() != 0) {
-        OATPP_LOGV("Pool", "name: '%s' [%d(objs)]", pool->getName().c_str(), pool->getObjectsCount());
-      }
-      it ++;
-    }
+    OATPP_LOGe(TAG, "\033[1mFINISHED\033[0m - \033[1;31mfailed\033[0m, leakingObjects = {}", leakingObjects)
 
     exit(EXIT_FAILURE);
 

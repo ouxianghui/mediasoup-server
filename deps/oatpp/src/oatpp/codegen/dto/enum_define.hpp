@@ -52,24 +52,27 @@ OATPP_MACRO_EXPAND(OATPP_MACRO_MACRO_SELECTOR(MACRO, (__VA_ARGS__)) (NAME, __VA_
 
 #define OATPP_MACRO_DTO_ENUM_VALUE_1(NAME, VAL) \
 { \
-  oatpp::data::mapping::type::EnumValueInfo<EnumType> entry = {EnumType::NAME, index ++, #NAME, nullptr}; \
+  oatpp::data::type::EnumValueInfo<EnumType> entry = {EnumType::NAME, index ++, #NAME, #NAME, nullptr}; \
   info.byName.insert({#NAME, entry}); \
+  info.byUnqualifiedName.insert({#NAME, entry}); \
   info.byValue.insert({static_cast<v_uint64>(EnumType::NAME), entry}); \
   info.byIndex.push_back(entry); \
 }
 
 #define OATPP_MACRO_DTO_ENUM_VALUE_2(NAME, VAL, QUALIFIER) \
 { \
-  oatpp::data::mapping::type::EnumValueInfo<EnumType> entry = {EnumType::NAME, index ++, QUALIFIER, nullptr}; \
+  oatpp::data::type::EnumValueInfo<EnumType> entry = {EnumType::NAME, index ++, QUALIFIER, #NAME, nullptr}; \
   info.byName.insert({QUALIFIER, entry}); \
+  info.byUnqualifiedName.insert({#NAME, entry}); \
   info.byValue.insert({static_cast<v_uint64>(EnumType::NAME), entry}); \
   info.byIndex.push_back(entry); \
 }
 
 #define OATPP_MACRO_DTO_ENUM_VALUE_3(NAME, VAL, QUALIFIER, DESCRIPTION) \
 { \
-  oatpp::data::mapping::type::EnumValueInfo<EnumType> entry = {EnumType::NAME, index ++, QUALIFIER, DESCRIPTION}; \
+  oatpp::data::type::EnumValueInfo<EnumType> entry = {EnumType::NAME, index ++, QUALIFIER, #NAME, DESCRIPTION}; \
   info.byName.insert({QUALIFIER, entry}); \
+  info.byUnqualifiedName.insert({#NAME, entry}); \
   info.byValue.insert({static_cast<v_uint64>(EnumType::NAME), entry}); \
   info.byIndex.push_back(entry); \
 }
@@ -95,7 +98,7 @@ enum class NAME : ORDINAL_TYPE {}; \
 \
 namespace { \
 \
-class Z__OATPP_ENUM_META_##NAME : public oatpp::data::mapping::type::EnumMeta<NAME> { \
+class Z__OATPP_ENUM_META_##NAME : public oatpp::data::type::EnumMeta<NAME> { \
 private: \
 \
   static bool init() { \
@@ -128,7 +131,7 @@ enum class NAME : ORDINAL_TYPE { \
   ) \
 }; \
 \
-class Z__OATPP_ENUM_META_##NAME : public oatpp::data::mapping::type::EnumMeta<NAME> { \
+class Z__OATPP_ENUM_META_##NAME : public oatpp::data::type::EnumMeta<NAME> { \
 private: \
 \
   static bool init() { \
@@ -159,7 +162,7 @@ OATPP_ENUM_0(NAME, ORDINAL_TYPE)
 OATPP_ENUM_1(NAME, ORDINAL_TYPE, __VA_ARGS__)
 
 /**
- * Codegen macoro to generate oatpp mapping-enabled enum.
+ * Codegen macro to generate oatpp mapping-enabled enum.
  * @param NAME - name of the enum. **required**.
  * @param UNDERLYING_TYPE - underlying ordinal type. **required**.
  * @param ... - enum values defined with &l:VALUE (...);. macro.

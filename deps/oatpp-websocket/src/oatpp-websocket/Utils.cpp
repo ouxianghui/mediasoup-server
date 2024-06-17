@@ -24,17 +24,17 @@
 
 #include "Utils.hpp"
 #include "oatpp/encoding/Base64.hpp"
-#include "oatpp/core/utils/Random.hpp"
+#include "oatpp/utils/Random.hpp"
 
 namespace oatpp { namespace websocket {
 
 void Utils::generateMaskForFrame(Frame::Header& frameHeader) {
-  oatpp::utils::random::Random::randomBytes(frameHeader.mask, 4);
+  oatpp::utils::Random::randomBytes(frameHeader.mask, 4);
 }
 
 oatpp::String Utils::generateKey() {
   oatpp::String key(16);
-  oatpp::utils::random::Random::randomBytes(key->getData(), key->getSize());
+  oatpp::utils::Random::randomBytes((p_char8) key->data(), key->size());
   return oatpp::encoding::Base64::encode(key);
 }
 

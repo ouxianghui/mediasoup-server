@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
-file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/src/oatpp/core/base/Environment.hpp" OATPP_VERSION_MACRO REGEX "#define OATPP_VERSION \"[0-9]+.[0-9]+.[0-9]+\"$")
+file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/src/oatpp/Environment.hpp" OATPP_VERSION_MACRO REGEX "#define OATPP_VERSION \"[0-9]+.[0-9]+.[0-9]+\"$")
 string(REGEX REPLACE "#define OATPP_VERSION \"([0-9]+.[0-9]+.[0-9]+)\"$" "\\1" oatpp_VERSION "${OATPP_VERSION_MACRO}")
 
 ###################################################################################################
@@ -9,9 +9,6 @@ string(REGEX REPLACE "#define OATPP_VERSION \"([0-9]+.[0-9]+.[0-9]+)\"$" "\\1" o
 
 set(OATPP_THIS_MODULE_NAME oatpp) ## name of the module (also name of folders in installation dirs)
 set(OATPP_THIS_MODULE_VERSION ${oatpp_VERSION}) ## version of the module (also sufix of folders in installation dirs)
-set(OATPP_THIS_MODULE_LIBRARIES oatpp oatpp-test) ## list of libraries to find when find_package is called
-set(OATPP_THIS_MODULE_TARGETS oatpp oatpp-test) ## list of targets to install
-set(OATPP_THIS_MODULE_DIRECTORIES oatpp oatpp-test) ## list of directories to install
 
 ###################################################################################################
 
@@ -19,7 +16,8 @@ project(oatpp VERSION ${OATPP_THIS_MODULE_VERSION} LANGUAGES CXX)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(OATPP_INSTALL "Create installation target for oat++" ON)
-option(OATPP_BUILD_TESTS "Create test target for oat++" OFF)
+option(OATPP_BUILD_TESTS "Create test target for oat++" ON)
+option(OATPP_LINK_TEST_LIBRARY "Link oat++ test library" ON)
 option(OATPP_LINK_ATOMIC "Link atomic library for other platform than MSVC|MINGW|APPLE|FreeBSD" ON)
 option(OATPP_MSVC_LINK_STATIC_RUNTIME "MSVC: Link with static runtime (/MT and /MTd)." OFF)
 
@@ -27,11 +25,20 @@ option(OATPP_MSVC_LINK_STATIC_RUNTIME "MSVC: Link with static runtime (/MT and /
 ## COMPILATION CONFIG #############################################################################
 ###################################################################################################
 
+if(OATPP_LINK_TEST_LIBRARY)
+	set(OATPP_THIS_MODULE_LIBRARIES oatpp oatpp-test) ## list of libraries to find when find_package is called
+	set(OATPP_THIS_MODULE_TARGETS oatpp oatpp-test) ## list of targets to install
+	set(OATPP_THIS_MODULE_DIRECTORIES oatpp oatpp-test) ## list of directories to install
+else()
+	set(OATPP_THIS_MODULE_LIBRARIES oatpp) ## list of libraries to find when find_package is called
+	set(OATPP_THIS_MODULE_TARGETS oatpp) ## list of targets to install
+	set(OATPP_THIS_MODULE_DIRECTORIES oatpp) ## list of directories to install
+endif()
+
 option(OATPP_DISABLE_ENV_OBJECT_COUNTERS "Disable object counting for Release builds for better performance" OFF)
 option(OATPP_DISABLE_POOL_ALLOCATIONS "This will make oatpp::base::memory::MemoryPool, method obtain and free call new and delete directly" OFF)
 
 set(OATPP_THREAD_HARDWARE_CONCURRENCY "AUTO" CACHE STRING "Predefined value for function oatpp::concurrency::Thread::getHardwareConcurrency()")
-set(OATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT "10" CACHE STRING "Number of shards of ThreadDistributedMemoryPool")
 
 option(OATPP_COMPAT_BUILD_NO_THREAD_LOCAL "Disable 'thread_local' feature" OFF)
 option(OATPP_COMPAT_BUILD_NO_SET_AFFINITY "No 'pthread_setaffinity_np' method" OFF)
@@ -48,10 +55,7 @@ message("\n#####################################################################
 message("## oatpp module compilation config:\n")
 
 message("OATPP_DISABLE_ENV_OBJECT_COUNTERS=${OATPP_DISABLE_ENV_OBJECT_COUNTERS}")
-message("OATPP_DISABLE_POOL_ALLOCATIONS=${OATPP_DISABLE_POOL_ALLOCATIONS}")
 message("OATPP_THREAD_HARDWARE_CONCURRENCY=${OATPP_THREAD_HARDWARE_CONCURRENCY}")
-message("OATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT=${OATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT}")
-
 message("OATPP_COMPAT_BUILD_NO_THREAD_LOCAL=${OATPP_COMPAT_BUILD_NO_THREAD_LOCAL}")
 
 ## Set definitions ###############################################################################
@@ -62,6 +66,7 @@ endif()
 
 if(OATPP_DISABLE_POOL_ALLOCATIONS)
     add_definitions (-DOATPP_DISABLE_POOL_ALLOCATIONS)
+    message("WARNING: OATPP_DISABLE_POOL_ALLOCATIONS option is deprecated and has no effect.")
 endif()
 
 set(AUTO_VALUE AUTO)
@@ -69,9 +74,10 @@ if(NOT OATPP_THREAD_HARDWARE_CONCURRENCY STREQUAL AUTO_VALUE)
     add_definitions (-DOATPP_THREAD_HARDWARE_CONCURRENCY=${OATPP_THREAD_HARDWARE_CONCURRENCY})
 endif()
 
-add_definitions (
-    -DOATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT=${OATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT}
-)
+if(OATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT)
+    add_definitions (-DOATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT=${OATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT})
+    message("WARNING: OATPP_THREAD_DISTRIBUTED_MEM_POOL_SHARDS_COUNT option is deprecated and has no effect.")
+endif()
 
 if(OATPP_COMPAT_BUILD_NO_THREAD_LOCAL)
     add_definitions(-DOATPP_COMPAT_BUILD_NO_THREAD_LOCAL)
@@ -111,11 +117,12 @@ message("\n#####################################################################
 
 message("oatpp version: '${OATPP_THIS_MODULE_VERSION}'")
 
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
+include(cmake/compiler-flags.cmake)
 
 include(cmake/msvc-runtime.cmake)
 configure_msvc_runtime()
+
+include(cmake/project.cmake)
 
 add_subdirectory(src)
 
@@ -123,3 +130,9 @@ if(OATPP_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+
+include(cpack.cmake)
+
+# This must always be last!
+include( CPack )

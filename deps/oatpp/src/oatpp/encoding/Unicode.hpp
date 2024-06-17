@@ -25,7 +25,7 @@
 #ifndef oatpp_encoding_Unicode_hpp
 #define oatpp_encoding_Unicode_hpp
 
-#include "oatpp/core/base/Environment.hpp"
+#include "oatpp/Environment.hpp"
 
 namespace oatpp { namespace encoding {
 
@@ -54,7 +54,7 @@ public:
    * @param length - out parameter. Length in bytes of UTF-8 character.
    * @return - code of UTF-8 character.
    */
-  static v_int32 encodeUtf8Char(p_char8 sequence, v_buff_size& length);
+  static v_int32 encodeUtf8Char(const char* sequence, v_buff_size& length);
 
   /**
    * Write UTF-8 character to buffer.

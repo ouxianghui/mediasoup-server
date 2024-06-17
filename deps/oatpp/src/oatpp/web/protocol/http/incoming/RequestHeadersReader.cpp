@@ -23,8 +23,7 @@
  ***************************************************************************/
 
 #include "RequestHeadersReader.hpp"
-
-#include "oatpp/core/data/stream/ChunkedBuffer.hpp"
+#include "oatpp/base/Log.hpp"
 
 namespace oatpp { namespace web { namespace protocol { namespace http { namespace incoming {
 
@@ -80,7 +79,7 @@ RequestHeadersReader::Result RequestHeadersReader::readHeaders(data::stream::Inp
     error.ioStatus = readHeadersSectionIterative(iteration, stream, action);
 
     if(!action.isNone()) {
-      OATPP_LOGE("[oatpp::web::protocol::http::incoming::RequestHeadersReader::readHeaders]", "Error. Async action is unexpected.");
+      OATPP_LOGe("[oatpp::web::protocol::http::incoming::RequestHeadersReader::readHeaders]", "Error. Async action is unexpected.")
       throw std::runtime_error("[oatpp::web::protocol::http::incoming::RequestHeadersReader::readHeaders]: Error. Async action is unexpected.");
     }
 
@@ -95,7 +94,7 @@ RequestHeadersReader::Result RequestHeadersReader::readHeaders(data::stream::Inp
   }
   
   if(error.ioStatus > 0) {
-    oatpp::parser::Caret caret (m_bufferStream->getData(), m_bufferStream->getCurrentPosition());
+    oatpp::utils::parser::Caret caret (reinterpret_cast<const char*>(m_bufferStream->getData()), m_bufferStream->getCurrentPosition());
     http::Status status;
     http::Parser::parseRequestStartingLine(result.startingLine, nullptr, caret, status);
     if(status.code == 0) {
@@ -155,7 +154,7 @@ RequestHeadersReader::readHeadersAsync(const std::shared_ptr<data::stream::Input
     
     Action parseHeaders() {
 
-      oatpp::parser::Caret caret (m_this->m_bufferStream->getData(), m_this->m_bufferStream->getCurrentPosition());
+      oatpp::utils::parser::Caret caret (reinterpret_cast<const char*>(m_this->m_bufferStream->getData()), m_this->m_bufferStream->getCurrentPosition());
       http::Status status;
       http::Parser::parseRequestStartingLine(m_result.startingLine, nullptr, caret, status);
       if(status.code == 0) {

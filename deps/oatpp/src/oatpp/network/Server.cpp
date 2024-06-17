@@ -24,9 +24,10 @@
 
 #include "Server.hpp"
 
+#include "oatpp/base/Log.hpp"
+
 #include <thread>
 #include <chrono>
-#include <utility>
 
 namespace oatpp { namespace network {
 
@@ -36,7 +37,7 @@ const v_int32 Server::STATUS_RUNNING = 2;
 const v_int32 Server::STATUS_STOPPING = 3;
 const v_int32 Server::STATUS_DONE = 4;
 
-Server::Server(const std::shared_ptr<ServerConnectionProvider> &connectionProvider,
+Server::Server(const std::shared_ptr<ConnectionProvider> &connectionProvider,
                const std::shared_ptr<ConnectionHandler> &connectionHandler)
     : m_status(STATUS_CREATED)
     , m_connectionProvider(connectionProvider)
@@ -45,28 +46,28 @@ Server::Server(const std::shared_ptr<ServerConnectionProvider> &connectionProvid
 
 // This isn't implemented as static since threading is dropped and therefore static isn't needed anymore.
 void Server::conditionalMainLoop() {
+
   setStatus(STATUS_STARTING, STATUS_RUNNING);
   std::shared_ptr<const std::unordered_map<oatpp::String, oatpp::String>> params;
 
   while (getStatus() == STATUS_RUNNING) {
+
     if (m_condition()) {
-      std::shared_ptr<data::stream::IOStream> connection;
-      {
-        std::lock_guard<oatpp::concurrency::SpinLock> lg(m_spinlock);
-        connection = m_connectionProvider->get();
-      }
-      if (connection) {
+
+      auto connectionHandle = m_connectionProvider->get();
+
+      if (connectionHandle.object) {
         if (getStatus() == STATUS_RUNNING) {
           if (m_condition()) {
-            std::lock_guard<oatpp::concurrency::SpinLock> lg(m_spinlock);
-            m_connectionHandler->handleConnection(connection, params /* null params */);
+            m_connectionHandler->handleConnection(connectionHandle, params /* null params */);
           } else {
             setStatus(STATUS_STOPPING);
           }
         } else {
-          OATPP_LOGD("[oatpp::network::server::mainLoop()]", "Error. Server already stopped - closing connection...");
+          OATPP_LOGd("[oatpp::network::server::mainLoop()]", "Error. Server already stopped - closing connection...")
         }
       }
+
     } else {
       setStatus(STATUS_STOPPING);
     }
@@ -75,26 +76,22 @@ void Server::conditionalMainLoop() {
 }
 
 void Server::mainLoop(Server *instance) {
+
   instance->setStatus(STATUS_STARTING, STATUS_RUNNING);
   std::shared_ptr<const std::unordered_map<oatpp::String, oatpp::String>> params;
 
- while (instance->getStatus() == STATUS_RUNNING) {
-    std::shared_ptr<data::stream::IOStream> connection;
-    {
-      std::lock_guard<oatpp::concurrency::SpinLock> lg(instance->m_spinlock);
-      connection = instance->m_connectionProvider->get();
-    }
+  while (instance->getStatus() == STATUS_RUNNING) {
 
-    if (connection) {
+    auto connectionHandle = instance->m_connectionProvider->get();
+
+    if (connectionHandle) {
       if (instance->getStatus() == STATUS_RUNNING) {
-        std::lock_guard<oatpp::concurrency::SpinLock> lg(instance->m_spinlock);
-        instance->m_connectionHandler->handleConnection(connection, params /* null params */);
+        instance->m_connectionHandler->handleConnection(connectionHandle, params /* null params */);
       } else {
-        OATPP_LOGD("[oatpp::network::server::mainLoop()]", "Error. Server already stopped - closing connection...");
+        OATPP_LOGd("[oatpp::network::server::mainLoop()]", "Error. Server already stopped - closing connection...")
       }
     }
   }
-
 
   instance->setStatus(STATUS_DONE);
 
@@ -107,6 +104,8 @@ void Server::run(std::function<bool()> conditional) {
       throw std::runtime_error("[oatpp::network::server::run()] Error. Server already starting");
     case STATUS_RUNNING:
       throw std::runtime_error("[oatpp::network::server::run()] Error. Server already started");
+    default:
+      break;
   }
 
   m_threaded = false;
@@ -124,12 +123,14 @@ void Server::run(std::function<bool()> conditional) {
 
 void Server::run(bool startAsNewThread) {
   std::unique_lock<std::mutex> ul(m_mutex);
-  OATPP_LOGW("[oatpp::network::server::run(bool)]", "Using oatpp::network::server::run(bool) is deprecated and will be removed in the next release. Please implement your own threading (See https://github.com/oatpp/oatpp-threaded-starter).")
+  OATPP_LOGw("[oatpp::network::server::run(bool)]", "Using oatpp::network::server::run(bool) is deprecated and will be removed in the next release. Please implement your own threading (See https://github.com/oatpp/oatpp-threaded-starter).")
   switch (getStatus()) {
     case STATUS_STARTING:
       throw std::runtime_error("[oatpp::network::server::run()] Error. Server already starting");
     case STATUS_RUNNING:
       throw std::runtime_error("[oatpp::network::server::run()] Error. Server already started");
+    default:
+      break;
   }
 
   m_threaded = startAsNewThread;
@@ -152,6 +153,8 @@ void Server::stop() {
     case STATUS_RUNNING:
       setStatus(STATUS_STOPPING);
       break;
+    default:
+      break;
   }
 
   if (m_threaded && m_thread.joinable()) {
@@ -161,7 +164,7 @@ void Server::stop() {
 
 bool Server::setStatus(v_int32 expectedStatus, v_int32 newStatus) {
   v_int32 expected = expectedStatus;
-  return m_status.compare_exchange_weak(expected, newStatus);
+  return m_status.compare_exchange_strong(expected, newStatus);
 }
 
 void Server::setStatus(v_int32 status) {
@@ -170,16 +173,6 @@ void Server::setStatus(v_int32 status) {
 
 v_int32 Server::getStatus() {
   return m_status.load();
-}
-
-void Server::setConnectionProvider(const std::shared_ptr<ServerConnectionProvider> &connectionProvider) {
-  std::lock_guard<oatpp::concurrency::SpinLock> lg(m_spinlock);
-  m_connectionProvider = connectionProvider;
-}
-
-void Server::setConnectionHandler(const std::shared_ptr<ConnectionHandler> &connectionHandler) {
-  std::lock_guard<oatpp::concurrency::SpinLock> lg(m_spinlock);
-  m_connectionHandler = connectionHandler;
 }
 
 Server::~Server() {

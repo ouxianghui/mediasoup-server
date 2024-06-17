@@ -16,6 +16,7 @@
 #include "controller/statistics_controller.hpp"
 #include "controller/rooms_controller.hpp"
 #include "app_component.hpp"
+#include "oatpp/Environment.hpp"
 #include "oatpp/network/Server.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
 
@@ -90,10 +91,10 @@ void run(const oatpp::base::CommandLineArguments& cmdArgs)
 
     /* Create RoomsController and add all of its endpoints to router */
     auto rc = std::make_shared<RoomsController>();
-    rc->addEndpointsToRouter(router);
+    router->addController(rc);
 
     auto sc = std::make_shared<StatisticsController>();
-    sc->addEndpointsToRouter(router);
+    router->addController(sc);
 
     /* Get connection handler component */
     OATPP_COMPONENT(std::shared_ptr<oatpp::network::ConnectionHandler>, connectionHandler, "http");
@@ -121,13 +122,13 @@ void run(const oatpp::base::CommandLineArguments& cmdArgs)
     OATPP_COMPONENT(oatpp::Object<ConfigDto>, appConfig);
 
     if (appConfig->useTLS) {
-        OATPP_LOGI("canchat", "clients are expected to connect at https://%s:%d/", appConfig->host->c_str(), *appConfig->port);
+        OATPP_LOGi("canchat", "clients are expected to connect at https://%s:%d/", appConfig->host->c_str(), *appConfig->port);
     } else {
-        OATPP_LOGI("canchat", "clients are expected to connect at http://%s:%d/", appConfig->host->c_str(), *appConfig->port);
+        OATPP_LOGi("canchat", "clients are expected to connect at http://%s:%d/", appConfig->host->c_str(), *appConfig->port);
     }
 
-    OATPP_LOGI("canchat", "canonical base URL=%s", appConfig->getCanonicalBaseUrl()->c_str());
-    OATPP_LOGI("canchat", "statistics URL=%s", appConfig->getStatsUrl()->c_str());
+    OATPP_LOGi("canchat", "canonical base URL=%s", appConfig->getCanonicalBaseUrl()->c_str());
+    OATPP_LOGi("canchat", "statistics URL=%s", appConfig->getStatsUrl()->c_str());
 
     std::thread workerThread([]{
         MSEngine->run();
@@ -197,13 +198,13 @@ int main(int argc, const char * argv[])
     
     MSEngine->init(configFile);
     
-    oatpp::base::Environment::init();
+    oatpp::Environment::init();
 
     run(cmdArgs);
     
     MSEngine->destroy();
 
-    oatpp::base::Environment::destroy();
+    oatpp::Environment::destroy();
 
     return 0;
 }

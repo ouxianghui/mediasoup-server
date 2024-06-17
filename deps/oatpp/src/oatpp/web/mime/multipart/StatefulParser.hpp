@@ -25,9 +25,9 @@
 #ifndef oatpp_web_mime_multipart_StatefulParser_hpp
 #define oatpp_web_mime_multipart_StatefulParser_hpp
 
-#include "oatpp/core/data/stream/ChunkedBuffer.hpp"
-#include "oatpp/core/data/share/LazyStringMap.hpp"
-#include "oatpp/core/Types.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
+#include "oatpp/data/share/LazyStringMap.hpp"
+#include "oatpp/Types.hpp"
 
 #include <unordered_map>
 
@@ -51,7 +51,7 @@ private:
    * Typedef for headers map. Headers map key is case-insensitive.
    * For more info see &id:oatpp::data::share::LazyStringMap;.
    */
-  typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI_FAST> Headers;
+  typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI> Headers;
 public:
 
   /**
@@ -63,7 +63,7 @@ public:
      * Typedef for headers map. Headers map key is case-insensitive.
      * For more info see &id:oatpp::data::share::LazyStringMap;.
      */
-    typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI_FAST> Headers;
+    typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI> Headers;
   public:
 
     /**
@@ -85,7 +85,7 @@ public:
      * @param data - pointer to data.
      * @param size - size of the data in bytes.
      */
-    virtual void onPartData(p_char8 data, v_buff_size size) = 0;
+    virtual void onPartData(const char* data, v_buff_size size) = 0;
 
   };
 
@@ -100,7 +100,7 @@ public:
      * Typedef for headers map. Headers map key is case-insensitive.
      * For more info see &id:oatpp::data::share::LazyStringMap;.
      */
-    typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI_FAST> Headers;
+    typedef oatpp::data::share::LazyStringMultimap<oatpp::data::share::StringKeyLabelCI> Headers;
   public:
 
     /**
@@ -122,7 +122,7 @@ public:
      * @param data - pointer to data.
      * @param size - size of the data in bytes.
      */
-    virtual async::CoroutineStarter onPartDataAsync(p_char8 data, v_buff_size size) = 0;
+    virtual async::CoroutineStarter onPartDataAsync(const char* data, v_buff_size size) = 0;
 
   };
 
@@ -144,11 +144,11 @@ private:
     {}
 
     v_int32 callType;
-    p_char8 data;
+    const char* data;
     v_io_size size;
 
     void setOnHeadersCall();
-    void setOnDataCall(p_char8 pData, v_buff_size pSize);
+    void setOnDataCall(const char* pData, v_buff_size pSize);
 
     void call(StatefulParser* parser);
     async::CoroutineStarter callAsync(StatefulParser* parser);
@@ -174,7 +174,7 @@ private:
   /*
    * Headers of the part are stored in the buffer and are parsed as one chunk.
    */
-  oatpp::data::stream::ChunkedBuffer m_headersBuffer;
+  data::stream::BufferOutputStream m_headersBuffer;
 
   /*
    * Max length of all headers per one part.

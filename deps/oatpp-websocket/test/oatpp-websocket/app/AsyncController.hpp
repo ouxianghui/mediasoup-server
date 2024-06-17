@@ -13,9 +13,10 @@
 #include "oatpp-websocket/AsyncConnectionHandler.hpp"
 
 #include "oatpp/web/server/api/ApiController.hpp"
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
-#include "oatpp/core/macro/codegen.hpp"
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/json/ObjectMapper.hpp"
+#include "oatpp/macro/codegen.hpp"
+#include "oatpp/macro/component.hpp"
+#include "oatpp/base/Log.hpp"
 
 namespace oatpp { namespace test {namespace websocket { namespace app {
 
@@ -66,9 +67,9 @@ public:
     Action act() override {
       oatpp::String path = request->getPathTail();
       if(path) {
-        OATPP_LOGD("Controller", "path='%s'", path->c_str());
+        OATPP_LOGd("Controller", "path='{}'", path);
       } else {
-        OATPP_LOGD("Controller", "path='%s'", "nullptr");
+        OATPP_LOGd("Controller", "path='{}'", "nullptr");
       }
       return _return(controller->createResponse(Status::CODE_400, "wtf"));
     }

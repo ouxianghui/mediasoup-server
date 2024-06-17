@@ -23,41 +23,42 @@
  ***************************************************************************/
 
 #include "Checker.hpp"
+#include "oatpp/base/Log.hpp"
 
 namespace oatpp { namespace test {
 
 PerformanceChecker::PerformanceChecker(const char* tag)
   : m_tag(tag)
-  , m_ticks(oatpp::base::Environment::getMicroTickCount())
+  , m_ticks(oatpp::Environment::getMicroTickCount())
 {}
 
 PerformanceChecker::~PerformanceChecker(){
-  v_int64 elapsedTicks = oatpp::base::Environment::getMicroTickCount() - m_ticks;
-  OATPP_LOGD(m_tag, "%d(micro)", elapsedTicks);
+  v_int64 elapsedTicks = oatpp::Environment::getMicroTickCount() - m_ticks;
+  OATPP_LOGd(m_tag, "{}(micro)", elapsedTicks)
 }
 
 v_int64 PerformanceChecker::getElapsedTicks(){
-  return oatpp::base::Environment::getMicroTickCount() - m_ticks;
+  return oatpp::Environment::getMicroTickCount() - m_ticks;
 }
 
 
 ThreadLocalObjectsChecker::ThreadLocalObjectsChecker(const char* tag)
   : m_tag(tag)
-  , m_objectsCount(oatpp::base::Environment::getThreadLocalObjectsCount())
-  , m_objectsCreated(oatpp::base::Environment::getThreadLocalObjectsCreated())
+  , m_objectsCount(oatpp::Environment::getThreadLocalObjectsCount())
+  , m_objectsCreated(oatpp::Environment::getThreadLocalObjectsCreated())
 {
 }
 
 ThreadLocalObjectsChecker::~ThreadLocalObjectsChecker(){
   
-  v_counter leakingObjects = base::Environment::getThreadLocalObjectsCount() - m_objectsCount;
-  v_counter objectsCreatedPerTest = base::Environment::getThreadLocalObjectsCreated() - m_objectsCreated;
+  v_counter leakingObjects = oatpp::Environment::getThreadLocalObjectsCount() - m_objectsCount;
+  v_counter objectsCreatedPerTest = oatpp::Environment::getThreadLocalObjectsCreated() - m_objectsCreated;
   
   if(leakingObjects == 0){
-    OATPP_LOGE(m_tag, "OK:\n created(obj): %d", objectsCreatedPerTest);
+    OATPP_LOGe(m_tag, "OK:\n created(obj): {}", objectsCreatedPerTest)
   }else{
-    OATPP_LOGE(m_tag, "FAILED, leakingObjects = %d", leakingObjects);
-    OATPP_ASSERT(false);
+    OATPP_LOGe(m_tag, "FAILED, leakingObjects = {}", leakingObjects)
+    OATPP_ASSERT(false)
   }
   
 }

@@ -22,21 +22,13 @@
  *
  ***************************************************************************/
 
-#include "./ApiController.hpp"
-#include <oatpp/web/server/handler/ErrorHandler.hpp>
+#include "ApiController.hpp"
+
+#include "oatpp/web/server/handler/ErrorHandler.hpp"
 
 namespace oatpp { namespace web { namespace server { namespace api {
-  
-void ApiController::addEndpointsToRouter(const std::shared_ptr<Router>& router){
-  auto node = m_endpoints->getFirstNode();
-  while (node != nullptr) {
-    auto endpoint = node->getData();
-    router->route(endpoint->info()->method, endpoint->info()->path, endpoint->handler);
-    node = node->getNext();
-  }
-}
 
-std::shared_ptr<ApiController::Endpoints> ApiController::getEndpoints() {
+const Endpoints& ApiController::getEndpoints() {
   return m_endpoints;
 }
 
@@ -44,7 +36,7 @@ void ApiController::setEndpointInfo(const std::string& endpointName, const std::
   m_endpointInfo[endpointName] = info;
 }
 
-std::shared_ptr<ApiController::Endpoint::Info> ApiController::getEndpointInfo(const std::string& endpointName) {
+std::shared_ptr<Endpoint::Info> ApiController::getEndpointInfo(const std::string& endpointName) {
   return m_endpointInfo[endpointName];
 }
 
@@ -58,13 +50,23 @@ std::shared_ptr<ApiController::RequestHandler> ApiController::getEndpointHandler
 
 void ApiController::setErrorHandler(const std::shared_ptr<handler::ErrorHandler>& errorHandler){
   m_errorHandler = errorHandler;
+  if(!m_errorHandler) {
+    m_errorHandler = std::make_shared<handler::DefaultErrorHandler>();
+  }
 }
 
-std::shared_ptr<ApiController::OutgoingResponse> ApiController::handleError(const Status& status, const oatpp::String& message) const {
+std::shared_ptr<ApiController::OutgoingResponse> ApiController::handleError(const std::exception_ptr& exceptionPtr) const {
+
   if(m_errorHandler) {
-    return m_errorHandler->handleError(status, message);
+    return m_errorHandler->handleError(exceptionPtr);
   }
-  throw oatpp::web::protocol::http::HttpError(status, message);
+
+  if(exceptionPtr) {
+    std::rethrow_exception(exceptionPtr);
+  }
+
+  throw std::runtime_error("[oatpp::web::server::api::ApiController::handleError()]: Error. 'exceptionPtr' is not set.");
+
 }
 
 void ApiController::setDefaultAuthorizationHandler(const std::shared_ptr<handler::AuthorizationHandler>& authorizationHandler){
@@ -80,18 +82,21 @@ std::shared_ptr<handler::AuthorizationObject> ApiController::handleDefaultAuthor
     return m_defaultAuthorizationHandler->handleAuthorization(authHeader);
   }
   // If Authorization is not setup on the server then it's 500
-  throw oatpp::web::protocol::http::HttpError(Status::CODE_500, "Authorization is not setup.");
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_500, "Authorization is not setup.", {});
 }
 
-const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& ApiController::getDefaultObjectMapper() const {
-  return m_defaultObjectMapper;
+const std::shared_ptr<mime::ContentMappers>& ApiController::getContentMappers() const {
+  return m_contentMappers;
 }
 
 // Helper methods
 
-std::shared_ptr<ApiController::OutgoingResponse> ApiController::createResponse(const Status& status,
-                                                                               const oatpp::String& str) const {
+std::shared_ptr<ApiController::OutgoingResponse> ApiController::createResponse(const Status& status, const oatpp::String& str) const {
   return ResponseFactory::createResponse(status, str);
+}
+
+std::shared_ptr<ApiController::OutgoingResponse> ApiController::createResponse(const ApiController::Status &status) const {
+  return ResponseFactory::createResponse(status);
 }
 
 std::shared_ptr<ApiController::OutgoingResponse> ApiController::createDtoResponse(const Status& status,
@@ -100,9 +105,19 @@ std::shared_ptr<ApiController::OutgoingResponse> ApiController::createDtoRespons
   return ResponseFactory::createResponse(status, dto, objectMapper);
 }
 
+std::shared_ptr<ApiController::OutgoingResponse> ApiController::createDtoResponse(const Status& status, const oatpp::Void& dto) const {
+  return ResponseFactory::createResponse(status, dto, m_contentMappers->getDefaultMapper());
+}
+
 std::shared_ptr<ApiController::OutgoingResponse> ApiController::createDtoResponse(const Status& status,
-                                                                                  const oatpp::Void& dto) const {
-  return ResponseFactory::createResponse(status, dto, m_defaultObjectMapper);
+                                                                                  const oatpp::Void& dto,
+                                                                                  const std::vector<oatpp::String>& acceptableContentTypes) const
+{
+  auto mapper = m_contentMappers->selectMapper(acceptableContentTypes);
+  if(mapper) {
+    return ResponseFactory::createResponse(status, dto, mapper);
+  }
+  throw std::runtime_error("[ApiController::createDtoResponse()]: Unsupported content-type");
 }
 
 }}}}

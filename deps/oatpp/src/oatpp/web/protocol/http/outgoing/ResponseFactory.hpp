@@ -27,9 +27,8 @@
 
 #include "./Response.hpp"
 
-#include "oatpp/core/data/mapping/ObjectMapper.hpp"
-#include "oatpp/core/data/mapping/type/Type.hpp"
-#include "oatpp/core/data/stream/ChunkedBuffer.hpp"
+#include "oatpp/data/mapping/ObjectMapper.hpp"
+#include "oatpp/data/type/Type.hpp"
 
 namespace oatpp { namespace web { namespace protocol { namespace http { namespace outgoing {
 
@@ -38,6 +37,13 @@ namespace oatpp { namespace web { namespace protocol { namespace http { namespac
  */
 class ResponseFactory {
 public:
+  
+  /**
+   * Create &id:oatpp::web::protocol::http::outgoing::Response; without a &id:oatpp::web::protocol::http::outgoing::Body;.
+   * @param status - &id:oatpp::web::protocol::http::Status;.
+   * @return - `std::shared_ptr` to &id:oatpp::web::protocol::http::outgoing::Response;.
+   */
+  static std::shared_ptr<Response> createResponse(const Status &status);
 
   /**
    * Create &id:oatpp::web::protocol::http::outgoing::Response; with &id:oatpp::web::protocol::http::outgoing::BufferBody;.

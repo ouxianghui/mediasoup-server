@@ -24,7 +24,7 @@
 
 #include "ResponseHeadersReader.hpp"
 
-#include "oatpp/core/data/stream/BufferStream.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
 
 namespace oatpp { namespace web { namespace protocol { namespace http { namespace incoming {
 
@@ -43,7 +43,7 @@ v_io_size ResponseHeadersReader::readHeadersSectionIterative(ReadHeadersIteratio
     }
   }
 
-  auto bufferData = m_buffer.getData();
+  auto bufferData = reinterpret_cast<p_char8>(const_cast<void*>(m_buffer.getData()));
   auto res = connection->read(bufferData, desiredToRead, action);
   if(res > 0) {
 
@@ -95,7 +95,7 @@ ResponseHeadersReader::Result ResponseHeadersReader::readHeaders(const std::shar
 
   if(error.ioStatus > 0) {
     auto headersText = buffer.toString();
-    oatpp::parser::Caret caret (headersText);
+    oatpp::utils::parser::Caret caret (headersText);
     http::Status status;
     http::Parser::parseResponseStartingLine(result.startingLine, headersText.getPtr(), caret, status);
     if(status.code == 0) {
@@ -154,7 +154,7 @@ ResponseHeadersReader::readHeadersAsync(const std::shared_ptr<oatpp::data::strea
     Action parseHeaders() {
       
       auto headersText = m_bufferStream.toString();
-      oatpp::parser::Caret caret (headersText);
+      oatpp::utils::parser::Caret caret (headersText);
       http::Status status;
       http::Parser::parseResponseStartingLine(m_result.startingLine, headersText.getPtr(), caret, status);
       if(status.code == 0) {

@@ -25,7 +25,7 @@
 #ifndef oatpp_network_tcp_Connection_hpp
 #define oatpp_network_tcp_Connection_hpp
 
-#include "oatpp/core/data/stream/Stream.hpp"
+#include "oatpp/data/stream/Stream.hpp"
 
 namespace oatpp { namespace network { namespace tcp {
 
@@ -52,7 +52,7 @@ public:
    * Virtual Destructor (See &id:oatpp::base::Countable;).
    * Close socket handle.
    */
-  ~Connection();
+  ~Connection() override;
 
   /**
    * Implementation of &id:oatpp::data::stream::IOStream::write;.

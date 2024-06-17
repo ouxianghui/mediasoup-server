@@ -22,23 +22,24 @@
  *
  ***************************************************************************/
 
-#ifndef oatpp_web_server_rest_Controller_hpp
-#define oatpp_web_server_rest_Controller_hpp
+#ifndef oatpp_web_server_api_Controller_hpp
+#define oatpp_web_server_api_Controller_hpp
 
 #include "./Endpoint.hpp"
 
+#include "oatpp/web/mime/ContentMappers.hpp"
 #include "oatpp/web/server/handler/AuthorizationHandler.hpp"
 #include "oatpp/web/server/handler/ErrorHandler.hpp"
 #include "oatpp/web/server/handler/AuthorizationHandler.hpp"
-#include "oatpp/web/server/HttpConnectionHandler.hpp"
-#include "oatpp/web/url/mapping/Router.hpp"
+#include "oatpp/web/server/HttpServerError.hpp"
 #include "oatpp/web/protocol/http/incoming/Response.hpp"
 #include "oatpp/web/protocol/http/outgoing/Request.hpp"
 #include "oatpp/web/protocol/http/outgoing/ResponseFactory.hpp"
 
-#include "oatpp/core/collection/LinkedList.hpp"
-#include "oatpp/core/utils/ConversionUtils.hpp"
+#include "oatpp/utils/Conversion.hpp"
+#include "oatpp/base/Log.hpp"
 
+#include <list>
 #include <unordered_map>
 
 namespace oatpp { namespace web { namespace server { namespace api {
@@ -51,10 +52,6 @@ class ApiController : public oatpp::base::Countable {
 protected:
   typedef ApiController __ControllerType;
 public:
-  /**
-   * Convenience typedef for &id:oatpp::web::server::HttpRouter;.
-   */
-  typedef oatpp::web::server::HttpRouter Router;
 
   /**
    * Convenience typedef for &id:oatpp::web::protocol::http::outgoing::ResponseFactory;.
@@ -97,16 +94,6 @@ public:
   typedef oatpp::web::protocol::http::QueryParams QueryParams;
 
   /**
-   * Convenience typedef for &id:oatpp::web::server::api::Endpoint;.
-   */
-  typedef oatpp::web::server::api::Endpoint Endpoint;
-
-  /**
-   * Convenience typedef for list of &id:oatpp::web::server::api::Endpoint;.
-   */
-  typedef oatpp::collection::LinkedList<std::shared_ptr<Endpoint>> Endpoints;
-
-  /**
    * Convenience typedef for &id:oatpp::web::server::HttpRequestHandler;.
    */
   typedef oatpp::web::server::HttpRequestHandler RequestHandler;
@@ -124,62 +111,62 @@ public:
   typedef oatpp::data::mapping::ObjectMapper ObjectMapper;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::String;.
+   * Convenience typedef for &id:oatpp::data::type::String;.
    */
   typedef oatpp::String String;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::Int8;.
+   * Convenience typedef for &id:oatpp::data::type::Int8;.
    */
   typedef oatpp::Int8 Int8;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::UInt8;.
+   * Convenience typedef for &id:oatpp::data::type::UInt8;.
    */
   typedef oatpp::UInt8 UInt8;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::Int16;.
+   * Convenience typedef for &id:oatpp::data::type::Int16;.
    */
   typedef oatpp::Int16 Int16;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::UInt16;.
+   * Convenience typedef for &id:oatpp::data::type::UInt16;.
    */
   typedef oatpp::UInt16 UInt16;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::Int32;.
+   * Convenience typedef for &id:oatpp::data::type::Int32;.
    */
   typedef oatpp::Int32 Int32;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::UInt32;.
+   * Convenience typedef for &id:oatpp::data::type::UInt32;.
    */
   typedef oatpp::UInt32 UInt32;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::Int64;.
+   * Convenience typedef for &id:oatpp::data::type::Int64;.
    */
   typedef oatpp::Int64 Int64;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::UInt64;.
+   * Convenience typedef for &id:oatpp::data::type::UInt64;.
    */
   typedef oatpp::UInt64 UInt64;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::Float32;.
+   * Convenience typedef for &id:oatpp::data::type::Float32;.
    */
   typedef oatpp::Float32 Float32;
 
   /**
-   * Convenience typedef for &id:atpp::data::mapping::type::Float64;.
+   * Convenience typedef for &id:atpp::data::type::Float64;.
    */
   typedef oatpp::Float64 Float64;
 
   /**
-   * Convenience typedef for &id:oatpp::data::mapping::type::Boolean;.
+   * Convenience typedef for &id:oatpp::data::type::Boolean;.
    */
   typedef oatpp::Boolean Boolean;
 
@@ -198,7 +185,7 @@ public:
   using Fields = oatpp::Fields<Value>;
 
   template <class T>
-  using Enum = oatpp::data::mapping::type::Enum<T>;
+  using Enum = oatpp::data::type::Enum<T>;
 
 protected:
   
@@ -214,7 +201,7 @@ protected:
       , request(pRequest)
     {}
     
-    const ControllerT* controller;
+    ControllerT* const controller;
     std::shared_ptr<IncomingRequest> request;
     
   };
@@ -252,8 +239,28 @@ protected:
       }
 
       async::Action handleError(async::Error* error) override {
-        auto response = m_handler->m_controller->m_errorHandler->handleError(protocol::http::Status::CODE_500, error->what());
-        return this->_return(response);
+
+        std::exception_ptr ePtr = error->getExceptionPtr();
+        if(!ePtr) {
+          ePtr = std::make_exception_ptr(*error);
+        }
+
+        try {
+          try {
+            std::rethrow_exception(ePtr);
+          } catch (...) {
+            std::throw_with_nested(HttpServerError(m_request, "[ApiController]: Error processing async request"));
+          }
+        } catch (...) {
+          ePtr = std::current_exception();
+          auto response = m_handler->m_controller->handleError(ePtr);
+          if (response != nullptr) {
+            return this->_return(response);
+          }
+        }
+
+        return new async::Error(ePtr);
+
       }
 
     };
@@ -278,27 +285,26 @@ protected:
 
       if(m_method == nullptr) {
         if(m_methodAsync == nullptr) {
-          return m_controller->handleError(Status::CODE_500, "[ApiController]: Error. Handler method is nullptr.");
+          throw HttpServerError(request, "[ApiController]: Error. Handler method is nullptr");
         }
-        return m_controller->handleError(Status::CODE_500, "[ApiController]: Error. Non-async call to async endpoint.");
+        throw HttpServerError(request, "[ApiController]: Error. Non-async call to async endpoint");
       }
 
-      if(m_controller->m_errorHandler) {
-
+      try {
         try {
           return (m_controller->*m_method)(request);
-        } catch (oatpp::web::protocol::http::HttpError& error) {
-          return m_controller->m_errorHandler->handleError(error.getInfo().status, error.getMessage(), error.getHeaders());
-        } catch (std::exception& error) {
-          return m_controller->m_errorHandler->handleError(protocol::http::Status::CODE_500, error.what());
         } catch (...) {
-          return m_controller->m_errorHandler->handleError(protocol::http::Status::CODE_500, "Unknown error");
+          std::throw_with_nested(HttpServerError(request, "[ApiController]: Error processing request"));
         }
-
+      } catch (...) {
+        auto ePtr = std::current_exception();
+        auto response = m_controller->handleError(ePtr);
+        if (response != nullptr) {
+          return response;
+        }
+        std::rethrow_exception(ePtr);
       }
-
-      return (m_controller->*m_method)(request);
-
+      
     }
     
     oatpp::async::CoroutineStarterForResult<const std::shared_ptr<OutgoingResponse>&>
@@ -306,16 +312,16 @@ protected:
 
       if(m_methodAsync == nullptr) {
         if(m_method == nullptr) {
-          throw oatpp::web::protocol::http::HttpError(Status::CODE_500, "[ApiController]: Error. Handler method is nullptr.");
+          throw HttpServerError(request, "[ApiController]: Error. Handler method is nullptr");
         }
-        throw oatpp::web::protocol::http::HttpError(Status::CODE_500, "[ApiController]: Error. Async call to non-async endpoint.");
+        throw HttpServerError(request, "[ApiController]: Error. Async call to non-async endpoint");
       }
 
-      if(m_controller->m_errorHandler) {
+      //if(m_controller->m_errorHandler) {
         return ErrorHandlingCoroutine::startForResult(this, request);
-      }
+      //}
 
-      return (m_controller->*m_methodAsync)(request);
+      //return (m_controller->*m_methodAsync)(request);
 
     }
 
@@ -369,55 +375,56 @@ protected:
   std::shared_ptr<RequestHandler> getEndpointHandler(const std::string& endpointName);
   
 protected:
-  std::shared_ptr<Endpoints> m_endpoints;
+  Endpoints m_endpoints;
   std::shared_ptr<handler::ErrorHandler> m_errorHandler;
   std::shared_ptr<handler::AuthorizationHandler> m_defaultAuthorizationHandler;
-  std::shared_ptr<oatpp::data::mapping::ObjectMapper> m_defaultObjectMapper;
+  std::shared_ptr<mime::ContentMappers> m_contentMappers;
   std::unordered_map<std::string, std::shared_ptr<Endpoint::Info>> m_endpointInfo;
   std::unordered_map<std::string, std::shared_ptr<RequestHandler>> m_endpointHandlers;
   const oatpp::String m_routerPrefix;
 public:
-  ApiController(const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& defaultObjectMapper, const oatpp::String &routerPrefix = nullptr)
-    : m_endpoints(Endpoints::createShared())
-    , m_errorHandler(nullptr)
-    , m_defaultObjectMapper(defaultObjectMapper)
+
+  ApiController(const std::shared_ptr<mime::ContentMappers>& contentMappers, const oatpp::String &routerPrefix = nullptr)
+    : m_contentMappers(contentMappers)
     , m_routerPrefix(routerPrefix)
-  {}
+  {
+
+  }
+
+  ApiController(const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& defaultObjectMapper, const oatpp::String &routerPrefix = nullptr)
+    : m_contentMappers(std::make_shared<mime::ContentMappers>())
+    , m_routerPrefix(routerPrefix)
+  {
+    m_contentMappers->setDefaultMapper(defaultObjectMapper);
+  }
 public:
   
   template<class T>
-  static std::shared_ptr<Endpoint> createEndpoint(const std::shared_ptr<Endpoints>& endpoints,
+  static std::shared_ptr<Endpoint> createEndpoint(Endpoints& endpoints,
                                                   const std::shared_ptr<Handler<T>>& handler,
                                                   const EndpointInfoBuilder& infoBuilder)
   {
     auto endpoint = Endpoint::createShared(handler, infoBuilder);
-    endpoints->pushBack(endpoint);
+    endpoints.append(endpoint);
     return endpoint;
   }
-
-  /**
-   * Subscribes all created endpoint-handlers to corresponding URLs in Router
-   */
-  void addEndpointsToRouter(const std::shared_ptr<Router>& router);
   
   /**
    * Get list of Endpoints created via ENDPOINT macro
    */
-  std::shared_ptr<Endpoints> getEndpoints();
+  const Endpoints& getEndpoints();
 
   /**
-   * [under discussion]
-   * Set error handler to handle calls to handleError
+   * Set error handler to handle errors that occur during the endpoint's execution
    */
   void setErrorHandler(const std::shared_ptr<handler::ErrorHandler>& errorHandler);
 
   /**
-   * [under discussion]
-   * Do not use it directly. This method is under discussion.
-   * Currently returns Response created by registered ErrorHandler or returns Response created by DefaultErrorHandler::handleDefaultError
-   * Notice: Does not throw the Error anymore, error-response has to be returned by the caller!
+   * Handle the exception using the registered ErrorHandler or if no handler has been set, uses the DefaultErrorHandler::handleError
+   * @note Does not rethrow an exception anymore, OutgoingResponse has to be returned by the caller!
+   * @note If this handler fails to handle the exception, it will be handled by the connection handlers ErrorHandler.
    */
-  std::shared_ptr<OutgoingResponse> handleError(const Status& status, const oatpp::String& message) const;
+  std::shared_ptr<OutgoingResponse> handleError(const std::exception_ptr& exceptionPtr) const;
 
   /**
    * [under discussion]
@@ -438,20 +445,30 @@ public:
    * Currently returns AuthorizationObject created by AuthorizationHandler or return DefaultAuthorizationObject by DefaultAuthorizationHandler if AuthorizationHandler is null
    */
   std::shared_ptr<handler::AuthorizationObject> handleDefaultAuthorization(const String &authHeader) const;
-  
-  const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& getDefaultObjectMapper() const;
+
+  /**
+   * Get content mappers
+   * @return
+   */
+  const std::shared_ptr<mime::ContentMappers>& getContentMappers() const;
   
   // Helper methods
   
   std::shared_ptr<OutgoingResponse> createResponse(const Status& status,
                                                    const oatpp::String& str) const;
   
+  std::shared_ptr<OutgoingResponse> createResponse(const Status& status) const;
+
   std::shared_ptr<OutgoingResponse> createDtoResponse(const Status& status,
                                                       const oatpp::Void& dto,
                                                       const std::shared_ptr<oatpp::data::mapping::ObjectMapper>& objectMapper) const;
   
   std::shared_ptr<OutgoingResponse> createDtoResponse(const Status& status,
                                                       const oatpp::Void& dto) const;
+
+  std::shared_ptr<ApiController::OutgoingResponse> createDtoResponse(const Status& status,
+                                                                     const oatpp::Void& dto,
+                                                                     const std::vector<oatpp::String>& acceptableContentTypes) const;
 
 public:
 
@@ -461,10 +478,10 @@ public:
     static T fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
       (void) text;
       success = false;
-      OATPP_LOGE("[oatpp::web::server::api::ApiController::TypeInterpretation::fromString()]",
-                 "Error. No conversion from '%s' to '%s' is defined.", "oatpp::String", typeName->getData());
+      OATPP_LOGe("[oatpp::web::server::api::ApiController::TypeInterpretation::fromString()]",
+                 "Error. No conversion from '{}' to '{}' is defined.", "oatpp::String", typeName)
       throw std::runtime_error("[oatpp::web::server::api::ApiController::TypeInterpretation::fromString()]: Error. "
-                               "No conversion from 'oatpp::String' to '" + typeName->std_str() + "' is defined. "
+                               "No conversion from 'oatpp::String' to '" + *typeName + "' is defined. "
                                "Please define type conversion.");
     }
 
@@ -486,7 +503,7 @@ struct ApiController::TypeInterpretation <oatpp::Int8> {
   static oatpp::Int8 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
     //TODO: check the range and perhaps throw an exception if the variable doesn't fit
-    return static_cast<Int8::UnderlyingType>(utils::conversion::strToInt32(text, success));
+    return static_cast<Int8::UnderlyingType>(utils::Conversion::strToInt32(text, success));
   }
 };
 
@@ -495,7 +512,7 @@ struct ApiController::TypeInterpretation <oatpp::UInt8> {
   static oatpp::UInt8 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
     //TODO: check the range and perhaps throw an exception if the variable doesn't fit
-    return static_cast<UInt8::UnderlyingType>(utils::conversion::strToUInt32(text, success));
+    return static_cast<UInt8::UnderlyingType>(utils::Conversion::strToUInt32(text, success));
   }
 };
 
@@ -504,7 +521,7 @@ struct ApiController::TypeInterpretation <oatpp::Int16> {
   static oatpp::Int16 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
     //TODO: check the range and perhaps throw an exception if the variable doesn't fit
-    return static_cast<Int16::UnderlyingType>(utils::conversion::strToInt32(text, success));
+    return static_cast<Int16::UnderlyingType>(utils::Conversion::strToInt32(text, success));
   }
 };
 
@@ -513,7 +530,7 @@ struct ApiController::TypeInterpretation <oatpp::UInt16> {
   static oatpp::UInt16 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
     //TODO: check the range and perhaps throw an exception if the variable doesn't fit
-    return static_cast<UInt16::UnderlyingType>(utils::conversion::strToUInt32(text, success));
+    return static_cast<UInt16::UnderlyingType>(utils::Conversion::strToUInt32(text, success));
   }
 };
 
@@ -521,7 +538,7 @@ template<>
 struct ApiController::TypeInterpretation <oatpp::Int32> {
   static oatpp::Int32 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
-    return utils::conversion::strToInt32(text, success);
+    return utils::Conversion::strToInt32(text, success);
   }
 };
 
@@ -529,7 +546,7 @@ template<>
 struct ApiController::TypeInterpretation <oatpp::UInt32> {
   static oatpp::UInt32 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
-    return utils::conversion::strToUInt32(text, success);
+    return utils::Conversion::strToUInt32(text, success);
   }
 };
 
@@ -537,7 +554,7 @@ template<>
 struct ApiController::TypeInterpretation <oatpp::Int64> {
   static oatpp::Int64 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
-    return utils::conversion::strToInt64(text, success);
+    return utils::Conversion::strToInt64(text, success);
   }
 };
 
@@ -545,7 +562,7 @@ template<>
 struct ApiController::TypeInterpretation <oatpp::UInt64> {
   static oatpp::UInt64 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
-    return utils::conversion::strToUInt64(text, success);
+    return utils::Conversion::strToUInt64(text, success);
   }
 };
 
@@ -553,7 +570,7 @@ template<>
 struct ApiController::TypeInterpretation <oatpp::Float32> {
   static oatpp::Float32 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
-    return utils::conversion::strToFloat32(text, success);
+    return utils::Conversion::strToFloat32(text, success);
   }
 };
 
@@ -561,7 +578,7 @@ template<>
 struct ApiController::TypeInterpretation <oatpp::Float64> {
   static oatpp::Float64 fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
-    return utils::conversion::strToFloat64(text, success);
+    return utils::Conversion::strToFloat64(text, success);
   }
 };
 
@@ -569,23 +586,23 @@ template<>
 struct ApiController::TypeInterpretation <oatpp::Boolean> {
   static oatpp::Boolean fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     (void) typeName;
-    return utils::conversion::strToBool(text, success);
+    return utils::Conversion::strToBool(text, success);
   }
 };
 
 template<class T, class I>
-struct ApiController::TypeInterpretation <data::mapping::type::EnumObjectWrapper<T, I>> {
+struct ApiController::TypeInterpretation <data::type::EnumObjectWrapper<T, I>> {
 
-  typedef data::mapping::type::EnumObjectWrapper<T, I> EnumOW;
+  typedef data::type::EnumObjectWrapper<T, I> EnumOW;
   typedef typename I::UnderlyingTypeObjectWrapper UTOW;
 
   static EnumOW fromString(const oatpp::String& typeName, const oatpp::String& text, bool& success) {
     const auto& parsedValue = ApiController::TypeInterpretation<UTOW>::fromString(typeName, text, success);
     if(success) {
-      data::mapping::type::EnumInterpreterError error = data::mapping::type::EnumInterpreterError::OK;
-      const auto& result = I::fromInterpretation(parsedValue, error);
-      if(error == data::mapping::type::EnumInterpreterError::OK) {
-        return result.template staticCast<EnumOW>();
+      data::type::EnumInterpreterError error = data::type::EnumInterpreterError::OK;
+      const auto& result = I::fromInterpretation(parsedValue, false, error);
+      if(error == data::type::EnumInterpreterError::OK) {
+        return result.template cast<EnumOW>();
       }
       success = false;
     }
@@ -596,4 +613,4 @@ struct ApiController::TypeInterpretation <data::mapping::type::EnumObjectWrapper
 
 }}}}
 
-#endif /* oatpp_web_server_rest_Controller_hpp */
+#endif /* oatpp_web_server_api_Controller_hpp */

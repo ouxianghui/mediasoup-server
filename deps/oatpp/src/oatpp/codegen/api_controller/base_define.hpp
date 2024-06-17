@@ -70,28 +70,27 @@ const auto& OATPP_MACRO_FIRSTARG PARAM_LIST = __request;
 
 #define OATPP_MACRO_API_CONTROLLER_HEADER_1(TYPE, NAME) \
 const auto& __param_str_val_##NAME = __request->getHeader(#NAME); \
-if(!__param_str_val_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, "Missing HEADER parameter '" #NAME "'"); \
+if(!__param_str_val_##NAME){                            \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, "Missing HEADER parameter '" #NAME "'"); \
 } \
 bool __param_validation_check_##NAME; \
 const auto& NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
 if(!__param_validation_check_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, "Invalid HEADER parameter '" #NAME "'. Expected type is '" #TYPE "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, "Invalid HEADER parameter '" #NAME "'. Expected type is '" #TYPE "'"); \
 }
 
 #define OATPP_MACRO_API_CONTROLLER_HEADER_2(TYPE, NAME, QUALIFIER) \
 const auto& __param_str_val_##NAME = __request->getHeader(QUALIFIER); \
 if(!__param_str_val_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, \
-  oatpp::String("Missing HEADER parameter '") + QUALIFIER + "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, oatpp::String("Missing HEADER parameter '") + QUALIFIER + "'"); \
 } \
 bool __param_validation_check_##NAME; \
 const auto& NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
 if(!__param_validation_check_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, \
-                                    oatpp::String("Invalid HEADER parameter '") + \
-                                    QUALIFIER + \
-                                    "'. Expected type is '" #TYPE "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, \
+                                              oatpp::String("Invalid HEADER parameter '") + \
+                                              QUALIFIER + \
+                                              "'. Expected type is '" #TYPE "'"); \
 }
 
 #define OATPP_MACRO_API_CONTROLLER_HEADER(TYPE, PARAM_LIST) \
@@ -114,27 +113,27 @@ OATPP_MACRO_API_CONTROLLER_MACRO_SELECTOR(OATPP_MACRO_API_CONTROLLER_HEADER_INFO
 #define OATPP_MACRO_API_CONTROLLER_PATH_1(TYPE, NAME) \
 const auto& __param_str_val_##NAME = __request->getPathVariable(#NAME); \
 if(!__param_str_val_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, "Missing PATH parameter '" #NAME "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, "Missing PATH parameter '" #NAME "'"); \
 } \
 bool __param_validation_check_##NAME; \
 const auto& NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
 if(!__param_validation_check_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, "Invalid PATH parameter '" #NAME "'. Expected type is '" #TYPE "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, "Invalid PATH parameter '" #NAME "'. Expected type is '" #TYPE "'"); \
 }
 
 #define OATPP_MACRO_API_CONTROLLER_PATH_2(TYPE, NAME, QUALIFIER) \
 const auto& __param_str_val_##NAME = __request->getPathVariable(QUALIFIER); \
 if(!__param_str_val_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, \
-  oatpp::String("Missing PATH parameter '") + QUALIFIER + "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, \
+                                              oatpp::String("Missing PATH parameter '") + QUALIFIER + "'"); \
 } \
 bool __param_validation_check_##NAME; \
 const auto NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
 if(!__param_validation_check_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, \
-                                    oatpp::String("Invalid PATH parameter '") + \
-                                    QUALIFIER + \
-                                    "'. Expected type is '" #TYPE "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, \
+                                              oatpp::String("Invalid PATH parameter '") + \
+                                              QUALIFIER + \
+                                              "'. Expected type is '" #TYPE "'"); \
 }
 
 #define OATPP_MACRO_API_CONTROLLER_PATH(TYPE, PARAM_LIST) \
@@ -163,38 +162,41 @@ const auto& OATPP_MACRO_FIRSTARG PARAM_LIST = __request->getQueryParameters();
 #define OATPP_MACRO_API_CONTROLLER_QUERY_1(TYPE, NAME) \
 const auto& __param_str_val_##NAME = __request->getQueryParameter(#NAME); \
 if(!__param_str_val_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, "Missing QUERY parameter '" #NAME "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, "Missing QUERY parameter '" #NAME "'"); \
 } \
 bool __param_validation_check_##NAME; \
 const auto& NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
 if(!__param_validation_check_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, "Invalid QUERY parameter '" #NAME "'. Expected type is '" #TYPE "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, "Invalid QUERY parameter '" #NAME "'. Expected type is '" #TYPE "'"); \
 }
 
 #define OATPP_MACRO_API_CONTROLLER_QUERY_2(TYPE, NAME, QUALIFIER) \
 const auto& __param_str_val_##NAME = __request->getQueryParameter(QUALIFIER); \
-if(!__param_str_val_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, \
-  oatpp::String("Missing QUERY parameter '") + QUALIFIER + "'"); \
+if(!__param_str_val_##NAME) { \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, \
+                                              oatpp::String("Missing QUERY parameter '") + QUALIFIER + "'"); \
 } \
 bool __param_validation_check_##NAME; \
 const auto& NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
 if(!__param_validation_check_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, \
-                                    oatpp::String("Invalid QUERY parameter '") + \
-                                    QUALIFIER + \
-                                    "'. Expected type is '" #TYPE "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, \
+                                              oatpp::String("Invalid QUERY parameter '") + \
+                                              QUALIFIER + \
+                                              "'. Expected type is '" #TYPE "'"); \
 }
 
 #define OATPP_MACRO_API_CONTROLLER_QUERY_3(TYPE, NAME, QUALIFIER, DEFAULT) \
-const auto& __param_str_val_##NAME = __request->getQueryParameter(QUALIFIER, DEFAULT); \
-bool __param_validation_check_##NAME; \
-const auto& NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
-if(!__param_validation_check_##NAME){ \
-  return ApiController::handleError(Status::CODE_400, \
-                                    oatpp::String("Invalid QUERY parameter '") + \
-                                    QUALIFIER + \
-                                    "'. Expected type is '" #TYPE "'"); \
+TYPE NAME = DEFAULT; \
+const auto& __param_str_val_##NAME = __request->getQueryParameter(QUALIFIER); \
+if(__param_str_val_##NAME) { \
+  bool __param_validation_check_##NAME; \
+  NAME = ApiController::TypeInterpretation<TYPE>::fromString(#TYPE, __param_str_val_##NAME, __param_validation_check_##NAME); \
+  if(!__param_validation_check_##NAME){ \
+    throw oatpp::web::protocol::http::HttpError(Status::CODE_400, \
+                                                oatpp::String("Invalid QUERY parameter '") + \
+                                                QUALIFIER + \
+                                                "'. Expected type is '" #TYPE "'"); \
+  } \
 }
 
 #define OATPP_MACRO_API_CONTROLLER_QUERY(TYPE, PARAM_LIST) \
@@ -209,7 +211,8 @@ info->queryParams.add(#NAME, TYPE::Class::getType());
 info->queryParams.add(QUALIFIER, TYPE::Class::getType());
 
 #define OATPP_MACRO_API_CONTROLLER_QUERY_INFO_3(TYPE, NAME, QUALIFIER, DEFAULT) \
-info->queryParams.add(QUALIFIER, TYPE::Class::getType());
+info->queryParams.add(QUALIFIER, TYPE::Class::getType());                       \
+info->queryParams[QUALIFIER].required = false;
 
 #define OATPP_MACRO_API_CONTROLLER_QUERY_INFO(TYPE, PARAM_LIST) \
 OATPP_MACRO_API_CONTROLLER_MACRO_SELECTOR(OATPP_MACRO_API_CONTROLLER_QUERY_INFO_, TYPE, OATPP_MACRO_UNFOLD_VA_ARGS PARAM_LIST)
@@ -224,21 +227,22 @@ const auto& OATPP_MACRO_FIRSTARG PARAM_LIST = __request->readBodyToString();
 #define OATPP_MACRO_API_CONTROLLER_BODY_STRING_INFO(TYPE, PARAM_LIST) \
 info->body.name = OATPP_MACRO_FIRSTARG_STR PARAM_LIST; \
 info->body.required = true; \
-info->body.type = oatpp::data::mapping::type::__class::String::getType(); \
-if(getDefaultObjectMapper()) { \
-  info->bodyContentType = getDefaultObjectMapper()->getInfo().http_content_type; \
+info->body.type = oatpp::data::type::__class::String::getType(); \
+if(getContentMappers()->getDefaultMapper()) { \
+  info->bodyContentType = getContentMappers()->getDefaultMapper()->getInfo().httpContentType; \
 }
 
 // BODY_DTO MACRO // ------------------------------------------------------
 
 #define OATPP_MACRO_API_CONTROLLER_BODY_DTO(TYPE, PARAM_LIST) \
-if(!getDefaultObjectMapper()) { \
-  return ApiController::handleError(Status::CODE_500, "ObjectMapper was NOT set. Can't deserialize the request body."); \
+const auto& __bodyMapper = getContentMappers()->selectMapperForContent(__request->getHeader(oatpp::web::protocol::http::Header::CONTENT_TYPE)); \
+if(!__bodyMapper) { \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_500, "No suitable mapper found to deserialize the request body."); \
 } \
 const auto& OATPP_MACRO_FIRSTARG PARAM_LIST = \
-__request->readBodyToDto<TYPE>(getDefaultObjectMapper().get()); \
+__request->readBodyToDto<TYPE>(__bodyMapper.get()); \
 if(!OATPP_MACRO_FIRSTARG PARAM_LIST) { \
-  return ApiController::handleError(Status::CODE_400, "Missing valid body parameter '" OATPP_MACRO_FIRSTARG_STR PARAM_LIST "'"); \
+  throw oatpp::web::protocol::http::HttpError(Status::CODE_400, "Missing valid body parameter '" OATPP_MACRO_FIRSTARG_STR PARAM_LIST "'"); \
 }
 
 // __INFO
@@ -247,8 +251,8 @@ if(!OATPP_MACRO_FIRSTARG PARAM_LIST) { \
 info->body.name = OATPP_MACRO_FIRSTARG_STR PARAM_LIST; \
 info->body.required = true; \
 info->body.type = TYPE::Class::getType(); \
-if(getDefaultObjectMapper()) { \
-  info->bodyContentType = getDefaultObjectMapper()->getInfo().http_content_type; \
+if(getContentMappers()->getDefaultMapper()) { \
+  info->bodyContentType = getContentMappers()->getDefaultMapper()->getInfo().httpContentType; \
 }
 
 // FOR EACH // ------------------------------------------------------
@@ -275,15 +279,15 @@ OATPP_MACRO_API_CONTROLLER_PARAM_INFO X
 
 #define ENDPOINT_INFO(NAME) \
 \
-std::shared_ptr<Endpoint::Info> Z__ENDPOINT_CREATE_ADDITIONAL_INFO_##NAME() { \
+std::shared_ptr<oatpp::web::server::api::Endpoint::Info> Z__ENDPOINT_CREATE_ADDITIONAL_INFO_##NAME() { \
   auto info = Z__EDNPOINT_INFO_GET_INSTANCE_##NAME(); \
   Z__ENDPOINT_ADD_INFO_##NAME(info); \
   return info; \
 } \
 \
-const std::shared_ptr<Endpoint::Info> Z__ENDPOINT_ADDITIONAL_INFO_##NAME = Z__ENDPOINT_CREATE_ADDITIONAL_INFO_##NAME(); \
+const std::shared_ptr<oatpp::web::server::api::Endpoint::Info> Z__ENDPOINT_ADDITIONAL_INFO_##NAME = Z__ENDPOINT_CREATE_ADDITIONAL_INFO_##NAME(); \
 \
-void Z__ENDPOINT_ADD_INFO_##NAME(const std::shared_ptr<Endpoint::Info>& info)
+void Z__ENDPOINT_ADD_INFO_##NAME(const std::shared_ptr<oatpp::web::server::api::Endpoint::Info>& info)
 
 // ENDPOINT MACRO // ------------------------------------------------------
 
@@ -299,10 +303,10 @@ static typename std::shared_ptr<Handler<T>> Z__ENDPOINT_HANDLER_GET_INSTANCE_##N
   return handler; \
 } \
 \
-std::shared_ptr<Endpoint::Info> Z__EDNPOINT_INFO_GET_INSTANCE_##NAME() { \
-  std::shared_ptr<Endpoint::Info> info = getEndpointInfo(#NAME); \
+std::shared_ptr<oatpp::web::server::api::Endpoint::Info> Z__EDNPOINT_INFO_GET_INSTANCE_##NAME() { \
+  std::shared_ptr<oatpp::web::server::api::Endpoint::Info> info = getEndpointInfo(#NAME); \
   if(!info){ \
-    info = Endpoint::Info::createShared(); \
+    info = oatpp::web::server::api::Endpoint::Info::createShared(); \
     setEndpointInfo(#NAME, info); \
   } \
   return info; \
@@ -321,7 +325,7 @@ EndpointInfoBuilder Z__CREATE_ENDPOINT_INFO_##NAME = [this](){ \
   return info; \
 }; \
 \
-const std::shared_ptr<Endpoint> Z__ENDPOINT_##NAME = createEndpoint(m_endpoints, \
+const std::shared_ptr<oatpp::web::server::api::Endpoint> Z__ENDPOINT_##NAME = createEndpoint(m_endpoints, \
                                                         Z__ENDPOINT_HANDLER_GET_INSTANCE_##NAME(this), \
                                                         Z__CREATE_ENDPOINT_INFO_##NAME);
 
@@ -351,7 +355,7 @@ auto info = Z__EDNPOINT_INFO_GET_INSTANCE_##NAME(); \
   return info; \
 }; \
 \
-const std::shared_ptr<Endpoint> Z__ENDPOINT_##NAME = createEndpoint(m_endpoints, \
+const std::shared_ptr<oatpp::web::server::api::Endpoint> Z__ENDPOINT_##NAME = createEndpoint(m_endpoints, \
                                                         Z__ENDPOINT_HANDLER_GET_INSTANCE_##NAME(this), \
                                                         Z__CREATE_ENDPOINT_INFO_##NAME);
 
@@ -389,7 +393,7 @@ OATPP_MACRO_EXPAND(OATPP_MACRO_API_CONTROLLER_ENDPOINT_0(NAME, METHOD, PATH))
 OATPP_MACRO_EXPAND(OATPP_MACRO_API_CONTROLLER_ENDPOINT_1(NAME, METHOD, PATH, __VA_ARGS__))
 
 /**
- * Codegen macoro to be used in `oatpp::web::server::api::ApiController` to generate Endpoint.
+ * Codegen macro to be used in `oatpp::web::server::api::ApiController` to generate Endpoint.
  * @param METHOD - Http method ("GET", "POST", "PUT", etc.).
  * @param PATH - Path to endpoint (without host).
  * @param NAME - Name of the generated method.
@@ -453,10 +457,10 @@ static typename std::shared_ptr<Handler<T>> Z__ENDPOINT_HANDLER_GET_INSTANCE_##N
   return handler; \
 } \
 \
-std::shared_ptr<Endpoint::Info> Z__EDNPOINT_INFO_GET_INSTANCE_##NAME() { \
-  std::shared_ptr<Endpoint::Info> info = getEndpointInfo(#NAME); \
+std::shared_ptr<oatpp::web::server::api::Endpoint::Info> Z__EDNPOINT_INFO_GET_INSTANCE_##NAME() { \
+  std::shared_ptr<oatpp::web::server::api::Endpoint::Info> info = getEndpointInfo(#NAME); \
   if(!info){ \
-    info = Endpoint::Info::createShared(); \
+    info = oatpp::web::server::api::Endpoint::Info::createShared(); \
     setEndpointInfo(#NAME, info); \
   } \
   return info; \
@@ -476,12 +480,12 @@ EndpointInfoBuilder Z__CREATE_ENDPOINT_INFO_##NAME = [this](){ \
   return info; \
 }; \
 \
-const std::shared_ptr<Endpoint> Z__ENDPOINT_##NAME = createEndpoint(m_endpoints, \
+const std::shared_ptr<oatpp::web::server::api::Endpoint> Z__ENDPOINT_##NAME = createEndpoint(m_endpoints, \
                                                                     Z__ENDPOINT_HANDLER_GET_INSTANCE_##NAME(this), \
                                                                     Z__CREATE_ENDPOINT_INFO_##NAME);
 
 /**
- * Codegen macoro to be used in `oatpp::web::server::api::ApiController` to generate Asynchronous Endpoint.
+ * Codegen macro to be used in `oatpp::web::server::api::ApiController` to generate Asynchronous Endpoint.
  * @param METHOD - Http method ("GET", "POST", "PUT", etc.).
  * @param PATH - Path to endpoint (without host).
  * @param NAME - Name of the generated method.

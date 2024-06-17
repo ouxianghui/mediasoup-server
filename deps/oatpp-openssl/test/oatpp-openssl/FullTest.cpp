@@ -22,6 +22,7 @@
  *
  ***************************************************************************/
 
+#include <fstream>
 #include "FullTest.hpp"
 
 #include "app/Client.hpp"
@@ -29,14 +30,16 @@
 #include "app/Controller.hpp"
 
 #include "oatpp-openssl/client/ConnectionProvider.hpp"
+#include "oatpp-openssl/configurer/TemporaryDhParamsFile.hpp"
 #include "oatpp-openssl/server/ConnectionProvider.hpp"
+#include "oatpp-openssl/configurer/TrustStore.hpp"
 
 #include "oatpp/web/client/HttpRequestExecutor.hpp"
 
 #include "oatpp/web/server/HttpConnectionHandler.hpp"
 #include "oatpp/web/server/HttpRouter.hpp"
 
-#include "oatpp/parser/json/mapping/ObjectMapper.hpp"
+#include "oatpp/json/ObjectMapper.hpp"
 
 #include "oatpp/network/tcp/server/ConnectionProvider.hpp"
 #include "oatpp/network/tcp/client/ConnectionProvider.hpp"
@@ -45,9 +48,11 @@
 #include "oatpp/network/virtual_/server/ConnectionProvider.hpp"
 #include "oatpp/network/virtual_/Interface.hpp"
 
-#include "oatpp/core/macro/component.hpp"
+#include "oatpp/macro/component.hpp"
 
 #include "oatpp-test/web/ClientServerTestRunner.hpp"
+#include "oatpp-openssl/configurer/PrivateKeyBuffer.hpp"
+#include "oatpp-openssl/configurer/CertificateBuffer.hpp"
 
 namespace oatpp { namespace test { namespace openssl {
 
@@ -56,10 +61,12 @@ namespace {
 class TestComponent {
 private:
   v_uint16 m_port;
+  bool m_useBufferedCertAndPrivateKey;
 public:
 
-  TestComponent(v_uint16 port)
+  TestComponent(v_uint16 port, bool useBufferedCertAndPrivateKey)
     : m_port(port)
+    , m_useBufferedCertAndPrivateKey(useBufferedCertAndPrivateKey)
   {}
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::virtual_::Interface>, virtualInterface)([] {
@@ -77,12 +84,31 @@ public:
       streamProvider = oatpp::network::tcp::server::ConnectionProvider::createShared({"localhost", m_port});
     }
 
-    OATPP_LOGD("oatpp::openssl::Config", "pem='%s'", CERT_PEM_PATH);
-    OATPP_LOGD("oatpp::openssl::Config", "crt='%s'", CERT_CRT_PATH);
+    OATPP_LOGd("oatpp::openssl::Config", "pem='{}' loaded from {}", CERT_PEM_PATH, m_useBufferedCertAndPrivateKey ? "memory" : "file");
+    OATPP_LOGd("oatpp::openssl::Config", "crt='{}' loaded from {}", CERT_CRT_PATH, m_useBufferedCertAndPrivateKey ? "memory" : "file");
+    OATPP_LOGd("oatpp::openssl::Config", "dh_params='{}'", CERT_DH_PARAMS_PATH);
+    std::shared_ptr<oatpp::openssl::Config> config;
 
-    auto config = oatpp::openssl::Config::createDefaultServerConfigShared(CERT_CRT_PATH, CERT_PEM_PATH);
+    if(m_useBufferedCertAndPrivateKey) {
+      config = oatpp::openssl::Config::createShared();
+
+      auto certBuffer = oatpp::String::loadFromFile(CERT_CRT_PATH);
+      auto privateKeyBuffer = oatpp::String::loadFromFile(CERT_PEM_PATH);
+
+      config->addContextConfigurer(
+        std::make_shared<oatpp::openssl::configurer::PrivateKeyBuffer>(privateKeyBuffer->data(), privateKeyBuffer->size())
+      );
+      config->addContextConfigurer(
+        std::make_shared<oatpp::openssl::configurer::CertificateBuffer>(certBuffer->data(), certBuffer->size())
+      );
+    } else {
+      config = oatpp::openssl::Config::createDefaultServerConfigShared(CERT_CRT_PATH, CERT_PEM_PATH);
+    }
+    config->addContextConfigurer(
+      std::make_shared<oatpp::openssl::configurer::TemporaryDhParamsFile>(CERT_DH_PARAMS_PATH)
+    );
+
     return oatpp::openssl::server::ConnectionProvider::createShared(config, streamProvider);
-
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::web::server::HttpRouter>, httpRouter)([] {
@@ -95,7 +121,7 @@ public:
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>, objectMapper)([] {
-    return oatpp::parser::json::mapping::ObjectMapper::createShared();
+    return std::make_shared<oatpp::json::ObjectMapper>();
   }());
 
   OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::network::ClientConnectionProvider>, clientConnectionProvider)([this] {
@@ -110,6 +136,8 @@ public:
     }
 
     auto config = oatpp::openssl::Config::createDefaultClientConfigShared();
+    OATPP_LOGd("oatpp::openssl::Config", "trust='{}'", CERT_CRT_PATH);
+    config->addContextConfigurer(std::make_shared<oatpp::openssl::configurer::TrustStore>(CERT_CRT_PATH, nullptr));
     return oatpp::openssl::client::ConnectionProvider::createShared(config, streamProvider);
 
   }());
@@ -120,7 +148,7 @@ public:
   
 void FullTest::onRun() {
 
-  TestComponent component(m_port);
+  TestComponent component(m_port, m_useBufferedCertAndPrivateKey);
 
   oatpp::test::web::ClientServerTestRunner runner;
 
@@ -139,7 +167,7 @@ void FullTest::onRun() {
 
     v_int32 iterationsStep = m_iterationsPerStep;
 
-    auto lastTick = oatpp::base::Environment::getMicroTickCount();
+    auto lastTick = oatpp::Environment::getMicroTickCount();
 
     for(v_int32 i = 0; i < iterationsStep * 10; i ++) {
 
@@ -175,7 +203,7 @@ void FullTest::onRun() {
         OATPP_ASSERT(dto->testMap->size() == 3);
         OATPP_ASSERT(dto->testMap.getValueByKey("key1", "") == "value1");
         OATPP_ASSERT(dto->testMap.getValueByKey("key2", "") == "32");
-        OATPP_ASSERT(dto->testMap.getValueByKey("key3", "") == oatpp::utils::conversion::float32ToStr(0.32));
+        OATPP_ASSERT(dto->testMap.getValueByKey("key3", "") == oatpp::utils::Conversion::float32ToStr(0.32));
       }
 
       { // test GET with header parameter
@@ -195,7 +223,7 @@ void FullTest::onRun() {
       }
 
       { // test Big Echo with body
-        oatpp::data::stream::ChunkedBuffer stream;
+        oatpp::data::stream::BufferOutputStream stream;
         for(v_int32 i = 0; i < oatpp::data::buffer::IOBuffer::BUFFER_SIZE; i++) {
           stream.writeSimple("0123456789", 10);
         }
@@ -213,9 +241,9 @@ void FullTest::onRun() {
       }
 
       if((i + 1) % iterationsStep == 0) {
-        auto ticks = oatpp::base::Environment::getMicroTickCount() - lastTick;
-        lastTick = oatpp::base::Environment::getMicroTickCount();
-        OATPP_LOGD("i", "%d, tick=%d", i + 1, ticks);
+        auto ticks = oatpp::Environment::getMicroTickCount() - lastTick;
+        lastTick = oatpp::Environment::getMicroTickCount();
+        OATPP_LOGd("i", "{}, tick={}", i + 1, ticks);
       }
 
     }

@@ -24,7 +24,7 @@
 
 #include "ApiClient.hpp"
 
-#include "oatpp/core/data/stream/BufferStream.hpp"
+#include "oatpp/data/stream/BufferStream.hpp"
 
 namespace oatpp { namespace web { namespace client {
 
@@ -40,10 +40,14 @@ void ApiClient::invalidateConnection(const std::shared_ptr<RequestExecutor::Conn
   m_requestExecutor->invalidateConnection(connectionHandle);
 }
 
+std::shared_ptr<oatpp::data::mapping::ObjectMapper> ApiClient::getObjectMapper() {
+  return m_objectMapper;
+}
+
 ApiClient::StringTemplate ApiClient::parsePathTemplate(const oatpp::String& name, const oatpp::String& text) {
 
   std::vector<StringTemplate::Variable> variables;
-  parser::Caret caret(text);
+  utils::parser::Caret caret(text);
 
   while(caret.canContinue()) {
 
@@ -91,7 +95,7 @@ oatpp::String ApiClient::formatPath(const StringTemplate& pathTemplate,
     bool first = !extra->hasQueryParams;
     for(const auto& q : queryParams) {
       oatpp::String value = q.second;
-      if(value && value->getSize() > 0) {
+      if(value) {
         if (first) {
           stream.writeCharSimple('?');
           first = false;

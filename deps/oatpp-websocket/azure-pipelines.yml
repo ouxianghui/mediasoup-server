@@ -4,11 +4,11 @@
 # https://aka.ms/yaml
 
 jobs:
-  - job: ubuntu_16_04
-    displayName: 'Build - Ubuntu 16.04'
+  - job: ubuntu_20_04
+    displayName: 'Build - Ubuntu 20.04'
     continueOnError: false
     pool:
-      vmImage: 'Ubuntu 16.04'
+      vmImage: 'ubuntu-20.04'
     workspace:
       clean: all
     steps:
@@ -38,7 +38,7 @@ jobs:
     displayName: 'Build - macOS'
     continueOnError: false
     pool:
-      vmImage: 'macOS-10.14'
+      vmImage: 'macOS-latest'
     workspace:
       clean: all
     steps:

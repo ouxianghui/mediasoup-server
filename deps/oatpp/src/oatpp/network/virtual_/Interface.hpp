@@ -27,9 +27,9 @@
 
 #include "./Socket.hpp"
 
-#include "oatpp/core/collection/LinkedList.hpp"
-
+#include <list>
 #include <unordered_map>
+#include <chrono>
 
 namespace oatpp { namespace network { namespace virtual_ {
 
@@ -42,7 +42,7 @@ private:
   static std::recursive_mutex m_registryMutex;
   static std::unordered_map<oatpp::String, std::weak_ptr<Interface>> m_registry;
 private:
-  static void registerInterface(const std::shared_ptr<Interface>& interface);
+  static void registerInterface(const std::shared_ptr<Interface>& _interface);
   static void unregisterInterface(const oatpp::String& name);
 public:
 
@@ -54,7 +54,7 @@ public:
   private:
     Interface* m_interface;
   private:
-    ListenerLock(Interface* interface);
+    ListenerLock(Interface* _interface);
   public:
     ~ListenerLock();
   };
@@ -116,7 +116,7 @@ private:
   std::mutex m_listenerMutex;
   std::mutex m_mutex;
   std::condition_variable m_condition;
-  oatpp::collection::LinkedList<std::shared_ptr<ConnectionSubmission>> m_submissions;
+  std::list<std::shared_ptr<ConnectionSubmission>> m_submissions;
 private:
 
   Interface(const oatpp::String& name);
@@ -131,7 +131,7 @@ public:
   /**
    * Destructor.
    */
-  ~Interface();
+  ~Interface() override;
 
   /**
    * Obtain interface for given name.
@@ -162,9 +162,11 @@ public:
    * Block and wait for incloming connection.
    * @param waitingHandle - reference to a boolean variable.
    * User may set waitingHandle = false and call &l:Interface::notifyAcceptors (); in order to break waiting loop. and exit accept() method.
+   * @param timeout
    * @return - `std::shared_ptr` to &id:oatpp::network::virtual_::Socket;.
    */
-  std::shared_ptr<Socket> accept(const bool& waitingHandle = true);
+  std::shared_ptr<Socket> accept(const bool& waitingHandle = true,
+                                 const std::chrono::duration<v_int64, std::micro>& timeout = std::chrono::minutes (10));
 
   /**
    * Check if incoming connection is available. NonBlocking.

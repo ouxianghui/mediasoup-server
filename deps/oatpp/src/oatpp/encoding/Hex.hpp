@@ -25,8 +25,8 @@
 #ifndef oatpp_encoding_Hex_hpp
 #define oatpp_encoding_Hex_hpp
 
-#include "oatpp/core/data/stream/Stream.hpp"
-#include "oatpp/core/Types.hpp"
+#include "oatpp/data/stream/Stream.hpp"
+#include "oatpp/Types.hpp"
 
 namespace oatpp { namespace encoding {
 
@@ -82,7 +82,7 @@ public:
    * @param value - out parameter. Resultant value.
    * @return - 0 on success. Negative value on failure.
    */
-  static v_int32 readUInt16(p_char8 buffer, v_uint16& value);
+  static v_int32 readUInt16(const char* buffer, v_uint16& value);
 
   /**
    * Parse 8-char hex string to int32.
@@ -90,7 +90,7 @@ public:
    * @param value - out parameter. Resultant value.
    * @return - 0 on success. Negative value on failure.
    */
-  static v_int32 readUInt32(p_char8 buffer, v_uint32& value);
+  static v_int32 readUInt32(const char* buffer, v_uint32& value);
 
   /**
    * Write binary data as HEX string.
@@ -104,6 +104,14 @@ public:
                      const char* alphabet = ALPHABET_UPPER);
 
   /**
+   * Write binary data as HEX string.
+   * @param data
+   * @param alphabet
+   * @return
+   */
+  static oatpp::String encode(const oatpp::String& data, const char* alphabet = ALPHABET_UPPER);
+
+  /**
    * Read binary data from hex string.
    * @param stream
    * @param data
@@ -113,6 +121,14 @@ public:
    */
   static void decode(data::stream::ConsistentOutputStream* stream,
                      const void* data, v_buff_size size, bool allowSeparators = false);
+
+  /**
+   * Read binary data from hex string.
+   * @param data
+   * @param allowSeparators
+   * @return
+   */
+  static oatpp::String decode(const oatpp::String& data, bool allowSeparators = false);
   
 };
   

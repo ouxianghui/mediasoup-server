@@ -1,7 +1,7 @@
 /************************************************************************
 * @Copyright: 2023-2024
 * @FileName:
-* @Description: Leia-SFU
+* @Description: RTC-SFU
 * @Version: 1.0.0
 * @Author: Jackie Ou
 * @CreateTime: 2023-11-1

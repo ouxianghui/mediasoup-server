@@ -1,10 +1,19 @@
 # SFU
-基于mediasoup的SFU。
-1.重写了js层
+基于mediasoup的SFU: 
+
+1.用C++重写了js层
+
 2.支持单进程和多进程模式
+
 3.应用层使用oatpp
+
 4.支持最新的mediasoup，worker通讯采用flatbuffers
+
 5.支持linux部署脚本
+
+6.超简洁、超轻量
+
+7.易拓展、好维护
 
 # Build & Run
 

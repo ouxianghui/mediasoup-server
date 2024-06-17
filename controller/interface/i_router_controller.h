@@ -31,10 +31,10 @@ namespace srv {
          */
         TransportListenInfo listenInfo;
         
-        /**
-         * Listening IP address.
-         */
-        TransportListenIp listenIp;
+        ///**
+        // * Listening IP address.
+        // */
+        //TransportListenIp listenIp;
         
         /**
          * Fixed port to listen on instead of selecting automatically from Worker's port

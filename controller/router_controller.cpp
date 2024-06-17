@@ -412,10 +412,10 @@ namespace srv {
             return transportController;
         }
         
-//        const auto& listenIp = options->listenIp;
+        //const auto& listenIp = options->listenIp;
         auto listenInfo = options->listenInfo;
         auto rtcpListenInfo = options->rtcpListenInfo;
-        const uint16_t port = options->port;
+        //const uint16_t port = options->port;
         const bool rtcpMux = options->rtcpMux;
         const bool comedia = options->comedia;
         const bool enableSctp = options->enableSctp;
@@ -439,14 +439,14 @@ namespace srv {
             rtcpListenInfo.port = -1;
         }
         
-        // Convert deprecated TransportListenIps to TransportListenInfos.
-//        if (!listenIp.ip.empty()) {
-//            // Normalize IP string to TransportListenInfo object.
-//            listenInfo.protocol = "udp";
-//            listenInfo.ip = listenIp.ip;
-//            listenInfo.announcedAddress = listenIp.announcedIp;
-//            listenInfo.port = port;
-//        }
+        //// Convert deprecated TransportListenIps to TransportListenInfos.
+        //if (!listenIp.ip.empty()) {
+        //    // Normalize IP string to TransportListenInfo object.
+        //    listenInfo.protocol = "udp";
+        //    listenInfo.ip = listenIp.ip;
+        //    listenInfo.announcedAddress = listenIp.announcedIp;
+        //    listenInfo.port = port;
+        //}
         
         TransportInternal internal;
         internal.routerId = _internal.routerId;
@@ -654,8 +654,8 @@ namespace srv {
         }
         
         auto listenInfo = options->listenInfo;
-        const auto& listenIp = options->listenIp;
-        const uint16_t port = options->port;
+        //const auto& listenIp = options->listenIp;
+        //const uint16_t port = options->port;
         const bool enableSctp = options->enableSctp;
         const NumSctpStreams& numSctpStreams = options->numSctpStreams;
         const int32_t maxSctpMessageSize = options->maxSctpMessageSize;
@@ -664,23 +664,24 @@ namespace srv {
         const bool enableSrtp = options->enableSrtp;
         const nlohmann::json& appData = options->appData;
         
-        if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+        //if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+        if (listenInfo.ip.empty()) {
             SRV_LOGE("missing listenInfo and listenIp (one of them is mandatory)");
             return nullptr;
         }
-        else if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
-            SRV_LOGE("only one of listenInfo and listenIp must be given");
-            return nullptr;
-        }
+        //else if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
+        //    SRV_LOGE("only one of listenInfo and listenIp must be given");
+        //    return nullptr;
+        //}
         
-        // Convert deprecated TransportListenIps to TransportListenInfos.
-        if (!listenIp.ip.empty()) {
-            // Normalize IP string to TransportListenInfo object.
-            listenInfo.protocol = "udp";
-            listenInfo.ip = listenIp.ip;
-            listenInfo.announcedAddress = listenIp.announcedIp;
-            listenInfo.port = port;
-        }
+        //// Convert deprecated TransportListenIps to TransportListenInfos.
+        //if (!listenIp.ip.empty()) {
+        //    // Normalize IP string to TransportListenInfo object.
+        //    listenInfo.protocol = "udp";
+        //    listenInfo.ip = listenIp.ip;
+        //    listenInfo.announcedAddress = listenIp.announcedIp;
+        //    listenInfo.port = port;
+        //}
         
         TransportInternal internal;
         internal.routerId = _internal.routerId;
@@ -1032,7 +1033,7 @@ namespace srv {
         }
         
         auto listenInfo = options->listenInfo;
-        const auto& listenIp = options->listenIp;
+        //const auto& listenIp = options->listenIp;
         const auto port = options->port;
         const auto& producerId = options->producerId;
         const auto& dataProducerId = options->dataProducerId;
@@ -1042,12 +1043,14 @@ namespace srv {
         bool enableRtx = options->enableRtx;
         bool enableSrtp = options->enableSctp;
         
-        if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+        //if (listenInfo.ip.empty() && listenIp.ip.empty()) {
+        if (listenInfo.ip.empty()) {
             listenInfo.protocol = "udp";
             listenInfo.ip = "127.0.0.1";
         }
 
-        if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
+        //if (!listenInfo.ip.empty() && !listenIp.ip.empty()) {
+        if (listenInfo.ip.empty()) {
             SRV_LOGE("only one of listenInfo and listenIp must be given");
             return result;
         }
@@ -1069,13 +1072,13 @@ namespace srv {
             return result;
         }
         
-        // Convert deprecated TransportListenIps to TransportListenInfos.
-        if (!listenIp.ip.empty()) {
-            // Normalize IP string to TransportListenIp object.
-            listenInfo.protocol = "udp";
-            listenInfo.ip = listenIp.ip;
-            listenInfo.announcedAddress = listenIp.announcedIp;
-        }
+        //// Convert deprecated TransportListenIps to TransportListenInfos.
+        //if (!listenIp.ip.empty()) {
+        //    // Normalize IP string to TransportListenIp object.
+        //    listenInfo.protocol = "udp";
+        //    listenInfo.ip = listenIp.ip;
+        //    listenInfo.announcedAddress = listenIp.announcedIp;
+        //}
         
         std::shared_ptr<IProducerController> producerController;
         std::shared_ptr<IDataProducerController> dataProducerController;
@@ -1107,7 +1110,7 @@ namespace srv {
         else {
             auto ptOptions = std::make_shared<PipeTransportOptions>();
             ptOptions->listenInfo = listenInfo;
-            ptOptions->listenIp = listenIp;
+            //ptOptions->listenIp = listenIp;
             ptOptions->port = port;
             ptOptions->enableSctp = enableSctp;
             ptOptions->numSctpStreams = numSctpStreams;

@@ -40,22 +40,22 @@ namespace srv {
     void to_json(nlohmann::json& j, const TransportPortRange& st);
     void from_json(const nlohmann::json& j, TransportPortRange& st);
 
-    struct TransportListenIp
-    {
-        /**
-         * Listening IPv4 or IPv6.
-         */
-        std::string ip;
+    //struct TransportListenIp
+    //{
+    //    /**
+    //     * Listening IPv4 or IPv6.
+    //     */
+    //    std::string ip;
 
-        /**
-         * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
-         * private IP).
-         */
-        std::string announcedIp;
-    };
+    //    /**
+    //     * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
+    //     * private IP).
+    //     */
+    //    std::string announcedIp;
+    //};
 
-    void to_json(nlohmann::json& j, const TransportListenIp& st);
-    void from_json(const nlohmann::json& j, TransportListenIp& st);
+    //void to_json(nlohmann::json& j, const TransportListenIp& st);
+    //void from_json(const nlohmann::json& j, TransportListenIp& st);
 
     struct TransportSocketFlags
     {

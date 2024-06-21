@@ -1,21 +1,15 @@
 # SFU
-基于mediasoup的SFU: 
 
-1.用C++重写了js层
+Mediasoup based SFU:
 
-2.支持单进程和多进程模式
-
-3.应用层使用oatpp
-
-4.支持最新的mediasoup，应用层与worker通讯采用flatbuffers
-
-5.应用层与worker通讯支持pipe和直接回调
-
-6.支持linux部署脚本
-
-7.超简洁、超轻量
-
-8.易拓展、好维护
+1. Rewrote the JavaScript layer in C++
+2. Supports single process and multi process modes
+3. Use Oatpp at the application layer
+4. Support the latest mediasoup and use flatbuffers for communication between the application layer and workers
+5. Application layer and worker communication support pipe and direct callback
+6. Support Linux deployment scripts
+7. Simple and lightweight
+8. High scalability and maintainability
 
 # Build & Run
 

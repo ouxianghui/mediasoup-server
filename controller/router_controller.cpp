@@ -226,7 +226,7 @@ namespace srv {
         else if (webRtcServer && !listenInfos.empty())
         {
             SRV_LOGE("only one of webRtcServer, listenInfos must be given");
-            return transportController;
+            //return transportController;
         }
         
         TransportInternal internal;

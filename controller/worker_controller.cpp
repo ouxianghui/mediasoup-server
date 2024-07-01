@@ -436,7 +436,7 @@ namespace srv {
             auto info_ = FBS::Transport::CreateListenInfoDirect(builder,
                                                                 info.protocol == "udp" ? FBS::Transport::Protocol::UDP : FBS::Transport::Protocol::TCP,
                                                                 info.ip.c_str(),
-                                                                info.announcedIp.c_str(),
+                                                                !info.announcedAddress.empty() ? info.announcedAddress.c_str() : info.announcedIp.c_str(),
                                                                 info.port,
                                                                 portRange,
                                                                 socketFlags,
